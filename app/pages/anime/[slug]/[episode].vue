@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANIME_QUERY, EPISODE_QUERY } from '~/graphql/operations'
 import type { AnimeDetail, EpisodeData } from '~/utils/types'
 
 const route = useRoute()
@@ -7,7 +8,10 @@ const episodeParam = computed(() => String(route.params.episode || ''))
 
 const { data: anime } = await useAsyncData<AnimeDetail | null>(
   () => `anime-${slug.value}`,
-  () => $fetch(`/api/anime/${slug.value}`),
+  async () => {
+    const result = await graphqlQuery<{ anime: AnimeDetail | null }, { slug: string }>(ANIME_QUERY, { slug: slug.value })
+    return result.anime
+  },
   { watch: [slug] },
 )
 
@@ -24,7 +28,11 @@ const episodeSlug = computed(() => {
 
 const { data: episodeData, pending } = await useAsyncData<EpisodeData | null>(
   () => episodeSlug.value ? `episode-data-${episodeSlug.value}` : 'episode-data-none',
-  () => episodeSlug.value ? $fetch(`/api/episode/${episodeSlug.value}`) : Promise.resolve(null),
+  async () => {
+    if (!episodeSlug.value) return null
+    const result = await graphqlQuery<{ episode: EpisodeData | null }, { slug: string }>(EPISODE_QUERY, { slug: episodeSlug.value })
+    return result.episode
+  },
   { watch: [episodeSlug] },
 )
 

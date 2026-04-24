@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { GENRE_PAGE_QUERY } from '~/graphql/operations'
 import type { ContinueItem, GenreAnimeCard } from '~/utils/types'
 import { getContinueWatching } from '~/utils/watchHistory'
 
@@ -42,7 +43,11 @@ const progressMap = computed(() => {
 const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))
 
 async function loadPage(page: number) {
-  return $fetch<PageData>(`/api/genre/${props.genreSlug}`, { query: { page } })
+  const result = await graphqlQuery<{ genre: PageData }, { slug: string; page: number }>(
+    GENRE_PAGE_QUERY,
+    { slug: props.genreSlug, page },
+  )
+  return result.genre
 }
 
 async function loadMore() {

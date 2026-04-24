@@ -1,3 +1,4 @@
+import { JIKAN_ANIME_QUERY } from '~/graphql/operations'
 import type { JikanAnimeData } from '~/utils/types'
 import { getMalId, saveMalId } from '~/utils/jikanCache'
 
@@ -12,16 +13,18 @@ export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string>
   const load = async () => {
     loading.value = true
     const cachedMalId = getMalId(slugRef.value)
-    const result = await $fetch<JikanAnimeData | null>('/api/jikan', {
-      query: {
+    const result = await graphqlQuery<{ jikanAnime: JikanAnimeData | null }, { title: string; japaneseTitle?: string; cachedMalId?: number }>(
+      JIKAN_ANIME_QUERY,
+      {
         title: titleRef.value,
         japaneseTitle: japaneseRef.value,
         cachedMalId: cachedMalId ?? undefined,
       },
-    })
-    if (result) {
-      saveMalId(slugRef.value, result.malId)
-      data.value = result
+      'no-cache',
+    )
+    if (result.jikanAnime) {
+      saveMalId(slugRef.value, result.jikanAnime.malId)
+      data.value = result.jikanAnime
     }
     loading.value = false
   }

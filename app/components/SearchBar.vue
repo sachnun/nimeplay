@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SEARCH_QUERY } from '~/graphql/operations'
 import type { SearchResult } from '~/utils/types'
 
 const props = defineProps<{ open: boolean }>()
@@ -32,7 +33,8 @@ watch(query, (value) => {
     loading.value = true
     searched.value = true
     try {
-      results.value = await $fetch<SearchResult[]>('/api/search', { query: { q: value } })
+      const result = await graphqlQuery<{ search: SearchResult[] }, { query: string }>(SEARCH_QUERY, { query: value }, 'no-cache')
+      results.value = result.search
     } catch {
       results.value = []
     }

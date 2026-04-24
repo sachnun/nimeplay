@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANIME_QUERY } from '~/graphql/operations'
 import type { AnimeCard, ContinueItem, Genre } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 
@@ -33,7 +34,7 @@ async function fetchContinueWatching() {
   continueLoading.value = true
   const results = await Promise.all(items.map(async (p) => {
     try {
-      const detail = await $fetch<any>(`/api/anime/${p.animeSlug}`)
+      const { anime: detail } = await graphqlQuery<{ anime: any }, { slug: string }>(ANIME_QUERY, { slug: p.animeSlug })
       if (!detail) return null
       const latestEp = detail.episodes.length > 0
         ? detail.episodes[0].title.match(/episode\s*(\d+)/i)?.[1] ?? `${detail.episodes.length}`
@@ -93,9 +94,9 @@ onMounted(() => {
   </section>
   <section v-else>
     <AnimeInfiniteGrid
-      api-url="/api/ongoing"
+      page-type="ONGOING"
       :initial-data="ongoingData"
-      next-api-url="/api/completed"
+      next-page-type="COMPLETED"
       :next-initial-data="completedData"
       :next-show-day="false"
       :continue-items="continueItems"

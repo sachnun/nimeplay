@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANIME_PAGE_QUERY } from '~/graphql/operations'
 import type { AnimeCard, ContinueItem } from '~/utils/types'
 import { getContinueWatching } from '~/utils/watchHistory'
 
@@ -8,17 +9,17 @@ interface PageData {
 }
 
 const props = withDefaults(defineProps<{
-  apiUrl: string
+  pageType: 'ONGOING' | 'COMPLETED'
   initialData: PageData
   showDay?: boolean
-  nextApiUrl?: string
+  nextPageType?: 'ONGOING' | 'COMPLETED'
   nextInitialData?: PageData
   nextShowDay?: boolean
   continueItems?: ContinueItem[]
   continueCount?: number
 }>(), {
   showDay: true,
-  nextApiUrl: undefined,
+  nextPageType: undefined,
   nextInitialData: undefined,
   nextShowDay: false,
   continueItems: () => [],
@@ -35,7 +36,7 @@ const gridState = useState<{
   nextPages: PageData[]
   primarySize: number
   nextSize: number
-}>(`anime-grid:${props.apiUrl}:${props.nextApiUrl ?? ''}`, () => ({
+}>(`anime-grid:${props.pageType}:${props.nextPageType ?? ''}`, () => ({
   primaryPages: [props.initialData],
   nextPages: [],
   primarySize: 1,
@@ -62,7 +63,7 @@ const totalPages = computed(() => gridState.value.primaryPages[0]?.totalPages ??
 const primaryEnd = computed(() => gridState.value.primarySize >= totalPages.value)
 const nextAnime = computed(() => primaryEnd.value ? gridState.value.nextPages.flatMap((d) => d.anime) : [])
 const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?? 1)
-const nextEnd = computed(() => !props.nextApiUrl || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
+const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
 const progressMap = computed(() => {
@@ -83,8 +84,12 @@ const displayAnime = computed(() => {
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
 const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
 
-async function fetchPage(apiUrl: string, page: number): Promise<PageData> {
-  return $fetch<PageData>(apiUrl, { query: { page } })
+async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
+  const result = await graphqlQuery<{ animePage: PageData }, { type: 'ONGOING' | 'COMPLETED'; page: number }>(
+    ANIME_PAGE_QUERY,
+    { type, page },
+  )
+  return result.animePage
 }
 
 async function loadMore() {
@@ -93,12 +98,12 @@ async function loadMore() {
   try {
     if (!primaryEnd.value) {
       const nextPage = gridState.value.primarySize + 1
-      gridState.value.primaryPages.push(await fetchPage(props.apiUrl, nextPage))
+      gridState.value.primaryPages.push(await fetchPage(props.pageType, nextPage))
       gridState.value.primarySize = nextPage
-    } else if (props.nextApiUrl && !nextEnd.value) {
+    } else if (props.nextPageType && !nextEnd.value) {
       const nextPage = gridState.value.nextSize + 1
       if (nextPage === 1 && props.nextInitialData) gridState.value.nextPages.push(props.nextInitialData)
-      else gridState.value.nextPages.push(await fetchPage(props.nextApiUrl, nextPage))
+      else gridState.value.nextPages.push(await fetchPage(props.nextPageType, nextPage))
       gridState.value.nextSize = nextPage
     }
   } finally {

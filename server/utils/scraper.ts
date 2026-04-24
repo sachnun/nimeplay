@@ -2,7 +2,6 @@ import * as cheerio from 'cheerio'
 import { getSpoofHeaders } from './spoof'
 
 const BASE_URL = 'https://otakudesu.blog'
-const CORS_PROXY = 'https://cors.io/?url='
 
 export interface AnimeCard {
   title: string
@@ -102,23 +101,21 @@ function parseEpztipe(raw: string): { day: string; rating?: string } {
 }
 
 async function fetchHTML(url: string): Promise<string> {
-  const res = await fetch(CORS_PROXY + encodeURIComponent(url), {
+  const res = await fetch(url, {
     headers: getSpoofHeaders(BASE_URL + '/'),
   })
-  const data = await res.json()
-  return data.body
+  return res.text()
 }
 
 async function corsPost(url: string, body: string): Promise<Record<string, unknown>> {
   const headers = getSpoofHeaders(BASE_URL + '/', 'cors')
   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const res = await fetch(CORS_PROXY + encodeURIComponent(url), {
+  const res = await fetch(url, {
     method: 'POST',
     headers,
     body,
   })
-  const wrapper = await res.json()
-  return JSON.parse(wrapper.body)
+  return res.json()
 }
 
 export async function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {

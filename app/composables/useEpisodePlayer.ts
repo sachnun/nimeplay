@@ -13,13 +13,13 @@ import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/util
 import { getMalId, saveMalId } from '~/utils/jikanCache'
 import {
   buildFallbackOrder,
-  CorsPlaylistLoader,
   episodeNumFor,
   extractEpisodeNumber,
   findDefaultMirror,
   formatTime,
   getEpNum,
   isExtractable,
+  ProxyPlaylistLoader,
   type MirrorCandidate,
 } from '~/utils/player'
 
@@ -691,7 +691,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         hls = new Hls({
           maxBufferLength: 60,
           maxMaxBufferLength: 120,
-          ...(needsProxy ? { pLoader: CorsPlaylistLoader as any } : {}),
+          ...(needsProxy ? { pLoader: ProxyPlaylistLoader as any } : {}),
         })
         hls.loadSource(url)
         hls.attachMedia(video)

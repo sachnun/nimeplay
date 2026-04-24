@@ -498,6 +498,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const isDoubleTap = now - lastTap[zone] < 300
     const controlsWereVisible = showControls.value
     lastTap[zone] = now
+
+    if (!controlsWereVisible && !isDoubleTap) {
+      resetIdle()
+      return
+    }
+
     if (zone === 'center') {
       if (isDoubleTap) {
         if (tapTimers.center) clearTimeout(tapTimers.center)
@@ -506,8 +512,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       } else {
         tapTimers.center = setTimeout(() => {
           tapTimers.center = null
-          if (controlsWereVisible) toggleControlsVisibility()
-          else resetIdle()
+          toggleControlsVisibility()
         }, 300)
       }
       return
@@ -522,8 +527,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     } else {
       tapTimers[side] = setTimeout(() => {
         tapTimers[side] = null
-        if (controlsWereVisible) toggleControlsVisibility()
-        else resetIdle()
+        toggleControlsVisibility()
       }, 300)
     }
   }

@@ -661,7 +661,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     video.addEventListener('canplay', onCanPlay, { once: true })
 
     if (url.includes('.m3u8')) {
-      const Hls = (await import('hls.js')).default
+      const Hls = (await import('hls.js/light')).default
       if (Hls.isSupported()) {
         const needsProxy = url.includes('vidhide') || url.includes('odvidhide')
         hls = new Hls({

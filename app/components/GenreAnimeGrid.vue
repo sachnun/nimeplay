@@ -120,7 +120,7 @@ onMounted(() => {
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
-          <img :src="anime.thumbnail" :alt="anime.title" class="object-cover w-full h-full">
+          <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" loading="lazy" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
           <div v-if="anime.episodes && /\d/.test(anime.episodes)" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ anime.episodes }}
           </div>

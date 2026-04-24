@@ -162,7 +162,7 @@ function episodeBadge(episode: string) {
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
-          <img :src="item.thumbnail" :alt="item.title" class="object-cover w-full h-full">
+          <NuxtImg :src="item.thumbnail" :alt="item.title" width="300" height="400" format="webp" loading="lazy" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
           <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
           </div>
@@ -183,7 +183,7 @@ function episodeBadge(episode: string) {
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
-          <img :src="anime.thumbnail" :alt="anime.title" class="object-cover w-full h-full">
+          <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" loading="lazy" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
           <div v-if="episodeBadge(anime.episode)" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ episodeBadge(anime.episode) }}
           </div>

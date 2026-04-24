@@ -11,9 +11,15 @@ function handleRollupWarning(warning: any, warn: (warning: any) => void) {
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@nuxt/image'],
+  modules: ['@nuxt/image', '@nuxt/fonts'],
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],
+  fonts: {
+    families: [
+      { name: 'Geist', provider: 'fontsource', weights: ['100 900'], styles: ['normal'], subsets: ['cyrillic', 'latin-ext', 'latin'], global: true },
+      { name: 'Geist Mono', provider: 'fontsource', weights: ['100 900'], styles: ['normal'], subsets: ['cyrillic', 'latin-ext', 'latin'], global: true },
+    ],
+  },
   image: {
     domains: ['otakudesu.blog', 'otakudesu.cloud', 'cdn.myanimelist.net'],
   },
@@ -45,9 +51,6 @@ export default defineNuxtConfig({
           },
         },
       },
-    },
-    optimizeDeps: {
-      include: ['hls.js/light', '@apollo/client/core']
     },
     plugins: [tailwindcss()]
   }

@@ -146,10 +146,26 @@ const typeDefs = `#graphql
     episodeLength: Float!
   }
 
+  type SkipTimesLookupResult {
+    malId: Int
+    skipTimes: [SkipTime!]!
+  }
+
   type HomeData {
     ongoingData: AnimePage!
     completedData: AnimePage!
     genres: [Genre!]!
+  }
+
+  type EpisodePageData {
+    anime: AnimeDetail
+    episodeSlug: String
+    episode: EpisodeData
+  }
+
+  type AnimeDetailLookup {
+    slug: String!
+    anime: AnimeDetail
   }
 
   type MalIdResult {
@@ -169,6 +185,12 @@ const typeDefs = `#graphql
     iframeUrl: String!
   }
 
+  type PrepareMirrorResult {
+    iframeUrl: String
+    proxiedUrl: String
+    ok: Boolean!
+  }
+
   enum AnimePageType {
     ONGOING
     COMPLETED
@@ -177,7 +199,9 @@ const typeDefs = `#graphql
   type Query {
     home: HomeData!
     anime(slug: String!): AnimeDetail
+    animeDetails(slugs: [String!]!): [AnimeDetailLookup!]!
     episode(slug: String!): EpisodeData
+    episodePage(animeSlug: String!, episode: String!): EpisodePageData!
     animePage(type: AnimePageType!, page: Int = 1): AnimePage!
     genres: [Genre!]!
     genre(slug: String!, page: Int = 1): GenreAnimePage!
@@ -185,14 +209,20 @@ const typeDefs = `#graphql
     jikanAnime(title: String!, japaneseTitle: String, cachedMalId: Int): JikanAnimeData
     aniskipMalId(title: String!): MalIdResult!
     skipTimes(malId: Int!, episode: Int!, episodeLength: Float!): [SkipTime!]!
+    skipTimesLookup(title: String!, episode: Int!, episodeLength: Float!): SkipTimesLookupResult!
   }
 
   type Mutation {
     resolveMirror(dataContent: String!): ResolveMirrorResult!
     probeIframe(iframeUrl: String!): ProbeIframeResult!
     extractStream(iframeUrl: String!): ExtractStreamResult!
+    prepareMirror(dataContent: String!, extract: Boolean!): PrepareMirrorResult!
   }
 `
+
+function episodeNumberFromTitle(title: string, index: number) {
+  return title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
+}
 
 const resolvers = {
   Query: {
@@ -206,7 +236,32 @@ const resolvers = {
       return { ongoingData, completedData, genres }
     },
     anime: (_parent: unknown, args: { slug: string }) => scrapeAnimeDetail(args.slug),
+    animeDetails: async (_parent: unknown, args: { slugs: string[] }) => {
+      const seen = new Set<string>()
+      const slugs = args.slugs.map((slug) => slug.trim()).filter((slug) => slug && !seen.has(slug) && seen.add(slug))
+      return Promise.all(slugs.map(async (slug) => {
+        try {
+          return { slug, anime: await scrapeAnimeDetail(slug) }
+        } catch {
+          return { slug, anime: null }
+        }
+      }))
+    },
     episode: (_parent: unknown, args: { slug: string }) => scrapeEpisode(args.slug),
+    episodePage: async (_parent: unknown, args: { animeSlug: string; episode: string }) => {
+      const animeSlug = args.animeSlug.trim()
+      const episodeNumber = args.episode.trim()
+      if (!animeSlug || !episodeNumber) return { anime: null, episodeSlug: null, episode: null }
+
+      const anime = await scrapeAnimeDetail(animeSlug)
+      if (!anime) return { anime: null, episodeSlug: null, episode: null }
+
+      const reversed = [...anime.episodes].reverse()
+      const match = reversed.find((episode, index) => episodeNumberFromTitle(episode.title, index) === episodeNumber)
+      if (!match) return { anime, episodeSlug: null, episode: null }
+
+      return { anime, episodeSlug: match.slug, episode: await scrapeEpisode(match.slug) }
+    },
     animePage: (_parent: unknown, args: { type: 'ONGOING' | 'COMPLETED'; page?: number }) => {
       const page = args.page || 1
       return args.type === 'COMPLETED' ? scrapeCompleted(page) : scrapeOngoing(page)
@@ -230,6 +285,12 @@ const resolvers = {
       if (!args.malId || !args.episode || !args.episodeLength) return []
       return fetchSkipTimes(args.malId, args.episode, args.episodeLength)
     },
+    skipTimesLookup: async (_parent: unknown, args: { title: string; episode: number; episodeLength: number }) => {
+      const title = args.title.trim()
+      if (!title || !args.episode || !args.episodeLength) return { malId: null, skipTimes: [] }
+      const malId = await fetchMalId(title)
+      return { malId, skipTimes: malId ? await fetchSkipTimes(malId, args.episode, args.episodeLength) : [] }
+    },
   },
   Mutation: {
     resolveMirror: async (_parent: unknown, args: { dataContent: string }) => ({
@@ -239,6 +300,14 @@ const resolvers = {
       ok: await probeIframeUrl(args.iframeUrl),
     }),
     extractStream: (_parent: unknown, args: { iframeUrl: string }) => extractStreamUrl(args.iframeUrl),
+    prepareMirror: async (_parent: unknown, args: { dataContent: string; extract: boolean }) => {
+      const iframeUrl = await resolvemirror(args.dataContent)
+      if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
+      if (!args.extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
+
+      const extracted = await extractStreamUrl(iframeUrl)
+      return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
+    },
   },
 }
 

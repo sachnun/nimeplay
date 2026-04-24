@@ -138,12 +138,42 @@ export const ANIME_QUERY = gql`
   }
 `
 
+export const ANIME_DETAILS_QUERY = gql`
+  ${ANIME_DETAIL_FIELDS}
+
+  query AnimeDetails($slugs: [String!]!) {
+    animeDetails(slugs: $slugs) {
+      slug
+      anime {
+        ...AnimeDetailFields
+      }
+    }
+  }
+`
+
 export const EPISODE_QUERY = gql`
   ${EPISODE_FIELDS}
 
   query Episode($slug: String!) {
     episode(slug: $slug) {
       ...EpisodeFields
+    }
+  }
+`
+
+export const EPISODE_PAGE_QUERY = gql`
+  ${ANIME_DETAIL_FIELDS}
+  ${EPISODE_FIELDS}
+
+  query EpisodePage($animeSlug: String!, $episode: String!) {
+    episodePage(animeSlug: $animeSlug, episode: $episode) {
+      anime {
+        ...AnimeDetailFields
+      }
+      episodeSlug
+      episode {
+        ...EpisodeFields
+      }
     }
   }
 `
@@ -220,6 +250,19 @@ export const SKIP_TIMES_QUERY = gql`
   }
 `
 
+export const SKIP_TIMES_LOOKUP_QUERY = gql`
+  ${SKIP_TIME_FIELDS}
+
+  query SkipTimesLookup($title: String!, $episode: Int!, $episodeLength: Float!) {
+    skipTimesLookup(title: $title, episode: $episode, episodeLength: $episodeLength) {
+      malId
+      skipTimes {
+        ...SkipTimeFields
+      }
+    }
+  }
+`
+
 export const RESOLVE_MIRROR_MUTATION = gql`
   mutation ResolveMirror($dataContent: String!) {
     resolveMirror(dataContent: $dataContent) {
@@ -241,6 +284,16 @@ export const EXTRACT_STREAM_MUTATION = gql`
     extractStream(iframeUrl: $iframeUrl) {
       proxiedUrl
       iframeUrl
+    }
+  }
+`
+
+export const PREPARE_MIRROR_MUTATION = gql`
+  mutation PrepareMirror($dataContent: String!, $extract: Boolean!) {
+    prepareMirror(dataContent: $dataContent, extract: $extract) {
+      iframeUrl
+      proxiedUrl
+      ok
     }
   }
 `

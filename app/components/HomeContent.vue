@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ANIME_QUERY } from '~/graphql/operations'
-import type { AnimeCard, ContinueItem, Genre } from '~/utils/types'
+import { ANIME_DETAILS_QUERY } from '~/graphql/operations'
+import type { AnimeCard, AnimeDetail, ContinueItem, Genre } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 
 interface PageData {
   anime: AnimeCard[]
   totalPages: number
+}
+
+interface AnimeDetailLookup {
+  slug: string
+  anime: AnimeDetail | null
 }
 
 withDefaults(defineProps<{
@@ -32,9 +37,14 @@ async function fetchContinueWatching() {
   }
 
   continueLoading.value = true
-  const results = await Promise.all(items.map(async (p) => {
-    try {
-      const { anime: detail } = await graphqlQuery<{ anime: any }, { slug: string }>(ANIME_QUERY, { slug: p.animeSlug })
+  try {
+    const result = await graphqlQuery<{ animeDetails: AnimeDetailLookup[] }, { slugs: string[] }>(
+      ANIME_DETAILS_QUERY,
+      { slugs: items.map((item) => item.animeSlug) },
+    )
+    const details = new Map(result.animeDetails.map((item) => [item.slug, item.anime]))
+    const results = items.map((p) => {
+      const detail = details.get(p.animeSlug)
       if (!detail) return null
       const latestEp = detail.episodes.length > 0
         ? detail.episodes[0].title.match(/episode\s*(\d+)/i)?.[1] ?? `${detail.episodes.length}`
@@ -55,12 +65,13 @@ async function fetchContinueWatching() {
         } else return null
       }
       return { animeSlug: p.animeSlug, episodeNum, episodeSlug, currentTime, duration, title: detail.title, thumbnail: detail.thumbnail, latestEpisode: latestEp } satisfies ContinueItem
-    } catch {
-      return null
-    }
-  }))
-  continueItems.value = results.filter((result): result is ContinueItem => result !== null)
-  continueLoading.value = false
+    })
+    continueItems.value = results.filter((item): item is ContinueItem => item !== null)
+  } catch {
+    continueItems.value = []
+  } finally {
+    continueLoading.value = false
+  }
 }
 
 onMounted(() => {

@@ -1,12 +1,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from '#app'
 import {
-  ANISKIP_MAL_ID_QUERY,
   EPISODE_QUERY,
-  EXTRACT_STREAM_MUTATION,
-  PROBE_IFRAME_MUTATION,
-  RESOLVE_MIRROR_MUTATION,
+  PREPARE_MIRROR_MUTATION,
   SKIP_TIMES_QUERY,
+  SKIP_TIMES_LOOKUP_QUERY,
 } from '~/graphql/operations'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
@@ -263,31 +261,27 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (sessionId !== playbackSession) return false
     activeQuality.value = candidate.quality
     try {
-      const resolveResult = await graphqlMutation<{ resolveMirror: { iframeUrl: string | null } }, { dataContent: string }>(
-        RESOLVE_MIRROR_MUTATION,
-        { dataContent: candidate.dataContent },
+      const shouldExtract = isExtractable(candidate.name)
+      const prepareResult = await graphqlMutation<
+        { prepareMirror: { iframeUrl: string | null; proxiedUrl: string | null; ok: boolean } },
+        { dataContent: string; extract: boolean }
+      >(
+        PREPARE_MIRROR_MUTATION,
+        { dataContent: candidate.dataContent, extract: shouldExtract },
       )
-      const iframeUrl = resolveResult?.resolveMirror.iframeUrl
+      const prepared = prepareResult?.prepareMirror
+      const iframeUrl = prepared?.iframeUrl
       if (sessionId !== playbackSession || !iframeUrl) return false
       iframeSrc.value = iframeUrl
 
-      if (!isExtractable(candidate.name)) {
-        const probeResult = await graphqlMutation<{ probeIframe: { ok: boolean } }, { iframeUrl: string }>(
-          PROBE_IFRAME_MUTATION,
-          { iframeUrl },
-        )
-        const ok = probeResult?.probeIframe.ok ?? false
-        if (sessionId !== playbackSession || !ok) return false
+      if (!shouldExtract) {
+        if (sessionId !== playbackSession || !prepared.ok) return false
         directUrl.value = null
         useIframe.value = true
         return true
       }
 
-      const extractResult = await graphqlMutation<{ extractStream: { proxiedUrl: string | null; iframeUrl: string } }, { iframeUrl: string }>(
-        EXTRACT_STREAM_MUTATION,
-        { iframeUrl },
-      )
-      const proxiedUrl = extractResult?.extractStream.proxiedUrl
+      const proxiedUrl = prepared.proxiedUrl
       if (sessionId !== playbackSession) return false
       if (proxiedUrl) {
         useIframe.value = false
@@ -612,13 +606,18 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!epNum) return
     let malId = getMalId(episode.value.animeSlug || props.animeSlug)
     if (!malId) {
-      const res = await graphqlQuery<{ aniskipMalId: { malId: number | null } }, { title: string }>(
-        ANISKIP_MAL_ID_QUERY,
-        { title: episode.value.title },
+      const res = await graphqlQuery<
+        { skipTimesLookup: { malId: number | null; skipTimes: SkipTime[] } },
+        { title: string; episode: number; episodeLength: number }
+      >(
+        SKIP_TIMES_LOOKUP_QUERY,
+        { title: episode.value.title, episode: epNum, episodeLength: video.duration },
         'no-cache',
       )
-      malId = res.aniskipMalId.malId
+      malId = res.skipTimesLookup.malId
       if (malId) saveMalId(episode.value.animeSlug || props.animeSlug, malId)
+      skipTimes.value = res.skipTimesLookup.skipTimes
+      return
     }
     if (!malId) return
     const skips = await graphqlQuery<{ skipTimes: SkipTime[] }, { malId: number; episode: number; episodeLength: number }>(

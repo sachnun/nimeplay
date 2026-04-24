@@ -7,12 +7,13 @@ const slug = computed(() => String(route.params.slug || ''))
 const isEpisodeRoute = computed(() => Boolean(route.params.episode))
 
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
-  () => `anime-${slug.value}`,
+  () => `anime-detail-${slug.value}`,
   async () => {
+    if (isEpisodeRoute.value) return null
     const result = await graphqlQuery<{ anime: AnimeDetail | null }, { slug: string }>(ANIME_QUERY, { slug: slug.value })
     return result.anime
   },
-  { watch: [slug] },
+  { watch: [slug, isEpisodeRoute] },
 )
 
 watchEffect(() => {

@@ -1,40 +1,35 @@
 <script setup lang="ts">
-import { ANIME_QUERY, EPISODE_QUERY } from '~/graphql/operations'
+import { EPISODE_PAGE_QUERY } from '~/graphql/operations'
 import type { AnimeDetail, EpisodeData } from '~/utils/types'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 const episodeParam = computed(() => String(route.params.episode || ''))
 
-const { data: anime } = await useAsyncData<AnimeDetail | null>(
-  () => `anime-${slug.value}`,
+interface EpisodePageData {
+  anime: AnimeDetail | null
+  episodeSlug: string | null
+  episode: EpisodeData | null
+}
+
+const { data: pageData, pending } = await useAsyncData<EpisodePageData>(
+  () => `episode-page-${slug.value}-${episodeParam.value}`,
   async () => {
-    const result = await graphqlQuery<{ anime: AnimeDetail | null }, { slug: string }>(ANIME_QUERY, { slug: slug.value })
-    return result.anime
+    const result = await graphqlQuery<{ episodePage: EpisodePageData }, { animeSlug: string; episode: string }>(
+      EPISODE_PAGE_QUERY,
+      { animeSlug: slug.value, episode: episodeParam.value },
+    )
+    return result.episodePage
   },
-  { watch: [slug] },
+  {
+    watch: [slug, episodeParam],
+    default: () => ({ anime: null, episodeSlug: null, episode: null }),
+  },
 )
 
-const episodeSlug = computed(() => {
-  if (!anime.value?.episodes || !episodeParam.value) return null
-  const reversed = [...anime.value.episodes].reverse()
-  for (let i = 0; i < reversed.length; i++) {
-    const match = reversed[i].title.match(/episode\s*(\d+)/i)
-    const num = match ? match[1] : `${i + 1}`
-    if (num === episodeParam.value) return reversed[i].slug
-  }
-  return null
-})
-
-const { data: episodeData, pending } = await useAsyncData<EpisodeData | null>(
-  () => episodeSlug.value ? `episode-data-${episodeSlug.value}` : 'episode-data-none',
-  async () => {
-    if (!episodeSlug.value) return null
-    const result = await graphqlQuery<{ episode: EpisodeData | null }, { slug: string }>(EPISODE_QUERY, { slug: episodeSlug.value })
-    return result.episode
-  },
-  { watch: [episodeSlug] },
-)
+const anime = computed(() => pageData.value.anime)
+const episodeSlug = computed(() => pageData.value.episodeSlug)
+const episodeData = computed(() => pageData.value.episode)
 
 watchEffect(() => {
   if (episodeData.value?.title) useHead({ title: episodeData.value.title })

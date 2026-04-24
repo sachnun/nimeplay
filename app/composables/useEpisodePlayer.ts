@@ -416,13 +416,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     episode.value = data
     currentSlug.value = slug
     currentEpisodeNum.value = epNum
-    window.history.replaceState(null, '', `/anime/${props.animeSlug}/${epNum}`)
+    window.history.replaceState(null, '', `/${props.animeSlug}/${epNum}`)
     document.title = data.title
   }
 
   function navigateEpisode(slug: string, epNum: string) {
     if (isFullscreen.value) loadEpisodeInPlace(slug, epNum, !!videoRef.value && !videoRef.value.paused)
-    else router.push(`/anime/${props.animeSlug}/${epNum}`)
+    else router.push(`/${props.animeSlug}/${epNum}`)
   }
 
   function cancelAutoNext() {
@@ -435,7 +435,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     cancelAutoNext()
     if (!nextEpisode.value) return
     if (isFullscreen.value) void loadEpisodeInPlace(nextEpisode.value.slug, nextEpisode.value.num, true)
-    else router.push(`/anime/${props.animeSlug}/${nextEpisode.value.num}`)
+    else router.push(`/${props.animeSlug}/${nextEpisode.value.num}`)
   }
 
   function togglePlay() {

@@ -45,7 +45,7 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
   return {
     anime,
     progress,
-    to: progress ? `/anime/${anime.slug}/${progress.episodeNum}` : `/anime/${anime.slug}`,
+    to: progress ? `/${anime.slug}/${progress.episodeNum}` : `/${anime.slug}`,
   }
 }))
 const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))

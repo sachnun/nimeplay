@@ -29,7 +29,7 @@ function episodeNumber(ep: { title: string }, index: number) {
       <NuxtLink
         v-for="(ep, i) in [...episodes].reverse()"
         :key="ep.slug"
-        :to="`/anime/${animeSlug}/${episodeNumber(ep, i)}`"
+        :to="`/${animeSlug}/${episodeNumber(ep, i)}`"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
         :class="getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/45 opacity-60' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >

@@ -76,7 +76,7 @@ const {
     <iframe v-if="showIframe && !showEmbedAlert" :src="iframeSrc || undefined" class="absolute inset-0 w-full h-full" allowfullscreen allow="fullscreen" />
     <PlayerEmbedPrompt
       v-if="showIframe && showEmbedAlert"
-      :back-to="episode.animeSlug ? `/anime/${episode.animeSlug}` : `/anime/${animeSlug}`"
+      :back-to="episode.animeSlug ? `/${episode.animeSlug}` : `/${animeSlug}`"
       @continue="showEmbedAlert = false"
     />
 

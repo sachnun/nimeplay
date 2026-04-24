@@ -23,7 +23,7 @@ defineEmits<{
     :class="controlsVisible || showIframe ? 'opacity-100' : 'opacity-0'"
   >
     <div class="flex items-center gap-3" :class="controlsVisible || showIframe ? 'pointer-events-auto' : 'pointer-events-none'">
-      <NuxtLink :to="episode.animeSlug ? `/anime/${episode.animeSlug}` : '/'" class="group/back flex items-center gap-3 min-w-0">
+      <NuxtLink :to="episode.animeSlug ? `/${episode.animeSlug}` : '/'" class="group/back flex items-center gap-3 min-w-0">
         <div class="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-white/15 group-hover/back:bg-white/25 transition-colors">
           <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />

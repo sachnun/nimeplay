@@ -88,7 +88,7 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
     isFromNext,
     progress,
     badge: episodeBadge(anime.episode),
-    to: progress ? `/anime/${anime.slug}/${progress.episodeNum}` : `/anime/${anime.slug}`,
+    to: progress ? `/${anime.slug}/${progress.episodeNum}` : `/${anime.slug}`,
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
@@ -163,7 +163,7 @@ function episodeBadge(episode: string) {
       <NuxtLink
         v-for="item in continueItems"
         :key="`continue-${item.animeSlug}`"
-        :to="`/anime/${item.animeSlug}/${item.episodeNum}`"
+        :to="`/${item.animeSlug}/${item.episodeNum}`"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">

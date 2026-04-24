@@ -14,9 +14,6 @@ interface HomeData {
 
 useHead({ title: 'Nimeplay' })
 
-const route = useRoute()
-const { selectedGenre, setSelectedGenre } = useGenre()
-
 const { data, pending } = await useAsyncData<HomeData>('home', () => $fetch('/api/home'), {
   default: () => ({
     ongoingData: { anime: [], totalPages: 1 },
@@ -24,13 +21,6 @@ const { data, pending } = await useAsyncData<HomeData>('home', () => $fetch('/ap
     genres: [],
   }),
 })
-
-watch([() => route.query.genre, () => data.value.genres], ([genre]) => {
-  const slug = typeof genre === 'string' ? genre : ''
-  if (!slug) return
-  const found = data.value.genres.find((g) => g.slug === slug)
-  if (found && selectedGenre.value?.slug !== found.slug) setSelectedGenre(found)
-}, { immediate: true })
 </script>
 
 <template>

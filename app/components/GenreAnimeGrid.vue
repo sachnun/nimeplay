@@ -117,7 +117,6 @@ onMounted(() => {
         v-for="(anime, i) in allAnime"
         :key="`${anime.slug}-${i}`"
         :to="progressMap.get(anime.slug) ? `/anime/${anime.slug}/${progressMap.get(anime.slug)?.episodeNum}` : `/anime/${anime.slug}`"
-        target="_blank"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">

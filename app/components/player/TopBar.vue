@@ -36,7 +36,7 @@ defineEmits<{
       <div class="flex-1" />
       <button
         v-if="episode.episodeNav.length > 1"
-        class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
+        class="mobile-portrait-control hidden items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
         :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'"
         @click="$emit('toggleEpisodes')"
       >
@@ -44,7 +44,7 @@ defineEmits<{
       </button>
       <button
         v-if="qualityCount > 1"
-        class="text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer"
+        class="mobile-portrait-control hidden text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer"
         @click="$emit('toggleQuality')"
       >
         {{ activeQualityLabel }}

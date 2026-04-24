@@ -99,3 +99,9 @@ a {
     display: none;
   }
 }
+
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .player-shell .mobile-portrait-control {
+    display: flex;
+  }
+}

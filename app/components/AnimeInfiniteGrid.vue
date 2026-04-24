@@ -151,7 +151,6 @@ function episodeBadge(episode: string) {
         v-for="item in continueItems"
         :key="`continue-${item.animeSlug}`"
         :to="`/anime/${item.animeSlug}/${item.episodeNum}`"
-        target="_blank"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
@@ -173,7 +172,6 @@ function episodeBadge(episode: string) {
         v-for="({ anime, isFromNext }, i) in displayAnime"
         :key="`${anime.slug}-${i}`"
         :to="progressMap.get(anime.slug) ? `/anime/${anime.slug}/${progressMap.get(anime.slug)?.episodeNum}` : `/anime/${anime.slug}`"
-        target="_blank"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">

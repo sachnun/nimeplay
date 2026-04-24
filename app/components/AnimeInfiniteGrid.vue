@@ -161,7 +161,7 @@ function episodeBadge(episode: string) {
       </div>
 
       <NuxtLink
-        v-for="item in continueItems"
+        v-for="(item, i) in continueItems"
         :key="`continue-${item.animeSlug}`"
         :to="`/${item.animeSlug}/${item.episodeNum}`"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"

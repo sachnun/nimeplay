@@ -24,12 +24,15 @@ withDefaults(defineProps<{
 
 const searchOpen = ref(false)
 const { selectedGenre, setSelectedGenre } = useGenre()
+const initialContinueItems = import.meta.client ? getContinueWatching().slice(0, 3) : []
 const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
-const continueCount = ref(0)
+const continueCount = ref(initialContinueItems.length)
 
 async function fetchContinueWatching() {
-  const items = getContinueWatching().slice(0, 3)
+  const items = initialContinueItems.length > 0 && continueItems.value.length === 0
+    ? initialContinueItems
+    : getContinueWatching().slice(0, 3)
   continueCount.value = items.length
   if (items.length === 0) {
     continueItems.value = []

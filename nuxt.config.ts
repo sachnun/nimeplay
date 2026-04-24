@@ -10,7 +10,7 @@ function handleRollupWarning(warning: any, warn: (warning: any) => void) {
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV === 'development' },
   modules: ['@nuxt/image', '@nuxt/fonts'],
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],

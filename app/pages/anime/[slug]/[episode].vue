@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { EPISODE_PAGE_QUERY } from '~/graphql/operations'
-import type { AnimeDetail, EpisodeData } from '~/utils/types'
+import type { EpisodeData } from '~/utils/types'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 const episodeParam = computed(() => String(route.params.episode || ''))
 
 interface EpisodePageData {
-  anime: AnimeDetail | null
+  anime: { thumbnail: string } | null
   episodeSlug: string | null
   episode: EpisodeData | null
 }

@@ -1,3 +1,5 @@
+import { cached } from './cache'
+
 export interface JikanCharacter {
   name: string
   imageUrl: string
@@ -20,6 +22,7 @@ export interface JikanAnimeData {
 }
 
 const JIKAN_BASE = 'https://api.jikan.moe/v4'
+const JIKAN_TTL = 12 * 60 * 60 * 1000
 
 async function jikanFetch<T>(path: string): Promise<T | null> {
   try {
@@ -97,7 +100,7 @@ async function getCharacters(malId: number): Promise<JikanCharacter[]> {
   return [...main, ...supporting.slice(0, 10)]
 }
 
-export async function fetchJikanData(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
+async function fetchJikanDataFresh(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
   try {
     let malId = cachedMalId ?? null
     if (!malId) malId = await searchAnime(title, japaneseTitle)
@@ -108,4 +111,9 @@ export async function fetchJikanData(title: string, japaneseTitle?: string, cach
   } catch {
     return null
   }
+}
+
+export function fetchJikanData(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
+  const key = cachedMalId ? `jikan:${cachedMalId}` : `jikan:${japaneseTitle || ''}:${title}`.toLowerCase()
+  return cached(key, JIKAN_TTL, () => fetchJikanDataFresh(title, japaneseTitle, cachedMalId))
 }

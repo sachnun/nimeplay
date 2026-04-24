@@ -1,7 +1,14 @@
 import * as cheerio from 'cheerio'
+import { cached } from './cache'
 import { getSpoofHeaders } from './spoof'
 
 const BASE_URL = 'https://otakudesu.blog'
+const LIST_TTL = 3 * 60 * 1000
+const DETAIL_TTL = 30 * 60 * 1000
+const EPISODE_TTL = 30 * 60 * 1000
+const GENRE_LIST_TTL = 12 * 60 * 60 * 1000
+const SEARCH_TTL = 2 * 60 * 1000
+const MIRROR_TTL = 10 * 60 * 1000
 
 export interface AnimeCard {
   title: string
@@ -118,7 +125,7 @@ async function corsPost(url: string, body: string): Promise<Record<string, unkno
   return res.json()
 }
 
-export async function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/ongoing-anime/page/${page}/` : `${BASE_URL}/ongoing-anime/`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
@@ -142,7 +149,11 @@ export async function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; tot
   return { anime, totalPages: Number.parseInt(lastPage) || 1 }
 }
 
-export async function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+export function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+  return cached(`scrape:ongoing:${page}`, LIST_TTL, () => scrapeOngoingFresh(page))
+}
+
+async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/complete-anime/page/${page}/` : `${BASE_URL}/complete-anime/`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
@@ -166,7 +177,11 @@ export async function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; t
   return { anime, totalPages: Number.parseInt(lastPage) || 1 }
 }
 
-export async function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {
+export function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+  return cached(`scrape:completed:${page}`, LIST_TTL, () => scrapeCompletedFresh(page))
+}
+
+async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
   const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
   const $ = cheerio.load(html)
   const h1Title = cleanTitle($('.jdlrx h1').text().trim())
@@ -218,7 +233,11 @@ export async function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | nul
   }
 }
 
-export async function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
+export function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {
+  return cached(`scrape:anime:${slug}`, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug))
+}
+
+async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const html = await fetchHTML(`${BASE_URL}/episode/${slug}/`)
   const $ = cheerio.load(html)
   const title = $('.posttl').text().trim()
@@ -267,7 +286,11 @@ export async function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
   }
 }
 
-export async function resolvemirror(dataContent: string): Promise<string | null> {
+export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
+  return cached(`scrape:episode:${slug}`, EPISODE_TTL, () => scrapeEpisodeFresh(slug))
+}
+
+async function resolvemirrorFresh(dataContent: string): Promise<string | null> {
   try {
     const nonceData = await corsPost(`${BASE_URL}/wp-admin/admin-ajax.php`, 'action=aa1208d27f29ca340c92c66d1926f13f')
     const nonce = nonceData.data as string
@@ -288,7 +311,11 @@ export async function resolvemirror(dataContent: string): Promise<string | null>
   }
 }
 
-export async function scrapeSearch(query: string): Promise<SearchResult[]> {
+export function resolvemirror(dataContent: string): Promise<string | null> {
+  return cached(`mirror:${dataContent}`, MIRROR_TTL, () => resolvemirrorFresh(dataContent))
+}
+
+async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
   const html = await fetchHTML(`${BASE_URL}/?s=${encodeURIComponent(query)}&post_type=anime`)
   const $ = cheerio.load(html)
   const results: SearchResult[] = []
@@ -309,7 +336,11 @@ export async function scrapeSearch(query: string): Promise<SearchResult[]> {
   return results
 }
 
-export async function scrapeGenreList(): Promise<Genre[]> {
+export function scrapeSearch(query: string): Promise<SearchResult[]> {
+  return cached(`scrape:search:${query.toLowerCase()}`, SEARCH_TTL, () => scrapeSearchFresh(query))
+}
+
+async function scrapeGenreListFresh(): Promise<Genre[]> {
   const html = await fetchHTML(`${BASE_URL}/genre-list/`)
   const $ = cheerio.load(html)
   const genres: Genre[] = []
@@ -331,7 +362,11 @@ export async function scrapeGenreList(): Promise<Genre[]> {
   return genres
 }
 
-export async function scrapeGenre(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
+export function scrapeGenreList(): Promise<Genre[]> {
+  return cached('scrape:genre-list', GENRE_LIST_TTL, scrapeGenreListFresh)
+}
+
+async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/genres/${slug}/page/${page}/` : `${BASE_URL}/genres/${slug}/`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
@@ -353,4 +388,8 @@ export async function scrapeGenre(slug: string, page = 1): Promise<{ anime: Genr
 
   const lastPage = $('.pagenavix a.page-numbers').not('.next').last().text().trim()
   return { anime, totalPages: Number.parseInt(lastPage) || 1 }
+}
+
+export function scrapeGenre(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
+  return cached(`scrape:genre:${slug}:${page}`, LIST_TTL, () => scrapeGenreFresh(slug, page))
 }

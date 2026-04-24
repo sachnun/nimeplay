@@ -94,22 +94,15 @@ onMounted(() => {
     resizeObserver.observe(gridRef.value)
   }
 
-  let ticking = false
-  const check = () => {
-    if (loading.value || isEnd.value || !sentinelRef.value) return
-    const rect = sentinelRef.value.getBoundingClientRect()
-    if (rect.top < window.innerHeight + 800) void loadMore()
-  }
-  const onScroll = () => {
-    if (!ticking) requestAnimationFrame(() => { check(); ticking = false })
-    ticking = true
-  }
-  window.addEventListener('scroll', onScroll, { passive: true })
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+  }, { rootMargin: '800px 0px' })
+  if (sentinelRef.value) observer.observe(sentinelRef.value)
 
   onBeforeUnmount(() => {
     window.removeEventListener('storage', syncProgress)
     document.removeEventListener('visibilitychange', onVisibility)
-    window.removeEventListener('scroll', onScroll)
+    observer.disconnect()
     resizeObserver?.disconnect()
   })
 })

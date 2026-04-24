@@ -1,6 +1,7 @@
 import { ApolloServer } from '@apollo/server'
 import { startServerAndCreateH3Handler } from '@as-integrations/h3'
 import { fetchMalId, fetchSkipTimes } from '../utils/aniskip'
+import { cached } from '../utils/cache'
 import { extractStreamUrl, probeIframeUrl } from '../utils/extractors'
 import { fetchJikanData } from '../utils/jikan'
 import {
@@ -158,9 +159,13 @@ const typeDefs = `#graphql
   }
 
   type EpisodePageData {
-    anime: AnimeDetail
+    anime: EpisodePageAnime
     episodeSlug: String
     episode: EpisodeData
+  }
+
+  type EpisodePageAnime {
+    thumbnail: String!
   }
 
   type AnimeDetailLookup {
@@ -220,6 +225,8 @@ const typeDefs = `#graphql
   }
 `
 
+const MIRROR_PREPARE_TTL = 10 * 60 * 1000
+
 function episodeNumberFromTitle(title: string, index: number) {
   return title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
 }
@@ -258,9 +265,10 @@ const resolvers = {
 
       const reversed = [...anime.episodes].reverse()
       const match = reversed.find((episode, index) => episodeNumberFromTitle(episode.title, index) === episodeNumber)
-      if (!match) return { anime, episodeSlug: null, episode: null }
+      const pageAnime = { thumbnail: anime.thumbnail }
+      if (!match) return { anime: pageAnime, episodeSlug: null, episode: null }
 
-      return { anime, episodeSlug: match.slug, episode: await scrapeEpisode(match.slug) }
+      return { anime: pageAnime, episodeSlug: match.slug, episode: await scrapeEpisode(match.slug) }
     },
     animePage: (_parent: unknown, args: { type: 'ONGOING' | 'COMPLETED'; page?: number }) => {
       const page = args.page || 1
@@ -300,14 +308,18 @@ const resolvers = {
       ok: await probeIframeUrl(args.iframeUrl),
     }),
     extractStream: (_parent: unknown, args: { iframeUrl: string }) => extractStreamUrl(args.iframeUrl),
-    prepareMirror: async (_parent: unknown, args: { dataContent: string; extract: boolean }) => {
+    prepareMirror: (_parent: unknown, args: { dataContent: string; extract: boolean }) => cached(
+      `prepare-mirror:${args.extract ? 'extract' : 'probe'}:${args.dataContent}`,
+      MIRROR_PREPARE_TTL,
+      async () => {
       const iframeUrl = await resolvemirror(args.dataContent)
       if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
       if (!args.extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
 
       const extracted = await extractStreamUrl(iframeUrl)
       return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
-    },
+      },
+    ),
   },
 }
 

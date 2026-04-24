@@ -162,13 +162,12 @@ export const EPISODE_QUERY = gql`
 `
 
 export const EPISODE_PAGE_QUERY = gql`
-  ${ANIME_DETAIL_FIELDS}
   ${EPISODE_FIELDS}
 
   query EpisodePage($animeSlug: String!, $episode: String!) {
     episodePage(animeSlug: $animeSlug, episode: $episode) {
       anime {
-        ...AnimeDetailFields
+        thumbnail
       }
       episodeSlug
       episode {

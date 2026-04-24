@@ -11,11 +11,13 @@ interface YTPlayer {
 
 const ready = ref(false)
 const ended = ref(false)
+const enabled = ref(false)
 const containerRef = ref<HTMLDivElement | null>(null)
 let player: YTPlayer | null = null
 let poll: ReturnType<typeof setInterval> | null = null
+let enableTimer: ReturnType<typeof setTimeout> | null = null
 
-const videoId = computed(() => props.trailerEmbedUrl?.match(/\/embed\/([^?/]+)/)?.[1] ?? null)
+const videoId = computed(() => enabled.value ? props.trailerEmbedUrl?.match(/\/embed\/([^?/]+)/)?.[1] ?? null : null)
 
 function clearPlayer() {
   if (poll) clearInterval(poll)
@@ -27,6 +29,12 @@ function clearPlayer() {
 }
 
 onMounted(() => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const isSmallScreen = window.matchMedia('(max-width: 767px)').matches
+  if (!prefersReducedMotion && !isSmallScreen) {
+    enableTimer = setTimeout(() => { enabled.value = true }, 1200)
+  }
+
   watch(videoId, (id, _, onCleanup) => {
     clearPlayer()
     if (!id || !containerRef.value) return
@@ -104,6 +112,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(clearPlayer)
+onBeforeUnmount(() => {
+  if (enableTimer) clearTimeout(enableTimer)
+})
 </script>
 
 <template>

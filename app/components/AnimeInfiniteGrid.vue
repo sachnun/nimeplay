@@ -30,10 +30,17 @@ interface ProgressEntry { animeSlug: string; episodeNum: string; episodeSlug: st
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
 const cols = ref(2)
-const primaryPages = ref<PageData[]>([props.initialData])
-const nextPages = ref<PageData[]>([])
-const primarySize = ref(1)
-const nextSize = ref(0)
+const gridState = useState<{
+  primaryPages: PageData[]
+  nextPages: PageData[]
+  primarySize: number
+  nextSize: number
+}>(`anime-grid:${props.apiUrl}:${props.nextApiUrl ?? ''}`, () => ({
+  primaryPages: [props.initialData],
+  nextPages: [],
+  primarySize: 1,
+  nextSize: 0,
+}))
 const loading = ref(false)
 const allProgress = ref<ProgressEntry[]>([])
 
@@ -43,18 +50,19 @@ onMounted(() => {
 })
 
 watch(() => props.initialData, (data) => {
-  primaryPages.value = [data]
-  primarySize.value = 1
-  nextPages.value = []
-  nextSize.value = 0
+  if (gridState.value.primaryPages[0]?.anime.length) return
+  gridState.value.primaryPages = [data]
+  gridState.value.primarySize = 1
+  gridState.value.nextPages = []
+  gridState.value.nextSize = 0
 })
 
-const primaryAnime = computed(() => primaryPages.value.flatMap((d) => d.anime))
-const totalPages = computed(() => primaryPages.value[0]?.totalPages ?? 1)
-const primaryEnd = computed(() => primarySize.value >= totalPages.value)
-const nextAnime = computed(() => primaryEnd.value ? nextPages.value.flatMap((d) => d.anime) : [])
-const nextTotalPages = computed(() => nextPages.value[0]?.totalPages ?? 1)
-const nextEnd = computed(() => !props.nextApiUrl || (primaryEnd.value && nextSize.value >= nextTotalPages.value))
+const primaryAnime = computed(() => gridState.value.primaryPages.flatMap((d) => d.anime))
+const totalPages = computed(() => gridState.value.primaryPages[0]?.totalPages ?? 1)
+const primaryEnd = computed(() => gridState.value.primarySize >= totalPages.value)
+const nextAnime = computed(() => primaryEnd.value ? gridState.value.nextPages.flatMap((d) => d.anime) : [])
+const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?? 1)
+const nextEnd = computed(() => !props.nextApiUrl || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
 const progressMap = computed(() => {
@@ -84,14 +92,14 @@ async function loadMore() {
   loading.value = true
   try {
     if (!primaryEnd.value) {
-      const nextPage = primarySize.value + 1
-      primaryPages.value.push(await fetchPage(props.apiUrl, nextPage))
-      primarySize.value = nextPage
+      const nextPage = gridState.value.primarySize + 1
+      gridState.value.primaryPages.push(await fetchPage(props.apiUrl, nextPage))
+      gridState.value.primarySize = nextPage
     } else if (props.nextApiUrl && !nextEnd.value) {
-      const nextPage = nextSize.value + 1
-      if (nextPage === 1 && props.nextInitialData) nextPages.value.push(props.nextInitialData)
-      else nextPages.value.push(await fetchPage(props.nextApiUrl, nextPage))
-      nextSize.value = nextPage
+      const nextPage = gridState.value.nextSize + 1
+      if (nextPage === 1 && props.nextInitialData) gridState.value.nextPages.push(props.nextInitialData)
+      else gridState.value.nextPages.push(await fetchPage(props.nextApiUrl, nextPage))
+      gridState.value.nextSize = nextPage
     }
   } finally {
     loading.value = false

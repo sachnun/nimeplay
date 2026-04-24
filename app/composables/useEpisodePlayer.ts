@@ -33,6 +33,8 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
   if (timer) clearTimeout(timer)
 }
 
+const CONTROLS_IDLE_MS = 3000
+
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
 
@@ -233,7 +235,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         showControls.value = false
         showEpisodes.value = false
       }
-    }, 3000)
+    }, CONTROLS_IDLE_MS)
   }
 
   function toggleEpisodesPanel() {
@@ -494,6 +496,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function handleZoneTap(zone: 'left' | 'center' | 'right') {
     const now = Date.now()
     const isDoubleTap = now - lastTap[zone] < 300
+    const controlsWereVisible = showControls.value
     lastTap[zone] = now
     if (zone === 'center') {
       if (isDoubleTap) {
@@ -501,7 +504,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         tapTimers.center = null
         void toggleFullscreen()
       } else {
-        tapTimers.center = setTimeout(() => { tapTimers.center = null; toggleControlsVisibility() }, 300)
+        tapTimers.center = setTimeout(() => {
+          tapTimers.center = null
+          if (controlsWereVisible) toggleControlsVisibility()
+          else resetIdle()
+        }, 300)
       }
       return
     }
@@ -513,7 +520,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       seekRelative(delta)
       showSeekFeedback(side, Math.abs(delta))
     } else {
-      tapTimers[side] = setTimeout(() => { tapTimers[side] = null; toggleControlsVisibility() }, 300)
+      tapTimers[side] = setTimeout(() => {
+        tapTimers[side] = null
+        if (controlsWereVisible) toggleControlsVisibility()
+        else resetIdle()
+      }, 300)
     }
   }
 
@@ -828,7 +839,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         case 'F': event.preventDefault(); void toggleFullscreen(); break
       }
     }
-    const onMove = () => resetIdle()
+    const onPointerActivity = () => resetIdle()
     const onLeave = () => {
       if (seeking) return
       if (videoRef.value && !videoRef.value.paused) {
@@ -838,7 +849,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('keydown', onKey)
-    containerRef.value?.addEventListener('mousemove', onMove)
+    containerRef.value?.addEventListener('mousemove', onPointerActivity)
     containerRef.value?.addEventListener('mouseleave', onLeave)
 
     if ('mediaSession' in navigator) {
@@ -867,7 +878,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       clearAnyTimer(seekIndicatorTimer)
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       window.removeEventListener('keydown', onKey)
-      containerRef.value?.removeEventListener('mousemove', onMove)
+      containerRef.value?.removeEventListener('mousemove', onPointerActivity)
       containerRef.value?.removeEventListener('mouseleave', onLeave)
       if ('mediaSession' in navigator) navigator.mediaSession.metadata = null
     })

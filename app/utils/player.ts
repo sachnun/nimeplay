@@ -24,7 +24,6 @@ const EXTRACTABLE = [
 ]
 
 const QUALITY_ORDER = ['1080p', '720p', '480p', '360p']
-const CORS_PROXY = 'https://cors.io/?url='
 
 export class CorsPlaylistLoader {
   private controller: AbortController | null = null
@@ -39,22 +38,22 @@ export class CorsPlaylistLoader {
   load(context: { url: string }, _config: unknown, callbacks: { onSuccess: (...args: unknown[]) => void; onError: (...args: unknown[]) => void }) {
     this.controller = new AbortController()
     const start = performance.now()
-    fetch(CORS_PROXY + encodeURIComponent(context.url), { signal: this.controller.signal })
-      .then((res) => res.json())
-      .then((json: { body?: string }) => {
+    fetch(`/api/player/playlist?url=${encodeURIComponent(context.url)}`, { signal: this.controller.signal })
+      .then((res) => res.text())
+      .then((body) => {
         const end = performance.now()
         const stats = {
           aborted: false,
-          loaded: json.body?.length ?? 0,
+          loaded: body.length,
           retry: 0,
-          total: json.body?.length ?? 0,
+          total: body.length,
           chunkCount: 1,
           bwEstimate: 0,
           loading: { start, first: end, end },
           parsing: { start: end, end },
           buffering: { start: end, first: end, end },
         }
-        callbacks.onSuccess({ url: context.url, data: json.body }, stats, context, null)
+        callbacks.onSuccess({ url: context.url, data: body }, stats, context, null)
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return

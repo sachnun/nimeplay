@@ -4,27 +4,24 @@ import { isDesuStreamHd, extractDesuStream } from './desustream'
 import { isDesuDrive, extractDesuDrive } from './desudrive'
 import { isFiledon, extractFiledon } from './filedon'
 
-export const CORS_PROXY = 'https://cors.io/?url='
-
 async function fetchIframeHTML(iframeUrl: string): Promise<string> {
-  const res = await fetch(CORS_PROXY + encodeURIComponent(iframeUrl), {
+  const res = await fetch(iframeUrl, {
     headers: getSpoofHeaders(iframeUrl, 'iframe'),
   })
-  const data = await res.json()
-  return data.body
+  return await res.text()
 }
 
 export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 5000)
   try {
-    const res = await fetch(CORS_PROXY + encodeURIComponent(iframeUrl), {
+    const res = await fetch(iframeUrl, {
       headers: getSpoofHeaders(iframeUrl, 'iframe'),
       signal: controller.signal,
     })
     clearTimeout(timer)
-    const data = await res.json()
-    return !!data.body && data.body.length > 100
+    const html = await res.text()
+    return html.length > 100
   } catch {
     clearTimeout(timer)
     return false

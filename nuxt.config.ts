@@ -15,7 +15,7 @@ export default defineNuxtConfig({
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],
   image: {
-    domains: ['otakudesu.blog', 'otakudesu.cloud'],
+    domains: ['otakudesu.blog', 'otakudesu.cloud', 'cdn.myanimelist.net'],
   },
   app: {
     head: {

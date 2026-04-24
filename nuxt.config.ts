@@ -47,7 +47,7 @@ export default defineNuxtConfig({
       },
     },
     optimizeDeps: {
-      include: ['hls.js/light']
+      include: ['hls.js/light', '@apollo/client/core']
     },
     plugins: [tailwindcss()]
   }

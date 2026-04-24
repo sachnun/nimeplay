@@ -11,6 +11,7 @@ const loading = ref(false)
 const searched = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | null = null
+let searchToken = 0
 
 watch(() => props.open, (open) => {
   if (!import.meta.client) return
@@ -24,8 +25,10 @@ watch(() => props.open, (open) => {
 
 watch(query, (value) => {
   if (debounce) clearTimeout(debounce)
+  const token = ++searchToken
   debounce = setTimeout(async () => {
-    if (!value.trim()) {
+    const trimmed = value.trim()
+    if (!trimmed) {
       results.value = []
       searched.value = false
       return
@@ -33,12 +36,14 @@ watch(query, (value) => {
     loading.value = true
     searched.value = true
     try {
-      const result = await graphqlQuery<{ search: SearchResult[] }, { query: string }>(SEARCH_QUERY, { query: value }, 'no-cache')
+      const result = await graphqlQuery<{ search: SearchResult[] }, { query: string }>(SEARCH_QUERY, { query: trimmed })
+      if (token !== searchToken) return
       results.value = result.search
     } catch {
+      if (token !== searchToken) return
       results.value = []
     }
-    loading.value = false
+    if (token === searchToken) loading.value = false
   }, value.trim() ? 500 : 0)
 })
 

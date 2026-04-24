@@ -81,6 +81,16 @@ const displayAnime = computed(() => {
   if (continueSlugs.value.size === 0) return marked
   return marked.filter(({ anime }) => !continueSlugs.value.has(anime.slug))
 })
+const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext }) => {
+  const progress = progressMap.value.get(anime.slug)
+  return {
+    anime,
+    isFromNext,
+    progress,
+    badge: episodeBadge(anime.episode),
+    to: progress ? `/anime/${anime.slug}/${progress.episodeNum}` : `/anime/${anime.slug}`,
+  }
+}))
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
 const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
 
@@ -157,7 +167,7 @@ function episodeBadge(episode: string) {
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
-          <NuxtImg :src="item.thumbnail" :alt="item.title" width="300" height="400" format="webp" loading="lazy" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
+          <NuxtImg :src="item.thumbnail" :alt="item.title" width="300" height="400" format="webp" :loading="i < 4 ? 'eager' : 'lazy'" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
           <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
           </div>
@@ -172,25 +182,25 @@ function episodeBadge(episode: string) {
       </NuxtLink>
 
       <NuxtLink
-        v-for="({ anime, isFromNext }, i) in displayAnime"
+        v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
         :key="`${anime.slug}-${i}`"
-        :to="progressMap.get(anime.slug) ? `/anime/${anime.slug}/${progressMap.get(anime.slug)?.episodeNum}` : `/anime/${anime.slug}`"
+        :to="to"
         class="anime-card block rounded-lg overflow-hidden bg-card relative"
       >
         <div class="relative aspect-[3/4]">
-          <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" loading="lazy" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
-          <div v-if="episodeBadge(anime.episode)" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
-            {{ episodeBadge(anime.episode) }}
+          <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" :loading="continueItems.length + i < 6 ? 'eager' : 'lazy'" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
+          <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
+            {{ badge }}
           </div>
-          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progressMap.get(anime.slug) ? 'pb-5 !pt-12' : ''">
+          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
-            <p v-if="progressMap.get(anime.slug)" class="text-xs text-zinc-400 mt-1">Lanjutkan EP {{ progressMap.get(anime.slug)?.episodeNum }}</p>
+            <p v-if="progress" class="text-xs text-zinc-400 mt-1">Lanjutkan EP {{ progress.episodeNum }}</p>
             <p v-else-if="anime.day || anime.date" class="text-xs text-zinc-400 mt-1">
               {{ anime.day && (isFromNext ? nextShowDay : showDay) ? `${anime.day} · ${anime.date}` : anime.date }}
             </p>
           </div>
-          <div v-if="progressMap.get(anime.slug) && progressMap.get(anime.slug)!.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden">
-            <div class="h-full bg-white rounded-full" :style="{ width: `${(progressMap.get(anime.slug)!.currentTime / progressMap.get(anime.slug)!.duration) * 100}%` }" />
+          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden">
+            <div class="h-full bg-white rounded-full" :style="{ width: `${(progress.currentTime / progress.duration) * 100}%` }" />
           </div>
         </div>
       </NuxtLink>

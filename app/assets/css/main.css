@@ -94,14 +94,12 @@ a {
   }
 }
 
-@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
-  .player-shell:fullscreen .player-bottom-controls {
-    display: none;
-  }
-}
-
-@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+@media (hover: none) and (pointer: coarse) {
   .player-shell .mobile-portrait-control {
     display: flex;
+  }
+
+  .player-shell .player-bottom-controls > div {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }

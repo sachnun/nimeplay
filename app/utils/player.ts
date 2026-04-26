@@ -76,7 +76,7 @@ export class ProxyPlaylistLoader {
   }
 }
 
-function sourcePriority(name: string): number {
+export function sourcePriority(name: string): number {
   const n = name.toLowerCase().trim()
   if (n.includes('vidhide')) return 0
   if (n.includes('ondesuhd') || n.includes('desudesuhd') || n.includes('otakustream') || n.includes('moedesuhd')) return 1

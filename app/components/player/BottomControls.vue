@@ -77,8 +77,8 @@ defineEmits<{
           {{ activeQualityLabel }}
         </button>
         <button v-if="skipTimes.length > 0" class="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded transition-colors cursor-pointer" :class="autoSkip ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleAutoSkip')">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
           <span class="hidden md:inline">Auto Skip</span>
-          <span class="md:hidden">Skip</span>
         </button>
         <div class="relative hidden md:flex items-center" @mouseenter="$emit('showVolume')" @mouseleave="$emit('hideVolume')">
           <button class="w-9 h-9 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" @click="$emit('toggleMute')">

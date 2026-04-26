@@ -18,6 +18,7 @@ import {
   getEpNum,
   isExtractable,
   ProxyPlaylistLoader,
+  sourcePriority,
   type MirrorCandidate,
 } from '~/utils/player'
 
@@ -34,6 +35,7 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
 }
 
 const CONTROLS_IDLE_MS = 3000
+const MOBILE_CONTROLS_IDLE_MS = 5000
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
@@ -53,6 +55,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const isPlaying = ref(false)
   const autoNextCountdown = ref<number | null>(null)
   const showControls = ref(true)
+  const isTouchDevice = ref(false)
   const showEpisodes = ref(false)
   const showEmbedAlert = ref(true)
   const currentTime = ref(0)
@@ -95,6 +98,17 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const lastTap = { left: 0, center: 0, right: 0 }
   const tapTimers: Record<'left' | 'center' | 'right', ReturnType<typeof setTimeout> | null> = { left: null, center: null, right: null }
 
+  function clearTapTimer(zone: 'left' | 'center' | 'right') {
+    if (tapTimers[zone]) clearTimeout(tapTimers[zone])
+    tapTimers[zone] = null
+  }
+
+  function clearTapTimers() {
+    clearTapTimer('left')
+    clearTapTimer('center')
+    clearTapTimer('right')
+  }
+
   const nextEpisode = computed(() => {
     const ascending = [...episode.value.episodeNav].reverse()
     const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
@@ -123,13 +137,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
     })
     return sorted.slice(0, 2).map((mirror) => {
-      const bestSource = [...mirror.sources].sort((a, b) => {
-        const an = a.name.toLowerCase()
-        const bn = b.name.toLowerCase()
-        const ap = an.includes('vidhide') ? 0 : an.includes('desudrive') ? 2 : 1
-        const bp = bn.includes('vidhide') ? 0 : bn.includes('desudrive') ? 2 : 1
-        return ap - bp
-      })[0]
+      const bestSource = [...mirror.sources].sort((a, b) => sourcePriority(a.name) - sourcePriority(b.name))[0]
       const label = ['720p', '1080p'].includes(mirror.quality) ? 'HD' : 'SD'
       return bestSource ? { quality: mirror.quality, label, dataContent: bestSource.dataContent, name: bestSource.name } : null
     }).filter((item): item is { quality: string; label: string; dataContent: string; name: string } => item !== null)
@@ -143,6 +151,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const controlsVisible = computed(() => showControls.value || !isPlaying.value)
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
   const bufferedPct = computed(() => duration.value > 0 ? (buffered.value / duration.value) * 100 : 0)
+
+  function controlsIdleMs() {
+    if (!import.meta.client) return CONTROLS_IDLE_MS
+    return isTouchDevice.value ? MOBILE_CONTROLS_IDLE_MS : CONTROLS_IDLE_MS
+  }
 
   function destroyHls() {
     if (hls) {
@@ -182,6 +195,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     showEmbedAlert.value = true
     if (longPressTimer) clearTimeout(longPressTimer)
     longPressTimer = null
+    clearTapTimers()
     longPressActive = false
     wasLongPress.value = false
     speedBoost.value = false
@@ -231,11 +245,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(() => {
       if (seeking) return
+      if (showEpisodes.value) return
       if (videoRef.value && !videoRef.value.paused) {
         showControls.value = false
         showEpisodes.value = false
       }
-    }, CONTROLS_IDLE_MS)
+    }, controlsIdleMs())
   }
 
   function toggleEpisodesPanel() {
@@ -496,18 +511,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function handleZoneTap(zone: 'left' | 'center' | 'right') {
     const now = Date.now()
     const isDoubleTap = now - lastTap[zone] < 300
-    const controlsWereVisible = showControls.value
     lastTap[zone] = now
-
-    if (!controlsWereVisible && !isDoubleTap) {
-      resetIdle()
-      return
-    }
 
     if (zone === 'center') {
       if (isDoubleTap) {
-        if (tapTimers.center) clearTimeout(tapTimers.center)
-        tapTimers.center = null
+        clearTapTimer('center')
         void toggleFullscreen()
       } else {
         tapTimers.center = setTimeout(() => {
@@ -519,8 +527,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     const side = zone
     if (isDoubleTap) {
-      if (tapTimers[side]) clearTimeout(tapTimers[side])
-      tapTimers[side] = null
+      clearTapTimer(side)
       const delta = side === 'left' ? -10 : 10
       seekRelative(delta)
       showSeekFeedback(side, Math.abs(delta))
@@ -530,6 +537,20 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         toggleControlsVisibility()
       }, 300)
     }
+  }
+
+  function handleZonePointerUp(zone: 'left' | 'center' | 'right', event: PointerEvent) {
+    if (event.pointerType === 'touch') return
+    if (event.button !== 0) return
+    event.preventDefault()
+    if (zone === 'right' && wasLongPress.value) return
+    handleZoneTap(zone)
+  }
+
+  function handleZoneTouchEnd(zone: 'left' | 'center' | 'right', event: TouchEvent) {
+    event.preventDefault()
+    if (zone === 'right' && wasLongPress.value) return
+    handleZoneTap(zone)
   }
 
   function handleSpeedHoldStart() {
@@ -741,6 +762,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   onMounted(() => {
+    isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
     autoSkip.value = localStorage.getItem('nimeplay:autoskip') === '1'
     const video = videoRef.value
     if (video) {
@@ -820,6 +842,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
     const onFullscreenChange = () => {
       isFullscreen.value = !!document.fullscreenElement
+      if (isFullscreen.value) resetIdle()
       if (!isFullscreen.value) {
         cancelAutoNext()
         try { (screen.orientation as unknown as { unlock: () => void }).unlock() } catch {}
@@ -880,6 +903,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       clearAnyTimer(idleTimer)
       clearAnyTimer(volumeTimer)
       clearAnyTimer(seekIndicatorTimer)
+      clearTapTimers()
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       window.removeEventListener('keydown', onKey)
       containerRef.value?.removeEventListener('mousemove', onPointerActivity)
@@ -906,6 +930,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     getEpisodeStatus,
     goNextNow,
     handleSpeedHoldStart,
+    handleZonePointerUp,
+    handleZoneTouchEnd,
     handleZoneTap,
     hideVolumeControl,
     iframeSrc,

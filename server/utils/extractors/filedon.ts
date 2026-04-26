@@ -7,7 +7,9 @@ export async function extractFiledon(_iframeUrl: string, html: string): Promise<
   if (!match) return null
 
   try {
-    const decoded = match[1]
+    const raw = match[1]
+    if (!raw) return null
+    const decoded = raw
       .replace(/&quot;/g, '"')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')

@@ -123,7 +123,7 @@ onMounted(() => {
         v-for="({ anime, progress, to }, i) in animeCards"
         :key="`${anime.slug}-${i}`"
         :to="to"
-        class="anime-card block rounded-lg overflow-hidden bg-card relative"
+        class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
       >
         <div class="relative aspect-[3/4]">
           <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" :loading="i < 6 ? 'eager' : 'lazy'" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />

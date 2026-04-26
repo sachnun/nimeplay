@@ -32,11 +32,14 @@ function calculate() {
   const children = Array.from(el.children) as HTMLElement[]
   const moreEl = el.querySelector<HTMLElement>('[data-more-slot]')
   if (children.length < 2) return
-  const firstTop = children[0].offsetTop
+  const first = children[0]
+  if (!first) return
+  const firstTop = first.offsetTop
   let count = 0
   const limit = moreEl ? children.length - 1 : children.length
   for (let i = 1; i < limit; i++) {
-    if (children[i].offsetTop > firstTop) break
+    const child = children[i]
+    if (!child || child.offsetTop > firstTop) break
     count++
   }
   if (count < props.genres.length) {
@@ -46,7 +49,9 @@ function calculate() {
       const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
       let k = count
       while (k >= 1) {
-        const rightEdge = children[k].offsetLeft + children[k].offsetWidth
+        const child = children[k]
+        if (!child) break
+        const rightEdge = child.offsetLeft + child.offsetWidth
         if (rightEdge + gap + moreWidth <= containerWidth) break
         k--
       }

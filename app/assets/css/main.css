@@ -37,16 +37,6 @@ a {
   text-decoration: none;
 }
 
-.anime-card {
-  outline: none;
-}
-
-.anime-card:hover,
-.anime-card:focus {
-  border-color: var(--accent);
-  z-index: 10;
-}
-
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -91,15 +81,5 @@ a {
   to {
     transform: translateY(0);
     opacity: 1;
-  }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .player-shell .mobile-portrait-control {
-    display: flex;
-  }
-
-  .player-shell .player-bottom-controls > div {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }

@@ -3,13 +3,15 @@ function unpackJS(packed: string): string | null {
   if (!match) return null
 
   const [, pRaw, aStr, cStr, kStr] = match
+  if (!pRaw || !aStr || !cStr || !kStr) return null
   let p = pRaw
   const a = Number.parseInt(aStr)
   let c = Number.parseInt(cStr)
   const k = kStr.split('|')
 
   while (c--) {
-    if (k[c]) p = p.replace(new RegExp('\\b' + c.toString(a) + '\\b', 'g'), k[c])
+    const replacement = k[c]
+    if (replacement) p = p.replace(new RegExp('\\b' + c.toString(a) + '\\b', 'g'), replacement)
   }
   return p
 }
@@ -22,6 +24,7 @@ function extractHls(html: string): { hls4: string | null; hls2: string | null } 
   if (!linksMatch) return { hls4: null, hls2: null }
 
   const body = linksMatch[1]
+  if (!body) return { hls4: null, hls2: null }
   return {
     hls4: body.match(/"hls4"\s*:\s*"([^"]+)"/)?.[1] ?? null,
     hls2: body.match(/"hls2"\s*:\s*"([^"]+)"/)?.[1] ?? null,

@@ -30,7 +30,9 @@ const SEC_CH_UA_SETS: { ua: string; mobile: string; platform: string }[] = [
 ]
 
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+  const item = arr[Math.floor(Math.random() * arr.length)]
+  if (item === undefined) throw new Error('Cannot pick from an empty array')
+  return item
 }
 
 function isChromium(ua: string): boolean {

@@ -49,8 +49,9 @@ async function fetchContinueWatching() {
     const results = items.map((p) => {
       const detail = details.get(p.animeSlug)
       if (!detail) return null
+      const newestEpisode = detail.episodes[0]
       const latestEp = detail.episodes.length > 0
-        ? detail.episodes[0].title.match(/episode\s*(\d+)/i)?.[1] ?? `${detail.episodes.length}`
+        ? newestEpisode?.title.match(/episode\s*(\d+)/i)?.[1] ?? `${detail.episodes.length}`
         : p.episodeNum
       let episodeNum = p.episodeNum
       let episodeSlug = p.episodeSlug
@@ -61,6 +62,7 @@ async function fetchContinueWatching() {
         const currentIdx = ascending.findIndex((ep) => ep.slug === p.episodeSlug)
         if (currentIdx !== -1 && currentIdx + 1 < ascending.length) {
           const nextEp = ascending[currentIdx + 1]
+          if (!nextEp) return null
           episodeNum = nextEp.title.match(/episode\s*(\d+)/i)?.[1] ?? `${currentIdx + 2}`
           episodeSlug = nextEp.slug
           currentTime = 0

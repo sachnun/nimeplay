@@ -114,7 +114,7 @@ export function buildFallbackOrder(mirrors: EpisodeData['mirrors'], startQuality
 
 export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {
   const order = buildFallbackOrder(episode.mirrors, '720p')
-  return order.length > 0 ? order[0] : null
+  return order[0] ?? null
 }
 
 export function formatTime(s: number): string {
@@ -131,12 +131,12 @@ export function getEpNum(nav: { title: string; slug: string }[], slug: string): 
   const ascending = [...nav].reverse()
   const idx = ascending.findIndex((ep) => ep.slug === slug)
   if (idx === -1) return '1'
-  return ascending[idx].title.match(/episode\s*(\d+)/i)?.[1] ?? `${idx + 1}`
+  return ascending[idx]?.title.match(/episode\s*(\d+)/i)?.[1] ?? `${idx + 1}`
 }
 
 export function extractEpisodeNumber(slug: string): number | null {
   const match = slug.match(/episode-(\d+)/i)
-  return match ? Number.parseInt(match[1]) : null
+  return match?.[1] ? Number.parseInt(match[1]) : null
 }
 
 export function episodeNumFor(ep: { title: string }, index: number) {

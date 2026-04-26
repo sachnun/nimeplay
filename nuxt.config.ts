@@ -28,7 +28,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'id', class: 'h-full antialiased' },
       bodyAttrs: { class: 'min-h-full' },
       title: 'Nimeplay',
-      titleTemplate: (title) => title && title !== 'Nimeplay' ? `${title} - Nimeplay` : 'Nimeplay',
+      titleTemplate: '%s - Nimeplay',
       meta: [
         { name: 'description', content: 'Minimal anime streaming' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }

@@ -7,7 +7,9 @@ export async function extractDesuDrive(_iframeUrl: string, html: string): Promis
   if (!match) return null
 
   try {
-    const data = JSON.parse(match[1])
+    const raw = match[1]
+    if (!raw) return null
+    const data = JSON.parse(raw)
     return data.file || null
   } catch {
     return null

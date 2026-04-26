@@ -41,8 +41,8 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="player-bottom-controls absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'">
-    <div class="px-4 md:px-8 pb-4 pt-20" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
+  <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'">
+    <div class="px-4 md:px-8 pb-4 [@media_(hover:none)_and_(pointer:coarse)]:pb-[max(1rem,env(safe-area-inset-bottom))] pt-20" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
       <div class="group/prog relative w-full cursor-pointer mb-2 py-2 -my-1" @mousedown="$emit('progressDown', $event)" @touchstart="$emit('progressDown', $event)">
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full bg-white/20 transition-all" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" />
         <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white/30 transition-all" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${bufferedPct}%` }" />

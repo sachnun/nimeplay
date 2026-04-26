@@ -257,7 +257,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     const classMatch = className.match(/m(\d+p)/)
     const qualityText = $ul.find('span').first().text().trim()
     const textMatch = qualityText.match(/(\d+p)/)
-    const quality = classMatch ? classMatch[1] : textMatch ? textMatch[1] : qualityText
+    const quality = classMatch?.[1] ?? textMatch?.[1] ?? qualityText
     const sources: { name: string; dataContent: string }[] = []
 
     $ul.find('a[data-content]').each((_, a) => {

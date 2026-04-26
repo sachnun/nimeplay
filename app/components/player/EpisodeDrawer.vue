@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ComponentPublicInstance } from 'vue'
 import type { EpisodeData } from '~/utils/types'
 import { episodeNumFor } from '~/utils/player'
 import { getEpisodeStatus } from '~/utils/watchHistory'
@@ -10,8 +11,8 @@ const props = defineProps<{
 
 const currentEpRef = ref<HTMLButtonElement | null>(null)
 
-function setCurrentEpRef(el: Element | null, slug: string) {
-  if (slug === props.currentSlug) currentEpRef.value = el as HTMLButtonElement | null
+function setCurrentEpRef(el: Element | ComponentPublicInstance | null, slug: string) {
+  if (slug === props.currentSlug && el instanceof HTMLButtonElement) currentEpRef.value = el
 }
 
 onMounted(() => {

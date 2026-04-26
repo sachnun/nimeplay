@@ -42,7 +42,7 @@ export async function extractStreamUrl(iframeUrl: string): Promise<{ proxiedUrl:
     if (vidhideUrl) return { proxiedUrl: vidhideUrl, iframeUrl }
 
     const mp4Match = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)
-    if (mp4Match) return { proxiedUrl: mp4Match[1], iframeUrl }
+    if (mp4Match?.[1]) return { proxiedUrl: mp4Match[1], iframeUrl }
 
     const driveUrl = await extractDesuDrive(iframeUrl, html)
     if (driveUrl) return { proxiedUrl: driveUrl, iframeUrl }

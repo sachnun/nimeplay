@@ -114,6 +114,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
     if (idx !== -1 && idx + 1 < ascending.length) {
       const next = ascending[idx + 1]
+      if (!next) return null
       return { slug: next.slug, num: getEpNum(episode.value.episodeNav, next.slug) }
     }
     return null
@@ -124,6 +125,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
     if (idx > 0) {
       const prev = ascending[idx - 1]
+      if (!prev) return null
       return { slug: prev.slug, num: getEpNum(episode.value.episodeNav, prev.slug) }
     }
     return null
@@ -340,6 +342,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
           while (fallbackIdx < candidates.length) {
             if (sessionId !== playbackSession) return
             const next = candidates[fallbackIdx++]
+            if (!next) break
             resolving.value = true
             loadingMessage.value = 'Mencoba sumber video lain...'
             useIframe.value = false
@@ -369,7 +372,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!resolved) {
       while (fallbackIdx < candidates.length) {
         loadingMessage.value = 'Mencoba sumber video lain...'
-        resolved = await tryMirror(candidates[fallbackIdx++], sessionId)
+        const next = candidates[fallbackIdx++]
+        if (!next) break
+        resolved = await tryMirror(next, sessionId)
         if (sessionId !== playbackSession) return
         if (resolved) break
       }
@@ -395,6 +400,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function toggleQuality() {
     if (qualityOptions.value.length < 2) return
     const next = qualityOptions.value.find((o) => o.quality !== activeQuality.value) ?? qualityOptions.value[0]
+    if (!next) return
     switchQuality(next)
   }
 
@@ -599,16 +605,22 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     isSeeking.value = true
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = null
-    const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
+    const touch = 'touches' in event ? event.touches[0] : null
+    const clientX = touch ? touch.clientX : 'clientX' in event ? event.clientX : null
+    if (clientX === null) return
     const time = getSeekTime(clientX, bar)
     if (time !== null) currentTime.value = time
     const onMove = (ev: MouseEvent | TouchEvent) => {
-      const cx = 'touches' in ev ? ev.touches[0].clientX : ev.clientX
+      const moveTouch = 'touches' in ev ? ev.touches[0] : null
+      const cx = moveTouch ? moveTouch.clientX : 'clientX' in ev ? ev.clientX : null
+      if (cx === null) return
       const t = getSeekTime(cx, bar)
       if (t !== null) currentTime.value = t
     }
     const onUp = (ev: MouseEvent | TouchEvent) => {
-      const cx = 'changedTouches' in ev ? ev.changedTouches[0].clientX : ev.clientX
+      const changedTouch = 'changedTouches' in ev ? ev.changedTouches[0] : null
+      const cx = changedTouch ? changedTouch.clientX : 'clientX' in ev ? ev.clientX : null
+      if (cx === null) return
       const t = getSeekTime(cx, bar)
       if (t !== null) seekTo(t)
       seeking = false

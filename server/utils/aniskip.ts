@@ -41,7 +41,7 @@ export async function fetchMalId(animeTitle: string): Promise<number | null> {
 
 export function extractEpisodeNumber(slug: string): number | null {
   const match = slug.match(/episode-(\d+)/i)
-  return match ? Number.parseInt(match[1]) : null
+  return match?.[1] ? Number.parseInt(match[1]) : null
 }
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {

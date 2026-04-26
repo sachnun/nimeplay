@@ -31,11 +31,9 @@ function episodeNumber(ep: { title: string }, index: number) {
         :key="ep.slug"
         :to="`/${animeSlug}/${episodeNumber(ep, i)}`"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
-        :class="getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/45 opacity-60' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
+        :class="getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >
         {{ episodeNumber(ep, i) }}
-        <span v-if="getEpisodeStatus(ep.slug) === 'completed'" class="absolute -top-1 -right-1 text-[9px] text-white/70">&#10003;</span>
-        <span v-else-if="getEpisodeStatus(ep.slug) === 'in_progress'" class="absolute -top-1 -right-1 text-[9px] text-white/70" aria-label="Episode sedang dilanjutkan">&#9681;</span>
       </NuxtLink>
     </div>
   </div>

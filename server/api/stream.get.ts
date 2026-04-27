@@ -1,4 +1,5 @@
 import { getSpoofHeaders } from '../utils/spoof'
+import { timeoutSignal } from '../utils/fetch'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -19,6 +20,7 @@ export default defineEventHandler(async (event) => {
 
   const res = await fetch(target, {
     headers: getSpoofHeaders(`${target.origin}/`, 'iframe'),
+    signal: timeoutSignal(8000),
   })
 
   if (!res.ok) {

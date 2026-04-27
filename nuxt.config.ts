@@ -13,11 +13,14 @@ export default defineNuxtConfig({
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   modules: ['@nuxt/fonts'],
   sourcemap: { server: false, client: false },
+  routeRules: {
+    '/': { swr: 180 },
+  },
   css: ['~/assets/css/main.css'],
   fonts: {
     families: [
-      { name: 'Geist', provider: 'fontsource', weights: ['100 900'], styles: ['normal'], subsets: ['cyrillic', 'latin-ext', 'latin'], global: true },
-      { name: 'Geist Mono', provider: 'fontsource', weights: ['100 900'], styles: ['normal'], subsets: ['cyrillic', 'latin-ext', 'latin'], global: true },
+      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true },
+      { name: 'Geist Mono', provider: 'fontsource', weights: ['400'], styles: ['normal'], subsets: ['latin'], global: true },
     ],
   },
   app: {

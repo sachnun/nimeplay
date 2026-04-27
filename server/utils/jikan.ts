@@ -1,4 +1,4 @@
-import { cached } from './cache'
+import { timeoutSignal } from './fetch'
 
 export interface JikanCharacter {
   name: string
@@ -23,10 +23,11 @@ export interface JikanAnimeData {
 
 const JIKAN_BASE = 'https://api.jikan.moe/v4'
 const JIKAN_TTL = 12 * 60 * 60 * 1000
+const JIKAN_TIMEOUT_MS = 8000
 
 async function jikanFetch<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${JIKAN_BASE}${path}`)
+    const res = await fetch(`${JIKAN_BASE}${path}`, { signal: timeoutSignal(JIKAN_TIMEOUT_MS) })
     if (!res.ok) return null
     return res.json()
   } catch {
@@ -114,6 +115,11 @@ async function fetchJikanDataFresh(title: string, japaneseTitle?: string, cached
 }
 
 export function fetchJikanData(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
-  const key = cachedMalId ? `jikan:${cachedMalId}` : `jikan:${japaneseTitle || ''}:${title}`.toLowerCase()
-  return cached(key, JIKAN_TTL, () => fetchJikanDataFresh(title, japaneseTitle, cachedMalId))
+  return fetchJikanDataCached(title, japaneseTitle, cachedMalId)
 }
+
+const fetchJikanDataCached = defineCachedFunction(fetchJikanDataFresh, {
+  name: 'jikan-anime',
+  maxAge: JIKAN_TTL / 1000,
+  getKey: (title, japaneseTitle, cachedMalId) => cachedMalId ? String(cachedMalId) : `${japaneseTitle || ''}:${title}`.toLowerCase(),
+})

@@ -1,4 +1,5 @@
 import { getSpoofHeaders } from '../spoof'
+import { timeoutSignal } from '../fetch'
 import { isVidhide, extractVidhide } from './vidhide'
 import { isDesuStreamHd, extractDesuStream } from './desustream'
 import { isDesuDrive, extractDesuDrive } from './desudrive'
@@ -7,23 +8,20 @@ import { isFiledon, extractFiledon } from './filedon'
 async function fetchIframeHTML(iframeUrl: string): Promise<string> {
   const res = await fetch(iframeUrl, {
     headers: getSpoofHeaders(iframeUrl, 'iframe'),
+    signal: timeoutSignal(8000),
   })
   return res.text()
 }
 
 export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 5000)
   try {
     const res = await fetch(iframeUrl, {
       headers: getSpoofHeaders(iframeUrl, 'iframe'),
-      signal: controller.signal,
+      signal: timeoutSignal(5000),
     })
-    clearTimeout(timer)
     const body = await res.text()
     return body.length > 100
   } catch {
-    clearTimeout(timer)
     return false
   }
 }

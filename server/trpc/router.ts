@@ -1,7 +1,6 @@
 import { initTRPC } from '@trpc/server'
 import { z } from 'zod'
 import { fetchMalId, fetchSkipTimes } from '../utils/aniskip'
-import { cached } from '../utils/cache'
 import { extractStreamUrl, probeIframeUrl } from '../utils/extractors'
 import { fetchJikanData } from '../utils/jikan'
 import {
@@ -25,6 +24,19 @@ const pageInput = z.object({ page: z.number().int().positive().default(1) })
 function episodeNumberFromTitle(title: string, index: number) {
   return title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
 }
+
+const prepareMirrorCached = defineCachedFunction(async (dataContent: string, extract: boolean) => {
+  const iframeUrl = await resolvemirror(dataContent)
+  if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
+  if (!extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
+
+  const extracted = await extractStreamUrl(iframeUrl)
+  return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
+}, {
+  name: 'prepare-mirror',
+  maxAge: MIRROR_PREPARE_TTL / 1000,
+  getKey: (dataContent, extract) => `${extract ? 'extract' : 'probe'}:${dataContent}`,
+})
 
 export const appRouter = t.router({
   home: procedure.query(async () => {
@@ -143,18 +155,7 @@ export const appRouter = t.router({
 
   prepareMirror: procedure
     .input(z.object({ dataContent: z.string(), extract: z.boolean() }))
-    .mutation(({ input }) => cached(
-      `prepare-mirror:${input.extract ? 'extract' : 'probe'}:${input.dataContent}`,
-      MIRROR_PREPARE_TTL,
-      async () => {
-        const iframeUrl = await resolvemirror(input.dataContent)
-        if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
-        if (!input.extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
-
-        const extracted = await extractStreamUrl(iframeUrl)
-        return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
-      },
-    )),
+    .mutation(({ input }) => prepareMirrorCached(input.dataContent, input.extract)),
 })
 
 export type AppRouter = typeof appRouter

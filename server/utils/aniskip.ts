@@ -1,3 +1,4 @@
+import { timeoutSignal } from './fetch'
 import { searchAnime } from './jikan'
 
 export interface SkipInterval {
@@ -17,6 +18,10 @@ interface AniskipResponse {
   results: SkipTime[]
 }
 
+const MAL_ID_TTL = 12 * 60 * 60 * 1000
+const SKIP_TIMES_TTL = 24 * 60 * 60 * 1000
+const ANISKIP_TIMEOUT_MS = 6000
+
 function cleanAnimeTitle(title: string): string {
   return title
     .replace(/\s*Subtitle\s+Indonesia\s*$/i, '')
@@ -32,12 +37,20 @@ function cleanAnimeTitle(title: string): string {
 export async function fetchMalId(animeTitle: string): Promise<number | null> {
   const cleaned = cleanAnimeTitle(animeTitle)
   if (!cleaned) return null
-  try {
-    return await searchAnime(cleaned)
-  } catch {
-    return null
-  }
+  return fetchMalIdCached(cleaned)
 }
+
+const fetchMalIdCached = defineCachedFunction(async (cleaned: string): Promise<number | null> => {
+    try {
+      return await searchAnime(cleaned)
+    } catch {
+      return null
+    }
+}, {
+  name: 'aniskip-mal-id',
+  maxAge: MAL_ID_TTL / 1000,
+  getKey: (cleaned) => cleaned.toLowerCase(),
+})
 
 export function extractEpisodeNumber(slug: string): number | null {
   const match = slug.match(/episode-(\d+)/i)
@@ -45,19 +58,28 @@ export function extractEpisodeNumber(slug: string): number | null {
 }
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
-  try {
-    const params = new URLSearchParams()
-    params.append('types', 'op')
-    params.append('types', 'ed')
-    params.append('types', 'mixed-op')
-    params.append('types', 'mixed-ed')
-    params.append('types', 'recap')
-    params.append('episodeLength', Math.floor(episodeLength).toString())
-    const res = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`)
-    if (!res.ok) return []
-    const data: AniskipResponse = await res.json()
-    return data.found ? data.results : []
-  } catch {
-    return []
-  }
+  const length = Math.floor(episodeLength)
+  return fetchSkipTimesCached(malId, episode, length)
 }
+
+const fetchSkipTimesCached = defineCachedFunction(async (malId: number, episode: number, length: number): Promise<SkipTime[]> => {
+    try {
+      const params = new URLSearchParams()
+      params.append('types', 'op')
+      params.append('types', 'ed')
+      params.append('types', 'mixed-op')
+      params.append('types', 'mixed-ed')
+      params.append('types', 'recap')
+      params.append('episodeLength', length.toString())
+      const res = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`, { signal: timeoutSignal(ANISKIP_TIMEOUT_MS) })
+      if (!res.ok) return []
+      const data: AniskipResponse = await res.json()
+      return data.found ? data.results : []
+    } catch {
+      return []
+    }
+}, {
+  name: 'aniskip-skip-times',
+  maxAge: SKIP_TIMES_TTL / 1000,
+  getKey: (malId, episode, length) => `${malId}:${episode}:${length}`,
+})

@@ -26,7 +26,12 @@ export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string>
   }
 
   if (import.meta.client) {
-    watch([slugRef, titleRef, japaneseRef], load, { immediate: true })
+    const { $runIdle } = useNuxtApp()
+    watch([slugRef, titleRef, japaneseRef], (_, __, onCleanup) => {
+      loading.value = true
+      const cancel = $runIdle(() => { void load() }, 1800)
+      onCleanup(cancel)
+    }, { immediate: true })
   }
 
   return { data, loading }

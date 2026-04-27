@@ -37,6 +37,8 @@ onMounted(() => {
           width="40"
           height="40"
           loading="lazy"
+          decoding="async"
+          sizes="40px"
           class="w-10 h-10 rounded-full object-cover flex-shrink-0"
         >
         <div class="min-w-0">
@@ -68,6 +70,7 @@ onMounted(() => {
             width="384"
             height="512"
             loading="eager"
+            decoding="async"
             class="rounded-xl object-cover shadow-2xl w-full h-full"
           >
         </div>

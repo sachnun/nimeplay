@@ -1,21 +1,14 @@
 <script setup lang="ts">
-import type { AnimeCard, AnimeDetail, ContinueItem, Genre } from '~/utils/types'
+import type { TrpcOutputs } from '~/types/trpc'
+import type { ContinueItem } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 
-interface PageData {
-  anime: AnimeCard[]
-  totalPages: number
-}
-
-interface AnimeDetailLookup {
-  slug: string
-  anime: AnimeDetail | null
-}
+type HomeData = TrpcOutputs['home']
 
 withDefaults(defineProps<{
-  ongoingData: PageData
-  completedData: PageData
-  genres: Genre[]
+  ongoingData: HomeData['ongoingData']
+  completedData: HomeData['completedData']
+  genres: HomeData['genres']
   isLoading?: boolean
 }>(), {
   isLoading: false,
@@ -23,6 +16,7 @@ withDefaults(defineProps<{
 
 const searchOpen = ref(false)
 const { selectedGenre, setSelectedGenre } = useGenre()
+const trpc = useTrpc()
 const initialContinueItems = import.meta.client ? getContinueWatching().slice(0, 3) : []
 const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
@@ -40,7 +34,7 @@ async function fetchContinueWatching() {
 
   continueLoading.value = true
   try {
-    const result = await useTrpc().animeDetails.query({ slugs: items.map((item) => item.animeSlug) })
+    const result = await trpc.animeDetails.query({ slugs: items.map((item) => item.animeSlug) })
     const details = new Map(result.map((item) => [item.slug, item.anime]))
     const results = items.map((p) => {
       const detail = details.get(p.animeSlug)

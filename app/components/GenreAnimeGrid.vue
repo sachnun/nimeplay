@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import type { ContinueItem, GenreAnimeCard } from '~/utils/types'
+import type { TrpcOutputs } from '~/types/trpc'
+import type { ContinueItem } from '~/utils/types'
 import { getContinueWatching } from '~/utils/watchHistory'
 
-interface PageData {
-  anime: GenreAnimeCard[]
-  totalPages: number
-}
+type PageData = TrpcOutputs['genre']
 
 interface ProgressEntry {
   animeSlug: string
@@ -24,6 +22,7 @@ const props = withDefaults(defineProps<{
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
+const trpc = useTrpc()
 const cols = ref(2)
 const pages = ref<PageData[]>([])
 const size = ref(0)
@@ -51,7 +50,7 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
 const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))
 
 async function loadPage(page: number) {
-  return useTrpc().genre.query({ slug: props.genreSlug, page })
+  return trpc.genre.query({ slug: props.genreSlug, page })
 }
 
 async function loadMore() {

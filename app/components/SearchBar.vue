@@ -9,6 +9,7 @@ const results = ref<SearchResult[]>([])
 const loading = ref(false)
 const searched = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
+const trpc = useTrpc()
 let debounce: ReturnType<typeof setTimeout> | null = null
 let searchToken = 0
 
@@ -35,7 +36,7 @@ watch(query, (value) => {
     loading.value = true
     searched.value = true
     try {
-      const result = await useTrpc().search.query({ query: trimmed })
+      const result = await trpc.search.query({ query: trimmed })
       if (token !== searchToken) return
       results.value = result
     } catch {

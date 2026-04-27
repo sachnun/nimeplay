@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import type { AnimeCard, ContinueItem } from '~/utils/types'
+import type { TrpcOutputs } from '~/types/trpc'
+import type { ContinueItem } from '~/utils/types'
 import { getContinueWatching } from '~/utils/watchHistory'
 
-interface PageData {
-  anime: AnimeCard[]
-  totalPages: number
-}
+type PageData = TrpcOutputs['animePage']
 
 const props = withDefaults(defineProps<{
   pageType: 'ONGOING' | 'COMPLETED'
@@ -29,6 +27,7 @@ interface ProgressEntry { animeSlug: string; episodeNum: string; episodeSlug: st
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
+const trpc = useTrpc()
 const cols = ref(2)
 const gridState = useState<{
   primaryPages: PageData[]
@@ -95,7 +94,7 @@ const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continu
 const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
-  return useTrpc().animePage.query({ type, page })
+  return trpc.animePage.query({ type, page })
 }
 
 async function loadMore() {

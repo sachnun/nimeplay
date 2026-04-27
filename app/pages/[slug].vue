@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import type { AnimeDetail } from '~/utils/types'
+import type { TrpcOutputs } from '~/types/trpc'
+
+type AnimeDetail = NonNullable<TrpcOutputs['anime']>
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 const isEpisodeRoute = computed(() => Boolean(route.params.episode))
+const trpc = useTrpc()
 
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${slug.value}`,
   async () => {
     if (isEpisodeRoute.value) return null
-    return useTrpc().anime.query({ slug: slug.value })
+    return trpc.anime.query({ slug: slug.value })
   },
   { watch: [slug, isEpisodeRoute] },
 )

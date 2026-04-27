@@ -2,6 +2,7 @@ import type { JikanAnimeData } from '~/utils/types'
 import { getMalId, saveMalId } from '~/utils/jikanCache'
 
 export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
+  const trpc = useTrpc()
   const data = ref<JikanAnimeData | null>(null)
   const loading = ref(true)
 
@@ -12,7 +13,7 @@ export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string>
   const load = async () => {
     loading.value = true
     const cachedMalId = getMalId(slugRef.value)
-    const result = await useTrpc().jikanAnime.query({
+    const result = await trpc.jikanAnime.query({
       title: titleRef.value,
       japaneseTitle: japaneseRef.value,
       cachedMalId: cachedMalId ?? undefined,

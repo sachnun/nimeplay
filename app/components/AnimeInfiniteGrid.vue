@@ -43,6 +43,13 @@ const gridState = useState<{
 const loading = ref(false)
 const loadError = ref(false)
 const allProgress = ref<ProgressEntry[]>([])
+const {
+  onProgressCardPointerDown,
+  onProgressCardPointerMove,
+  onProgressCardPointerEnd,
+  onProgressCardClick,
+  onProgressCardContextMenu,
+} = useProgressCardLongPress()
 
 onMounted(() => {
   const all = getContinueWatching()
@@ -174,6 +181,13 @@ function episodeBadge(episode: string) {
         :key="`continue-${item.animeSlug}`"
         :to="`/${item.animeSlug}/${item.episodeNum}`"
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        @pointerdown="onProgressCardPointerDown($event, item.animeSlug)"
+        @pointermove="onProgressCardPointerMove"
+        @pointerup="onProgressCardPointerEnd"
+        @pointerleave="onProgressCardPointerEnd"
+        @pointercancel="onProgressCardPointerEnd"
+        @click.capture="onProgressCardClick"
+        @contextmenu="onProgressCardContextMenu($event, true)"
       >
         <div class="relative aspect-[3/4]">
           <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 2 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
@@ -195,6 +209,13 @@ function episodeBadge(episode: string) {
         :key="`${anime.slug}-${i}`"
         :to="to"
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        @pointerdown="onProgressCardPointerDown($event, progress ? anime.slug : null)"
+        @pointermove="onProgressCardPointerMove"
+        @pointerup="onProgressCardPointerEnd"
+        @pointerleave="onProgressCardPointerEnd"
+        @pointercancel="onProgressCardPointerEnd"
+        @click.capture="onProgressCardClick"
+        @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4]">
           <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="continueItems.length + i < 4 ? 'eager' : 'lazy'" :fetchpriority="continueItems.length + i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">

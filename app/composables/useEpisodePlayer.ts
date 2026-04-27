@@ -837,10 +837,15 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     const onKey = (event: KeyboardEvent) => {
       if (!showNative.value) return
-      const tag = (event.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const target = event.target instanceof HTMLElement ? event.target : null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.closest('a, button, [role="button"]')) return
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'MediaPlayPause' || event.keyCode === 23 || event.keyCode === 66) {
+        event.preventDefault()
+        togglePlay()
+        return
+      }
       switch (event.key) {
-        case ' ':
         case 'k':
         case 'K': event.preventDefault(); togglePlay(); break
         case 'ArrowLeft': event.preventDefault(); seekRelative(-5); break

@@ -83,3 +83,24 @@ a {
     opacity: 1;
   }
 }
+
+body.tv-remote-active :where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])) {
+  scroll-margin: 6rem;
+}
+
+body.tv-remote-active :where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus {
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.16);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body.tv-remote-active :where(a, button, [tabindex]:not([tabindex="-1"])):focus {
+    transform: scale(1.025);
+  }
+}
+
+body.tv-remote-active :where(a, button, [tabindex]:not([tabindex="-1"])):focus {
+  position: relative;
+  z-index: 20;
+}

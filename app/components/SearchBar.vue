@@ -63,6 +63,7 @@ onMounted(() => {
 <template>
   <div
     v-if="open"
+    data-tv-nav-scope
     class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[10vh] px-4 cursor-pointer"
     @click.self="emit('close')"
   >
@@ -72,7 +73,7 @@ onMounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input ref="inputRef" v-model="query" type="text" placeholder="Search anime..." class="flex-1 bg-transparent text-lg text-zinc-100 placeholder-zinc-500 outline-none">
-        <button class="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer" @click="query ? (query = '') : emit('close')">
+        <button type="button" class="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer" @click="query ? (query = '') : emit('close')">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>

@@ -25,10 +25,11 @@ onMounted(() => {
 <template>
   <div v-if="characters.length > 0">
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-2.5">
-      <div
+      <button
         v-for="char in displayed"
         :key="char.name"
-        class="flex items-center gap-2.5 min-w-0 cursor-pointer rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-white/5 transition-colors"
+        type="button"
+        class="flex items-center gap-2.5 min-w-0 cursor-pointer rounded-lg px-1.5 py-1 -mx-1.5 text-left hover:bg-white/5 transition-colors"
         @click="preview = char"
       >
         <img
@@ -46,7 +47,7 @@ onMounted(() => {
           <span v-if="char.voiceActor" class="text-[10px] text-zinc-500 truncate block">CV: {{ char.voiceActor.name }}</span>
           <span v-else class="text-[10px]" :class="char.role === 'Main' ? 'text-white' : 'text-zinc-500'">{{ char.role }}</span>
         </div>
-      </div>
+      </button>
     </div>
 
     <button
@@ -57,11 +58,12 @@ onMounted(() => {
       {{ showAll ? 'Show Main Only' : `Show All (${characters.length})` }}
     </button>
 
-    <div
-      v-if="preview"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm cursor-pointer"
-      @click="closePreview"
-    >
+      <div
+        v-if="preview"
+        data-tv-nav-scope
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm cursor-pointer"
+        @click="closePreview"
+      >
       <div class="relative max-w-xs w-full mx-4 animate-in fade-in zoom-in-95 duration-200 cursor-default" @click.stop>
         <div class="relative w-full aspect-[3/4]">
           <img
@@ -79,6 +81,7 @@ onMounted(() => {
           <p class="text-xs text-zinc-300">{{ preview.voiceActor ? `CV: ${preview.voiceActor.name}` : preview.role }}</p>
         </div>
         <button
+          type="button"
           class="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 flex items-center justify-center text-sm transition-colors cursor-pointer"
           @click="closePreview"
         >

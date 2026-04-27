@@ -29,6 +29,13 @@ const size = ref(0)
 const loading = ref(false)
 const loadError = ref(false)
 const allProgress = ref<ProgressEntry[]>([])
+const {
+  onProgressCardPointerDown,
+  onProgressCardPointerMove,
+  onProgressCardPointerEnd,
+  onProgressCardClick,
+  onProgressCardContextMenu,
+} = useProgressCardLongPress()
 
 const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
 const totalPages = computed(() => pages.value[0]?.totalPages ?? 1)
@@ -133,6 +140,13 @@ onMounted(() => {
         :key="`${anime.slug}-${i}`"
         :to="to"
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        @pointerdown="onProgressCardPointerDown($event, progress ? anime.slug : null)"
+        @pointermove="onProgressCardPointerMove"
+        @pointerup="onProgressCardPointerEnd"
+        @pointerleave="onProgressCardPointerEnd"
+        @pointercancel="onProgressCardPointerEnd"
+        @click.capture="onProgressCardClick"
+        @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4]">
           <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">

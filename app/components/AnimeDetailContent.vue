@@ -123,7 +123,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="posterOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm" @click="closePoster">
+    <div v-if="posterOpen" data-tv-nav-scope class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm" @click="closePoster">
       <button type="button" class="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 cursor-pointer" aria-label="Close preview" @click="closePoster">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" :stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18" />

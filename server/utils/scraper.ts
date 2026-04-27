@@ -111,7 +111,9 @@ async function fetchHTML(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: getSpoofHeaders(BASE_URL + '/'),
   })
-  return res.text()
+  const html = await res.text()
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  return html
 }
 
 async function corsPost(url: string, body: string): Promise<Record<string, unknown>> {

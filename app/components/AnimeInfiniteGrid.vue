@@ -42,6 +42,7 @@ const gridState = useState<{
   nextSize: 0,
 }))
 const loading = ref(false)
+const loadError = ref(false)
 const allProgress = ref<ProgressEntry[]>([])
 
 onMounted(() => {
@@ -100,6 +101,8 @@ async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<P
 async function loadMore() {
   if (loading.value || isEnd.value) return
   loading.value = true
+  loadError.value = false
+  let loaded = false
   try {
     if (!primaryEnd.value) {
       const nextPage = gridState.value.primarySize + 1
@@ -111,9 +114,21 @@ async function loadMore() {
       else gridState.value.nextPages.push(await fetchPage(props.nextPageType, nextPage))
       gridState.value.nextSize = nextPage
     }
+    loaded = true
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }
+  if (!loaded) return
+  await nextTick()
+  if (isSentinelNearViewport()) void loadMore()
+}
+
+function isSentinelNearViewport() {
+  if (!sentinelRef.value || isEnd.value) return false
+  const rect = sentinelRef.value.getBoundingClientRect()
+  return rect.top <= window.innerHeight + 800 && rect.bottom >= -800
 }
 
 let resizeObserver: ResizeObserver | null = null
@@ -212,6 +227,9 @@ function episodeBadge(episode: string) {
 
     <div ref="sentinelRef" class="py-4">
       <p v-if="isEnd && hasAnyCard" class="text-sm text-zinc-600 text-center">No more anime to load</p>
+      <button v-else-if="loadError" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
+        Gagal memuat anime. Coba lagi
+      </button>
     </div>
   </div>
 </template>

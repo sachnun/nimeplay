@@ -28,6 +28,7 @@ const cols = ref(2)
 const pages = ref<PageData[]>([])
 const size = ref(0)
 const loading = ref(false)
+const loadError = ref(false)
 const allProgress = ref<ProgressEntry[]>([])
 
 const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
@@ -56,13 +57,21 @@ async function loadPage(page: number) {
 async function loadMore() {
   if (loading.value || isEnd.value) return
   loading.value = true
+  loadError.value = false
+  let loaded = false
   try {
     const next = size.value + 1
     pages.value.push(await loadPage(next))
     size.value = next
+    loaded = true
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }
+  if (!loaded) return
+  await nextTick()
+  if (isSentinelNearViewport()) void loadMore()
 }
 
 async function reset() {
@@ -72,6 +81,12 @@ async function reset() {
 }
 
 watch(() => props.genreSlug, () => { void reset() }, { immediate: true })
+
+function isSentinelNearViewport() {
+  if (!sentinelRef.value || isEnd.value) return false
+  const rect = sentinelRef.value.getBoundingClientRect()
+  return rect.top <= window.innerHeight + 800 && rect.bottom >= -800
+}
 
 function syncProgress() {
   const all = getContinueWatching()
@@ -147,6 +162,9 @@ onMounted(() => {
     </div>
     <div ref="sentinelRef" class="py-4">
       <p v-if="isEnd && allAnime.length > 0" class="text-sm text-zinc-600 text-center">No more anime to load</p>
+      <button v-else-if="loadError" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
+        Gagal memuat anime. Coba lagi
+      </button>
     </div>
   </div>
 </template>

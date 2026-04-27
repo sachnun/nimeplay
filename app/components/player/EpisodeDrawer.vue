@@ -43,11 +43,10 @@ defineEmits<{
           :key="ep.slug"
           :ref="(el) => setCurrentEpRef(el, ep.slug)"
           class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer"
-          :class="ep.slug === currentSlug ? 'bg-white/20 text-white ring-1 ring-white/20 font-semibold' : getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
+          :class="ep.slug === currentSlug ? 'bg-white/25 text-white font-semibold' : getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
           @click="ep.slug !== currentSlug && $emit('navigate', ep.slug, episodeNumFor(ep, i))"
         >
           {{ episodeNumFor(ep, i) }}
-          <span v-if="ep.slug === currentSlug" class="absolute -top-1 -right-1 text-[8px] text-white/80" aria-label="Episode sedang ditonton">&#10003;</span>
         </button>
       </div>
     </div>

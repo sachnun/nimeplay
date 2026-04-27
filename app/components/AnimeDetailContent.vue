@@ -39,7 +39,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen relative overflow-hidden">
     <div class="absolute inset-0 z-0">
-      <NuxtImg :src="thumbnail" alt="" width="1200" height="1600" format="webp" loading="lazy" sizes="100vw" class="w-full h-full object-cover scale-110 blur-3xl opacity-15" />
+      <img :src="thumbnail" alt="" width="1200" height="1600" loading="lazy" class="w-full h-full object-cover scale-110 blur-3xl opacity-15">
     </div>
     <TrailerBackground :trailer-embed-url="data?.trailerEmbedUrl" />
     <div class="absolute inset-0 z-[1] bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.35)_15%,rgba(0,0,0,0.55)_30%,rgba(0,0,0,0.75)_45%,rgba(0,0,0,0.9)_60%,rgba(0,0,0,1)_75%)] lg:bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.3)_15%,rgba(0,0,0,0.45)_30%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.8)_60%,rgba(0,0,0,0.95)_75%,rgba(0,0,0,1)_85%)]" />
@@ -49,7 +49,7 @@ onMounted(() => {
         <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
           <div class="flex gap-4 lg:block">
             <button type="button" class="flex-shrink-0 cursor-pointer rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50" @click="posterOpen = true">
-              <NuxtImg :src="thumbnail" :alt="title" width="300" height="400" format="webp" loading="eager" sizes="128px sm:160px lg:192px xl:224px" class="w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto" />
+              <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" class="w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto">
             </button>
             <div class="lg:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
@@ -116,7 +116,7 @@ onMounted(() => {
         </svg>
       </button>
       <div class="relative max-w-[90vw] max-h-[90vh]" @click.stop>
-        <NuxtImg :src="thumbnail" :alt="title" width="600" height="800" format="webp" loading="eager" sizes="90vw sm:600px" class="max-h-[90vh] w-auto rounded-lg shadow-2xl object-contain" />
+        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" class="max-h-[90vh] w-auto rounded-lg shadow-2xl object-contain">
       </div>
     </div>
   </div>

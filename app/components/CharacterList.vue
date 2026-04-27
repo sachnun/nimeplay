@@ -31,16 +31,14 @@ onMounted(() => {
         class="flex items-center gap-2.5 min-w-0 cursor-pointer rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-white/5 transition-colors"
         @click="preview = char"
       >
-        <NuxtImg
+        <img
           :src="char.imageUrl"
           :alt="char.name"
           width="40"
           height="40"
-          format="webp"
           loading="lazy"
-          sizes="40px"
           class="w-10 h-10 rounded-full object-cover flex-shrink-0"
-        />
+        >
         <div class="min-w-0">
           <span class="text-xs text-zinc-200 font-medium truncate block">{{ char.name }}</span>
           <span v-if="char.voiceActor" class="text-[10px] text-zinc-500 truncate block">CV: {{ char.voiceActor.name }}</span>
@@ -64,16 +62,14 @@ onMounted(() => {
     >
       <div class="relative max-w-xs w-full mx-4 animate-in fade-in zoom-in-95 duration-200 cursor-default" @click.stop>
         <div class="relative w-full aspect-[3/4]">
-          <NuxtImg
+          <img
             :src="preview.imageUrl"
             :alt="preview.name"
             width="384"
             height="512"
-            format="webp"
             loading="eager"
-            sizes="320px"
             class="rounded-xl object-cover shadow-2xl w-full h-full"
-          />
+          >
         </div>
         <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-4 py-3">
           <p class="text-sm font-semibold text-white">{{ preview.name }}</p>

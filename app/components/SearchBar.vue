@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { SEARCH_QUERY } from '~/graphql/operations'
 import type { SearchResult } from '~/utils/types'
 
 const props = defineProps<{ open: boolean }>()
@@ -36,9 +35,9 @@ watch(query, (value) => {
     loading.value = true
     searched.value = true
     try {
-      const result = await graphqlQuery<{ search: SearchResult[] }, { query: string }>(SEARCH_QUERY, { query: trimmed })
+      const result = await useTrpc().search.query({ query: trimmed })
       if (token !== searchToken) return
-      results.value = result.search
+      results.value = result
     } catch {
       if (token !== searchToken) return
       results.value = []
@@ -100,7 +99,7 @@ onMounted(() => {
             class="flex items-center gap-3 px-2 py-2.5 hover:bg-zinc-800/50 rounded-lg transition-colors"
             @click="emit('close')"
           >
-            <NuxtImg :src="result.thumbnail" :alt="result.title" width="48" height="64" format="webp" loading="lazy" class="w-12 h-16 rounded object-cover shrink-0" />
+            <img :src="result.thumbnail" :alt="result.title" width="48" height="64" loading="lazy" class="w-12 h-16 rounded object-cover shrink-0">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-zinc-100 leading-snug line-clamp-1">{{ result.title }}</p>
               <p class="text-xs text-zinc-400 mt-0.5">{{ result.status }}</p>

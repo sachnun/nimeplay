@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ANIME_PAGE_QUERY } from '~/graphql/operations'
 import type { AnimeCard, ContinueItem } from '~/utils/types'
 import { getContinueWatching } from '~/utils/watchHistory'
 
@@ -95,11 +94,7 @@ const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continu
 const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
-  const result = await graphqlQuery<{ animePage: PageData }, { type: 'ONGOING' | 'COMPLETED'; page: number }>(
-    ANIME_PAGE_QUERY,
-    { type, page },
-  )
-  return result.animePage
+  return useTrpc().animePage.query({ type, page })
 }
 
 async function loadMore() {
@@ -167,7 +162,7 @@ function episodeBadge(episode: string) {
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
       >
         <div class="relative aspect-[3/4]">
-          <NuxtImg :src="item.thumbnail" :alt="item.title" width="300" height="400" format="webp" :loading="i < 4 ? 'eager' : 'lazy'" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
+          <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" class="object-cover w-full h-full">
           <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
           </div>
@@ -188,7 +183,7 @@ function episodeBadge(episode: string) {
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
       >
         <div class="relative aspect-[3/4]">
-          <NuxtImg :src="anime.thumbnail" :alt="anime.title" width="300" height="400" format="webp" :loading="continueItems.length + i < 6 ? 'eager' : 'lazy'" sizes="sm:200px md:220px lg:240px" class="object-cover w-full h-full" />
+          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="continueItems.length + i < 6 ? 'eager' : 'lazy'" class="object-cover w-full h-full">
           <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ badge }}
           </div>

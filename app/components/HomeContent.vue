@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ANIME_DETAILS_QUERY } from '~/graphql/operations'
 import type { AnimeCard, AnimeDetail, ContinueItem, Genre } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 
@@ -41,11 +40,8 @@ async function fetchContinueWatching() {
 
   continueLoading.value = true
   try {
-    const result = await graphqlQuery<{ animeDetails: AnimeDetailLookup[] }, { slugs: string[] }>(
-      ANIME_DETAILS_QUERY,
-      { slugs: items.map((item) => item.animeSlug) },
-    )
-    const details = new Map(result.animeDetails.map((item) => [item.slug, item.anime]))
+    const result = await useTrpc().animeDetails.query({ slugs: items.map((item) => item.animeSlug) })
+    const details = new Map(result.map((item) => [item.slug, item.anime]))
     const results = items.map((p) => {
       const detail = details.get(p.animeSlug)
       if (!detail) return null

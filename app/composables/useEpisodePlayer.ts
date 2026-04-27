@@ -1,11 +1,5 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from '#app'
-import {
-  EPISODE_QUERY,
-  PREPARE_MIRROR_MUTATION,
-  SKIP_TIMES_QUERY,
-  SKIP_TIMES_LOOKUP_QUERY,
-} from '~/graphql/operations'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
 import { getMalId, saveMalId } from '~/utils/jikanCache'
@@ -39,6 +33,7 @@ const MOBILE_CONTROLS_IDLE_MS = 5000
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
+  const trpc = useTrpc()
 
   const episode = ref(props.episode)
   const currentSlug = ref(props.currentSlug)
@@ -281,14 +276,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     activeQuality.value = candidate.quality
     try {
       const shouldExtract = isExtractable(candidate.name)
-      const prepareResult = await graphqlMutation<
-        { prepareMirror: { iframeUrl: string | null; proxiedUrl: string | null; ok: boolean } },
-        { dataContent: string; extract: boolean }
-      >(
-        PREPARE_MIRROR_MUTATION,
-        { dataContent: candidate.dataContent, extract: shouldExtract },
-      )
-      const prepared = prepareResult?.prepareMirror
+      const prepared = await trpc.prepareMirror.mutate({ dataContent: candidate.dataContent, extract: shouldExtract })
       const iframeUrl = prepared?.iframeUrl
       if (sessionId !== playbackSession || !iframeUrl) return false
       iframeSrc.value = iframeUrl
@@ -428,8 +416,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       video.removeAttribute('src')
       video.load()
     }
-    const result = await graphqlQuery<{ episode: EpisodeData | null }, { slug: string }>(EPISODE_QUERY, { slug }, 'no-cache')
-    const data = result.episode
+    const data = await trpc.episode.query({ slug })
     if (!data) {
       resolving.value = false
       return
@@ -654,26 +641,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!epNum) return
     let malId = getMalId(episode.value.animeSlug || props.animeSlug)
     if (!malId) {
-      const res = await graphqlQuery<
-        { skipTimesLookup: { malId: number | null; skipTimes: SkipTime[] } },
-        { title: string; episode: number; episodeLength: number }
-      >(
-        SKIP_TIMES_LOOKUP_QUERY,
-        { title: episode.value.title, episode: epNum, episodeLength: video.duration },
-        'no-cache',
-      )
-      malId = res.skipTimesLookup.malId
+      const res = await trpc.skipTimesLookup.query({ title: episode.value.title, episode: epNum, episodeLength: video.duration })
+      malId = res.malId
       if (malId) saveMalId(episode.value.animeSlug || props.animeSlug, malId)
-      skipTimes.value = res.skipTimesLookup.skipTimes
+      skipTimes.value = res.skipTimes
       return
     }
     if (!malId) return
-    const skips = await graphqlQuery<{ skipTimes: SkipTime[] }, { malId: number; episode: number; episodeLength: number }>(
-      SKIP_TIMES_QUERY,
-      { malId, episode: epNum, episodeLength: video.duration },
-      'no-cache',
-    )
-    skipTimes.value = skips.skipTimes
+    skipTimes.value = await trpc.skipTimes.query({ malId, episode: epNum, episodeLength: video.duration })
   }
 
   watch(currentSlug, resetForEpisode, { immediate: true })

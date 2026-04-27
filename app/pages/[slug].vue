@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ANIME_QUERY } from '~/graphql/operations'
 import type { AnimeDetail } from '~/utils/types'
 
 const route = useRoute()
@@ -10,8 +9,7 @@ const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${slug.value}`,
   async () => {
     if (isEpisodeRoute.value) return null
-    const result = await graphqlQuery<{ anime: AnimeDetail | null }, { slug: string }>(ANIME_QUERY, { slug: slug.value })
-    return result.anime
+    return useTrpc().anime.query({ slug: slug.value })
   },
   { watch: [slug, isEpisodeRoute] },
 )

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { EPISODE_PAGE_QUERY } from '~/graphql/operations'
 import type { EpisodeData } from '~/utils/types'
 
 const route = useRoute()
@@ -15,11 +14,7 @@ interface EpisodePageData {
 const { data: pageData, pending } = await useAsyncData<EpisodePageData>(
   () => `episode-page-${slug.value}-${episodeParam.value}`,
   async () => {
-    const result = await graphqlQuery<{ episodePage: EpisodePageData }, { animeSlug: string; episode: string }>(
-      EPISODE_PAGE_QUERY,
-      { animeSlug: slug.value, episode: episodeParam.value },
-    )
-    return result.episodePage
+    return useTrpc().episodePage.query({ animeSlug: slug.value, episode: episodeParam.value })
   },
   {
     watch: [slug, episodeParam],

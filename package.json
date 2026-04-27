@@ -11,19 +11,17 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@apollo/client": "^4.1.9",
-    "@apollo/server": "^5.5.0",
-    "@as-integrations/h3": "^2.0.3",
     "@nuxt/fonts": "^0.14.0",
-    "@nuxt/image": "^2.0.0",
     "@tailwindcss/vite": "^4.1.18",
+    "@trpc/client": "^11.16.0",
+    "@trpc/server": "^11.16.0",
     "cheerio": "^1.2.0",
-    "graphql": "^16.13.2",
     "hls.js": "^1.6.15",
     "nuxt": "^4.4.2",
     "tailwindcss": "^4.1.18",
     "vue": "^3.5.32",
-    "vue-router": "^5.0.4"
+    "vue-router": "^5.0.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

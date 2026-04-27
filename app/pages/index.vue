@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { HOME_QUERY } from '~/graphql/operations'
 import type { AnimeCard, Genre } from '~/utils/types'
 
 interface PageData {
@@ -16,8 +15,7 @@ interface HomeData {
 useHead({ title: 'Nimeplay' })
 
 const { data, pending } = await useAsyncData<HomeData>('home', async () => {
-  const result = await graphqlQuery<{ home: HomeData }>(HOME_QUERY)
-  return result.home
+  return useTrpc().home.query()
 }, {
   default: () => ({
     ongoingData: { anime: [], totalPages: 1 },

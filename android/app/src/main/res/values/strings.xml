@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Nimeplay</string>
+    <string name="title_activity_main">Nimeplay</string>
+    <string name="package_name">dev.sachnun.nimeplay</string>
+    <string name="custom_url_scheme">dev.sachnun.nimeplay</string>
+</resources>

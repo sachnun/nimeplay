@@ -1,5 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 
+const isAndroidStatic = process.env.NUXT_ANDROID_STATIC === '1'
+
 function handleRollupWarning(warning: any, warn: (warning: any) => void) {
   if (
     warning.code === 'SOURCEMAP_BROKEN'
@@ -9,8 +11,10 @@ function handleRollupWarning(warning: any, warn: (warning: any) => void) {
 }
 
 export default defineNuxtConfig({
+  ssr: !isAndroidStatic,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV === 'development' },
+  ...(isAndroidStatic ? { nitro: { prerender: { crawlLinks: false, routes: ['/'] } } } : {}),
   modules: ['@nuxt/fonts'],
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],

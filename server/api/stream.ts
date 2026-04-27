@@ -1,7 +1,12 @@
 import { getSpoofHeaders } from '../utils/spoof'
 import { timeoutSignal } from '../utils/fetch'
+import { apiCorsPreflightResponse, setApiCorsHeaders } from '../utils/cors'
 
 export default defineEventHandler(async (event) => {
+  if (event.method === 'OPTIONS') return apiCorsPreflightResponse()
+
+  setApiCorsHeaders(event)
+
   const query = getQuery(event)
   const url = String(query.url || '')
 

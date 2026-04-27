@@ -1,4 +1,5 @@
 import type { EpisodeData } from './types'
+import { STREAM_API_URL } from './api'
 
 export type MirrorCandidate = {
   dataContent: string
@@ -38,7 +39,7 @@ export class ProxyPlaylistLoader {
   load(context: { url: string }, _config: unknown, callbacks: { onSuccess: (...args: unknown[]) => void; onError: (...args: unknown[]) => void }) {
     this.controller = new AbortController()
     const start = performance.now()
-    fetch(`/api/stream?url=${encodeURIComponent(context.url)}`, { signal: this.controller.signal })
+    fetch(`${STREAM_API_URL}?url=${encodeURIComponent(context.url)}`, { signal: this.controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`Stream proxy failed: ${res.status}`)
         return res.text()

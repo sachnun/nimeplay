@@ -14,7 +14,12 @@ const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   { watch: [slug, isEpisodeRoute] },
 )
 
+if (!isEpisodeRoute.value && !anime.value) {
+  await navigateTo('/')
+}
+
 watchEffect(() => {
+  if (!isEpisodeRoute.value && !pending.value && !anime.value) navigateTo('/')
   if (anime.value?.title) useHead({ title: anime.value.title })
 })
 </script>

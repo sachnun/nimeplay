@@ -22,12 +22,13 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      htmlAttrs: { lang: 'id', class: 'h-full antialiased' },
+      htmlAttrs: { lang: 'id', class: 'h-full antialiased notranslate', translate: 'no' },
       bodyAttrs: { class: 'min-h-full' },
       title: 'Nimeplay',
       titleTemplate: '%s - Nimeplay',
       meta: [
         { name: 'description', content: 'Minimal anime streaming' },
+        { name: 'google', content: 'notranslate' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }
       ]
     }

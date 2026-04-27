@@ -1,13 +1,18 @@
-import { createTRPCClient, httpBatchLink } from '@trpc/client'
+import { createTRPCClient, httpBatchLink, unstable_localLink } from '@trpc/client'
 import type { AppRouter } from '../../server/trpc/router'
+import { appRouter } from '../../server/trpc/router'
 
 export default defineNuxtPlugin(() => {
-  const url = import.meta.server ? useRequestURL() : null
   const trpc = createTRPCClient<AppRouter>({
     links: [
-      httpBatchLink({
-        url: import.meta.server ? `${url!.origin}/api/trpc` : '/api/trpc',
-      }),
+      import.meta.server
+        ? unstable_localLink({
+            router: appRouter,
+            createContext: async () => ({}),
+          })
+        : httpBatchLink({
+            url: '/api/trpc',
+          }),
     ],
   })
 

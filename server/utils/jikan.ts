@@ -1,3 +1,4 @@
+import { cached } from './cache'
 import { timeoutSignal } from './fetch'
 
 export interface JikanCharacter {
@@ -115,11 +116,6 @@ async function fetchJikanDataFresh(title: string, japaneseTitle?: string, cached
 }
 
 export function fetchJikanData(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
-  return fetchJikanDataCached(title, japaneseTitle, cachedMalId)
+  const key = cachedMalId ? `jikan:${cachedMalId}` : `jikan:${japaneseTitle || ''}:${title}`.toLowerCase()
+  return cached(key, JIKAN_TTL, () => fetchJikanDataFresh(title, japaneseTitle, cachedMalId))
 }
-
-const fetchJikanDataCached = defineCachedFunction(fetchJikanDataFresh, {
-  name: 'jikan-anime',
-  maxAge: JIKAN_TTL / 1000,
-  getKey: (title, japaneseTitle, cachedMalId) => cachedMalId ? String(cachedMalId) : `${japaneseTitle || ''}:${title}`.toLowerCase(),
-})

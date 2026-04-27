@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { cached } from './cache'
 import { timeoutSignal } from './fetch'
 import { getSpoofHeaders } from './spoof'
 
@@ -156,14 +157,8 @@ async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; total
 }
 
 export function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return scrapeOngoingCached(page)
+  return cached(`scrape:ongoing:${page}`, LIST_TTL, () => scrapeOngoingFresh(page))
 }
-
-const scrapeOngoingCached = defineCachedFunction(scrapeOngoingFresh, {
-  name: 'scrape-ongoing',
-  maxAge: LIST_TTL / 1000,
-  getKey: (page = 1) => String(page),
-})
 
 async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/complete-anime/page/${page}/` : `${BASE_URL}/complete-anime/`
@@ -190,14 +185,8 @@ async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; tot
 }
 
 export function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return scrapeCompletedCached(page)
+  return cached(`scrape:completed:${page}`, LIST_TTL, () => scrapeCompletedFresh(page))
 }
-
-const scrapeCompletedCached = defineCachedFunction(scrapeCompletedFresh, {
-  name: 'scrape-completed',
-  maxAge: LIST_TTL / 1000,
-  getKey: (page = 1) => String(page),
-})
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
   const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
@@ -252,14 +241,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null>
 }
 
 export function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {
-  return scrapeAnimeDetailCached(slug)
+  return cached(`scrape:anime:${slug}`, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug))
 }
-
-const scrapeAnimeDetailCached = defineCachedFunction(scrapeAnimeDetailFresh, {
-  name: 'scrape-anime-detail',
-  maxAge: DETAIL_TTL / 1000,
-  getKey: (slug) => slug,
-})
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const html = await fetchHTML(`${BASE_URL}/episode/${slug}/`)
@@ -311,14 +294,8 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
 }
 
 export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
-  return scrapeEpisodeCached(slug)
+  return cached(`scrape:episode:${slug}`, EPISODE_TTL, () => scrapeEpisodeFresh(slug))
 }
-
-const scrapeEpisodeCached = defineCachedFunction(scrapeEpisodeFresh, {
-  name: 'scrape-episode',
-  maxAge: EPISODE_TTL / 1000,
-  getKey: (slug) => slug,
-})
 
 async function resolvemirrorFresh(dataContent: string): Promise<string | null> {
   try {
@@ -342,14 +319,8 @@ async function resolvemirrorFresh(dataContent: string): Promise<string | null> {
 }
 
 export function resolvemirror(dataContent: string): Promise<string | null> {
-  return resolveMirrorCached(dataContent)
+  return cached(`mirror:${dataContent}`, MIRROR_TTL, () => resolvemirrorFresh(dataContent))
 }
-
-const resolveMirrorCached = defineCachedFunction(resolvemirrorFresh, {
-  name: 'resolve-mirror',
-  maxAge: MIRROR_TTL / 1000,
-  getKey: (dataContent) => dataContent,
-})
 
 async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
   const html = await fetchHTML(`${BASE_URL}/?s=${encodeURIComponent(query)}&post_type=anime`)
@@ -373,14 +344,8 @@ async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
 }
 
 export function scrapeSearch(query: string): Promise<SearchResult[]> {
-  return scrapeSearchCached(query)
+  return cached(`scrape:search:${query.toLowerCase()}`, SEARCH_TTL, () => scrapeSearchFresh(query))
 }
-
-const scrapeSearchCached = defineCachedFunction(scrapeSearchFresh, {
-  name: 'scrape-search',
-  maxAge: SEARCH_TTL / 1000,
-  getKey: (query) => query.toLowerCase(),
-})
 
 async function scrapeGenreListFresh(): Promise<Genre[]> {
   const html = await fetchHTML(`${BASE_URL}/genre-list/`)
@@ -405,14 +370,8 @@ async function scrapeGenreListFresh(): Promise<Genre[]> {
 }
 
 export function scrapeGenreList(): Promise<Genre[]> {
-  return scrapeGenreListCached()
+  return cached('scrape:genre-list', GENRE_LIST_TTL, scrapeGenreListFresh)
 }
-
-const scrapeGenreListCached = defineCachedFunction(scrapeGenreListFresh, {
-  name: 'scrape-genre-list',
-  maxAge: GENRE_LIST_TTL / 1000,
-  getKey: () => 'all',
-})
 
 async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/genres/${slug}/page/${page}/` : `${BASE_URL}/genres/${slug}/`
@@ -439,11 +398,5 @@ async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreA
 }
 
 export function scrapeGenre(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
-  return scrapeGenreCached(slug, page)
+  return cached(`scrape:genre:${slug}:${page}`, LIST_TTL, () => scrapeGenreFresh(slug, page))
 }
-
-const scrapeGenreCached = defineCachedFunction(scrapeGenreFresh, {
-  name: 'scrape-genre',
-  maxAge: LIST_TTL / 1000,
-  getKey: (slug, page = 1) => `${slug}:${page}`,
-})

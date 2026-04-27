@@ -1,6 +1,7 @@
 import { initTRPC } from '@trpc/server'
 import { z } from 'zod'
 import { fetchMalId, fetchSkipTimes } from '../utils/aniskip'
+import { cached } from '../utils/cache'
 import { extractStreamUrl, probeIframeUrl } from '../utils/extractors'
 import { fetchJikanData } from '../utils/jikan'
 import {
@@ -21,29 +22,26 @@ const MIRROR_PREPARE_TTL = 10 * 60 * 1000
 
 const pageInput = z.object({ page: z.number().int().positive().default(1) })
 
+const emptyAnimePage = { anime: [], totalPages: 1 }
+
 function episodeNumberFromTitle(title: string, index: number) {
   return title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
 }
 
-const prepareMirrorCached = defineCachedFunction(async (dataContent: string, extract: boolean) => {
-  const iframeUrl = await resolvemirror(dataContent)
-  if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
-  if (!extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
-
-  const extracted = await extractStreamUrl(iframeUrl)
-  return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
-}, {
-  name: 'prepare-mirror',
-  maxAge: MIRROR_PREPARE_TTL / 1000,
-  getKey: (dataContent, extract) => `${extract ? 'extract' : 'probe'}:${dataContent}`,
-})
+async function safeLoad<T>(load: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await load()
+  } catch {
+    return fallback
+  }
+}
 
 export const appRouter = t.router({
   home: procedure.query(async () => {
     const [ongoingData, completedData, genres] = await Promise.all([
-      scrapeOngoing(1),
-      scrapeCompleted(1),
-      scrapeGenreList(),
+      safeLoad(() => scrapeOngoing(1), emptyAnimePage),
+      safeLoad(() => scrapeCompleted(1), emptyAnimePage),
+      safeLoad(() => scrapeGenreList(), []),
     ])
 
     return { ongoingData, completedData, genres }
@@ -155,7 +153,18 @@ export const appRouter = t.router({
 
   prepareMirror: procedure
     .input(z.object({ dataContent: z.string(), extract: z.boolean() }))
-    .mutation(({ input }) => prepareMirrorCached(input.dataContent, input.extract)),
+    .mutation(({ input }) => cached(
+      `prepare-mirror:${input.extract ? 'extract' : 'probe'}:${input.dataContent}`,
+      MIRROR_PREPARE_TTL,
+      async () => {
+        const iframeUrl = await resolvemirror(input.dataContent)
+        if (!iframeUrl) return { iframeUrl: null, proxiedUrl: null, ok: false }
+        if (!input.extract) return { iframeUrl, proxiedUrl: null, ok: await probeIframeUrl(iframeUrl) }
+
+        const extracted = await extractStreamUrl(iframeUrl)
+        return { iframeUrl: extracted.iframeUrl, proxiedUrl: extracted.proxiedUrl, ok: !!extracted.proxiedUrl }
+      },
+    )),
 })
 
 export type AppRouter = typeof appRouter

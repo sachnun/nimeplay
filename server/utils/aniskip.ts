@@ -1,3 +1,4 @@
+import { cached } from './cache'
 import { timeoutSignal } from './fetch'
 import { searchAnime } from './jikan'
 
@@ -37,20 +38,14 @@ function cleanAnimeTitle(title: string): string {
 export async function fetchMalId(animeTitle: string): Promise<number | null> {
   const cleaned = cleanAnimeTitle(animeTitle)
   if (!cleaned) return null
-  return fetchMalIdCached(cleaned)
-}
-
-const fetchMalIdCached = defineCachedFunction(async (cleaned: string): Promise<number | null> => {
+  return cached(`aniskip:mal-id:${cleaned.toLowerCase()}`, MAL_ID_TTL, async () => {
     try {
       return await searchAnime(cleaned)
     } catch {
       return null
     }
-}, {
-  name: 'aniskip-mal-id',
-  maxAge: MAL_ID_TTL / 1000,
-  getKey: (cleaned) => cleaned.toLowerCase(),
-})
+  })
+}
 
 export function extractEpisodeNumber(slug: string): number | null {
   const match = slug.match(/episode-(\d+)/i)
@@ -59,10 +54,7 @@ export function extractEpisodeNumber(slug: string): number | null {
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
   const length = Math.floor(episodeLength)
-  return fetchSkipTimesCached(malId, episode, length)
-}
-
-const fetchSkipTimesCached = defineCachedFunction(async (malId: number, episode: number, length: number): Promise<SkipTime[]> => {
+  return cached(`aniskip:skip-times:${malId}:${episode}:${length}`, SKIP_TIMES_TTL, async () => {
     try {
       const params = new URLSearchParams()
       params.append('types', 'op')
@@ -78,8 +70,5 @@ const fetchSkipTimesCached = defineCachedFunction(async (malId: number, episode:
     } catch {
       return []
     }
-}, {
-  name: 'aniskip-skip-times',
-  maxAge: SKIP_TIMES_TTL / 1000,
-  getKey: (malId, episode, length) => `${malId}:${episode}:${length}`,
-})
+  })
+}

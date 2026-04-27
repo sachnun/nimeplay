@@ -13,9 +13,6 @@ export default defineNuxtConfig({
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   modules: ['@nuxt/fonts'],
   sourcemap: { server: false, client: false },
-  routeRules: {
-    '/': { swr: 180 },
-  },
   css: ['~/assets/css/main.css'],
   fonts: {
     families: [

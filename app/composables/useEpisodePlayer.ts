@@ -145,7 +145,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showIframe = computed(() => useIframe.value && !!iframeSrc.value)
   const showEmpty = computed(() => !showNative.value && !showIframe.value && !resolving.value)
   const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value))
-  const controlsVisible = computed(() => showControls.value || !isPlaying.value)
+  const controlsVisible = computed(() => !speedBoost.value && (showControls.value || !isPlaying.value))
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
   const bufferedPct = computed(() => duration.value > 0 ? (buffered.value / duration.value) * 100 : 0)
 
@@ -238,6 +238,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function resetIdle() {
+    if (speedBoost.value) {
+      showControls.value = false
+      showEpisodes.value = false
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = null
+      return
+    }
     showControls.value = true
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = setTimeout(() => {
@@ -259,6 +266,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function toggleControlsVisibility() {
+    if (speedBoost.value) {
+      showControls.value = false
+      showEpisodes.value = false
+      return
+    }
     if (showControls.value) {
       showControls.value = false
       showEpisodes.value = false
@@ -546,7 +558,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     handleZoneTap(zone)
   }
 
-  function handleSpeedHoldStart() {
+  function handleSpeedHoldStart(event?: PointerEvent) {
+    if (event?.pointerType === 'mouse' && event.button !== 0) return
+    event?.preventDefault()
+    if (event?.currentTarget instanceof HTMLElement) {
+      try { event.currentTarget.setPointerCapture(event.pointerId) } catch {}
+    }
     const video = videoRef.value
     if (!video || video.paused) return
     if (longPressTimer) clearTimeout(longPressTimer)
@@ -558,9 +575,23 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       if (!v) return
       if (hls) hls.config.maxBufferLength = 120
       v.playbackRate = 3
+      showControls.value = false
+      showEpisodes.value = false
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = null
       speedBoost.value = true
     }, 400)
+    let ended = false
+    const cleanup = () => {
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('mouseup', end)
+      window.removeEventListener('touchend', end)
+      window.removeEventListener('pointercancel', cancelPending)
+      window.removeEventListener('touchcancel', cancelPending)
+    }
     const end = () => {
+      if (ended) return
+      ended = true
       if (longPressTimer) clearTimeout(longPressTimer)
       longPressTimer = null
       if (longPressActive) {
@@ -571,11 +602,17 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         speedBoost.value = false
       }
       setTimeout(() => { wasLongPress.value = false }, 50)
-      window.removeEventListener('pointerup', end)
-      window.removeEventListener('pointercancel', end)
+      cleanup()
+    }
+    const cancelPending = () => {
+      if (longPressActive) return
+      end()
     }
     window.addEventListener('pointerup', end)
-    window.addEventListener('pointercancel', end)
+    window.addEventListener('mouseup', end)
+    window.addEventListener('touchend', end, { passive: true })
+    window.addEventListener('pointercancel', cancelPending)
+    window.addEventListener('touchcancel', cancelPending, { passive: true })
   }
 
   function getSeekTime(clientX: number, bar: HTMLElement | null): number | null {

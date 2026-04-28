@@ -68,7 +68,7 @@ const {
   <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'">
     <video v-show="showNative" ref="videoRef" class="absolute inset-0 w-full h-full object-contain" playsinline />
 
-    <div v-if="showNative" class="absolute inset-0 z-10 flex touch-manipulation">
+    <div v-if="showNative" class="absolute inset-0 z-10 flex touch-none">
       <div class="w-[30%] h-full" @touchend="handleZoneTouchEnd('left', $event)" @pointerup="handleZonePointerUp('left', $event)" />
       <div class="w-[40%] h-full" @touchend="handleZoneTouchEnd('center', $event)" @pointerup="handleZonePointerUp('center', $event)" />
       <div class="w-[30%] h-full" @pointerdown="handleSpeedHoldStart" @touchend="handleZoneTouchEnd('right', $event)" @pointerup="handleZonePointerUp('right', $event)" @contextmenu.prevent />

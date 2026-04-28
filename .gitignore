@@ -6,6 +6,7 @@
 .cache
 .wrangler
 dist
+www
 
 # Node dependencies
 node_modules

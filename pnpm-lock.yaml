@@ -17,6 +17,9 @@ importers:
       '@capacitor/core':
         specifier: ^8.3.1
         version: 8.3.1
+      '@capacitor/screen-orientation':
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.3.1)
       '@nuxt/fonts':
         specifier: ^0.14.0
         version: 0.14.0(db0@0.3.4)(ioredis@5.10.1)(magicast@0.5.2)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(yaml@2.8.3))
@@ -215,6 +218,11 @@ packages:
 
   '@capacitor/core@8.3.1':
     resolution: {integrity: sha512-UF8ItlHguU1Z6GXfPTeT2gakf+ctNI8pAS1kwSBQlsJMlfD4OPoto/SmKnOxKCQvnF4WRcdWeg6C0zREUNaAQg==}
+
+  '@capacitor/screen-orientation@8.0.1':
+    resolution: {integrity: sha512-DPz/1YGmlAUDMg2ON+AGJp1eFn9IfVNP9VKI5zIU+jD5xAZ4JGxUDlY9MDCvEPQs7UCD53NduJpqvqhcnb32Kw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capsizecss/unpack@4.0.0':
     resolution: {integrity: sha512-VERIM64vtTP1C4mxQ5thVT9fK0apjPFobqybMtA1UdUujWka24ERHbRHFGmpbbhp73MhV+KSsHQH9C6uOTdEQA==}
@@ -4055,6 +4063,10 @@ snapshots:
   '@capacitor/core@8.3.1':
     dependencies:
       tslib: 2.8.1
+
+  '@capacitor/screen-orientation@8.0.1(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
 
   '@capsizecss/unpack@4.0.0':
     dependencies:

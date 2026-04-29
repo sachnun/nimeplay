@@ -1,4 +1,5 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Capacitor } from '@capacitor/core'
 import { useRouter } from '#app'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
@@ -26,6 +27,10 @@ export interface EpisodePlayerProps {
 
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
   if (timer) clearTimeout(timer)
+}
+
+function isAndroidNative() {
+  return import.meta.client && Capacitor.getPlatform() === 'android'
 }
 
 const CONTROLS_IDLE_MS = 3000
@@ -490,15 +495,46 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (video.muted && v > 0) video.muted = false
   }
 
+  async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
+    if (isAndroidNative()) {
+      try {
+        const { ScreenOrientation } = await import('@capacitor/screen-orientation')
+        await ScreenOrientation.lock({ orientation })
+        return
+      } catch {}
+    }
+
+    try {
+      if (orientation === 'landscape') await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
+      else (screen.orientation as unknown as { unlock: () => void }).unlock()
+    } catch {}
+  }
+
+  async function exitPlayerFullscreen() {
+    if (document.fullscreenElement) {
+      try { await document.exitFullscreen() } catch {}
+    }
+    isFullscreen.value = false
+    cancelAutoNext()
+    await lockPlayerOrientation('portrait')
+  }
+
   async function toggleFullscreen() {
     const el = containerRef.value
     if (!el) return
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-      try { (screen.orientation as unknown as { unlock: () => void }).unlock() } catch {}
-    } else {
-      await el.requestFullscreen()
-      try { await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape') } catch {}
+    if (isFullscreen.value || document.fullscreenElement) {
+      await exitPlayerFullscreen()
+      return
+    }
+
+    const nativeAndroid = isAndroidNative()
+    if (nativeAndroid) await lockPlayerOrientation('landscape')
+    try { await el.requestFullscreen() } catch {}
+    if (!nativeAndroid) await lockPlayerOrientation('landscape')
+
+    if (nativeAndroid || document.fullscreenElement) {
+      isFullscreen.value = true
+      resetIdle()
     }
   }
 
@@ -869,7 +905,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       if (isFullscreen.value) resetIdle()
       if (!isFullscreen.value) {
         cancelAutoNext()
-        try { (screen.orientation as unknown as { unlock: () => void }).unlock() } catch {}
+        void lockPlayerOrientation('portrait')
       }
     }
     const onKey = (event: KeyboardEvent) => {
@@ -937,6 +973,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       window.removeEventListener('keydown', onKey)
       containerRef.value?.removeEventListener('mousemove', onPointerActivity)
       containerRef.value?.removeEventListener('mouseleave', onLeave)
+      if (isFullscreen.value || document.fullscreenElement) void exitPlayerFullscreen()
       if ('mediaSession' in navigator) navigator.mediaSession.metadata = null
     })
   })

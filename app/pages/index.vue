@@ -3,7 +3,7 @@ import type { TrpcOutputs } from '~/types/trpc'
 
 type HomeData = TrpcOutputs['home']
 
-useHead({ title: 'Nimeplay' })
+useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
 const trpc = useTrpc()
 const { data, pending } = await useAsyncData<HomeData>('home', async () => {

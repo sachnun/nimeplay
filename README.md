@@ -2,7 +2,7 @@
 
 Minimal anime streaming app built with Nuxt 4, Vue 3, Tailwind CSS, tRPC, and Capacitor Android. It includes search, genre browsing, anime detail pages, episode navigation, and a custom player.
 
-<p align="center"><img src="docs/screenshots/ipad-mini.webp" alt="Nimeplay on iPad Mini" width="31%"><img src="docs/screenshots/iphone-14-pro-max.webp" alt="Nimeplay on iPhone 14 Pro Max" width="31%"><img src="docs/screenshots/nest-hub-max.webp" alt="Nimeplay on Nest Hub Max" width="31%"></p>
+<p align="center"><img src="docs/screenshots/nest-hub-max.webp" alt="Nimeplay on Nest Hub Max" height="220">&nbsp;&nbsp;&nbsp;<img src="docs/screenshots/ipad-mini.webp" alt="Nimeplay on iPad Mini" height="220">&nbsp;&nbsp;&nbsp;<img src="docs/screenshots/iphone-14-pro-max.webp" alt="Nimeplay on iPhone 14 Pro Max" height="220"></p>
 
 ## Setup
 

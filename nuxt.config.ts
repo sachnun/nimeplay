@@ -30,6 +30,9 @@ export default defineNuxtConfig({
       bodyAttrs: { class: 'min-h-full' },
       title: 'Nimeplay',
       titleTemplate: '%s - Nimeplay',
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }
+      ],
       meta: [
         { name: 'description', content: 'Minimal anime streaming' },
         { name: 'google', content: 'notranslate' },

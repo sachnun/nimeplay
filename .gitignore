@@ -17,6 +17,7 @@ logs
 
 # Misc
 .DS_Store
+.fallow/
 .fleet
 .idea
 

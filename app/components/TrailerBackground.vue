@@ -9,6 +9,24 @@ interface YTPlayer {
   setPlaybackQuality(quality: string): void
 }
 
+interface YTWindow extends Window {
+  YT?: { PlayerState: { PLAYING: number }; Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer }
+  onYouTubeIframeAPIReady?: () => void
+}
+
+const PLAYER_VARS = {
+  autoplay: 1,
+  mute: 1,
+  controls: 0,
+  showinfo: 0,
+  rel: 0,
+  modestbranding: 1,
+  playsinline: 1,
+  disablekb: 1,
+  fs: 0,
+  iv_load_policy: 3,
+}
+
 const ready = ref(false)
 const ended = ref(false)
 const enabled = ref(false)
@@ -17,7 +35,11 @@ let player: YTPlayer | null = null
 let poll: ReturnType<typeof setInterval> | null = null
 let enableTimer: ReturnType<typeof setTimeout> | null = null
 
-const videoId = computed(() => enabled.value ? props.trailerEmbedUrl?.match(/\/embed\/([^?/]+)/)?.[1] ?? null : null)
+function extractTrailerVideoId(embedUrl?: string | null) {
+  return embedUrl?.match(/\/embed\/([^?/]+)/)?.[1] ?? null
+}
+
+const videoId = computed(() => enabled.value ? extractTrailerVideoId(props.trailerEmbedUrl) : null)
 
 function clearPlayer() {
   if (poll) clearInterval(poll)
@@ -26,6 +48,70 @@ function clearPlayer() {
   player = null
   ready.value = false
   ended.value = false
+}
+
+function clearPoll() {
+  if (poll) clearInterval(poll)
+  poll = null
+}
+
+function seekIntoTrailer() {
+  const activePlayer = player
+  if (!activePlayer) return
+  activePlayer.setPlaybackQuality(window.innerWidth < 768 ? 'small' : 'medium')
+  const duration = activePlayer.getDuration()
+  if (duration > 0) activePlayer.seekTo(duration * 0.2, true)
+}
+
+function pollTrailerEnd() {
+  if (!player) return
+  const duration = player.getDuration()
+  const current = player.getCurrentTime()
+  if (duration <= 0 || current < duration * 0.85) return
+  ended.value = true
+  clearPoll()
+}
+
+function startEndPolling() {
+  if (!poll) poll = setInterval(pollTrailerEnd, 500)
+}
+
+function markTrailerPlaying() {
+  ready.value = true
+  startEndPolling()
+}
+
+function handlePlayerStateChange(data: number, w: YTWindow, cancelled: () => boolean) {
+  if (cancelled()) return
+  if (data === w.YT?.PlayerState.PLAYING) markTrailerPlaying()
+  if (data === 0) ended.value = true
+}
+
+function loadYoutubeApi(w: YTWindow, createPlayer: () => void) {
+  const prev = w.onYouTubeIframeAPIReady
+  w.onYouTubeIframeAPIReady = () => {
+    prev?.()
+    createPlayer()
+  }
+  if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+    const tag = document.createElement('script')
+    tag.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(tag)
+  }
+}
+
+function createYoutubePlayer(id: string, w: YTWindow, cancelled: () => boolean) {
+  const target = containerRef.value
+  const Player = w.YT?.Player
+  if (cancelled() || !target || !Player) return
+  player = new Player(target, {
+    videoId: id,
+    playerVars: PLAYER_VARS,
+    events: {
+      onReady: seekIntoTrailer,
+      onStateChange: (e: { data: number }) => handlePlayerStateChange(e.data, w, cancelled),
+    },
+  })
 }
 
 onMounted(() => {
@@ -39,70 +125,10 @@ onMounted(() => {
     clearPlayer()
     if (!id || !containerRef.value) return
     let cancelled = false
-    const w = window as typeof window & {
-      YT?: { PlayerState: { PLAYING: number }; Player: new (el: HTMLElement, opts: Record<string, unknown>) => YTPlayer }
-      onYouTubeIframeAPIReady?: () => void
-    }
+    const w = window as YTWindow
+    const createPlayer = () => createYoutubePlayer(id, w, () => cancelled)
 
-    const createPlayer = () => {
-      if (cancelled || !containerRef.value || !w.YT?.Player) return
-      player = new w.YT.Player(containerRef.value, {
-        videoId: id,
-        playerVars: {
-          autoplay: 1,
-          mute: 1,
-          controls: 0,
-          showinfo: 0,
-          rel: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          disablekb: 1,
-          fs: 0,
-          iv_load_policy: 3,
-        },
-        events: {
-          onReady: () => {
-            if (!player) return
-            player.setPlaybackQuality(window.innerWidth < 768 ? 'small' : 'medium')
-            const dur = player.getDuration()
-            if (dur > 0) player.seekTo(dur * 0.2, true)
-          },
-          onStateChange: (e: { data: number }) => {
-            if (!w.YT || cancelled) return
-            if (e.data === w.YT.PlayerState.PLAYING) {
-              ready.value = true
-              if (!poll) {
-                poll = setInterval(() => {
-                  if (!player) return
-                  const dur = player.getDuration()
-                  const cur = player.getCurrentTime()
-                  if (dur > 0 && cur >= dur * 0.85) {
-                    ended.value = true
-                    if (poll) clearInterval(poll)
-                    poll = null
-                  }
-                }, 500)
-              }
-            }
-            if (e.data === 0) ended.value = true
-          },
-        },
-      })
-    }
-
-    if (w.YT?.Player) createPlayer()
-    else {
-      const prev = w.onYouTubeIframeAPIReady
-      w.onYouTubeIframeAPIReady = () => {
-        prev?.()
-        createPlayer()
-      }
-      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-        const tag = document.createElement('script')
-        tag.src = 'https://www.youtube.com/iframe_api'
-        document.head.appendChild(tag)
-      }
-    }
+    loadOrCreatePlayer(w, createPlayer)
 
     onCleanup(() => {
       cancelled = true
@@ -110,6 +136,11 @@ onMounted(() => {
     })
   }, { immediate: true })
 })
+
+function loadOrCreatePlayer(w: YTWindow, createPlayer: () => void) {
+  if (w.YT?.Player) createPlayer()
+  else loadYoutubeApi(w, createPlayer)
+}
 
 onBeforeUnmount(clearPlayer)
 onBeforeUnmount(() => {

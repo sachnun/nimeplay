@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { TrpcOutputs } from '~/types/trpc'
 import type { ContinueItem } from '~/utils/types'
-import { getContinueWatching } from '~/utils/watchHistory'
 
 type PageData = TrpcOutputs['animePage']
 
@@ -23,8 +22,6 @@ const props = withDefaults(defineProps<{
   continueCount: 0,
 })
 
-interface ProgressEntry { animeSlug: string; episodeNum: string; episodeSlug: string; currentTime: number; duration: number }
-
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
 const trpc = useTrpc()
@@ -42,7 +39,7 @@ const gridState = useState<{
 }))
 const loading = ref(false)
 const loadError = ref(false)
-const allProgress = ref<ProgressEntry[]>([])
+const { progressMap, syncProgress } = useAnimeProgressMap(() => props.continueItems)
 const {
   onProgressCardPointerDown,
   onProgressCardPointerMove,
@@ -52,8 +49,7 @@ const {
 } = useProgressCardLongPress()
 
 onMounted(() => {
-  const all = getContinueWatching()
-  allProgress.value = all.length > 0 ? all : props.continueItems
+  syncProgress()
 })
 
 watch(() => props.initialData, (data) => {
@@ -72,12 +68,6 @@ const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?
 const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
-const progressMap = computed(() => {
-  const map = new Map<string, ProgressEntry>()
-  for (const item of allProgress.value) map.set(item.animeSlug, item)
-  for (const item of props.continueItems) map.set(item.animeSlug, item)
-  return map
-})
 const continueSlugs = computed(() => new Set(props.continueItems.map((item) => item.animeSlug)))
 const displayAnime = computed(() => {
   const marked = [
@@ -104,59 +94,37 @@ async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<P
   return trpc.animePage.query({ type, page })
 }
 
+async function loadPrimaryPage() {
+  const nextPage = gridState.value.primarySize + 1
+  gridState.value.primaryPages.push(await fetchPage(props.pageType, nextPage))
+  gridState.value.primarySize = nextPage
+}
+
+async function loadNextPage() {
+  const nextPage = gridState.value.nextSize + 1
+  const data = nextPage === 1 && props.nextInitialData
+    ? props.nextInitialData
+    : await fetchPage(props.nextPageType!, nextPage)
+  gridState.value.nextPages.push(data)
+  gridState.value.nextSize = nextPage
+}
+
+async function loadNextAvailablePage() {
+  if (!primaryEnd.value) return loadPrimaryPage()
+  if (props.nextPageType && !nextEnd.value) return loadNextPage()
+}
+
 async function loadMore() {
-  if (loading.value || isEnd.value) return
-  loading.value = true
-  loadError.value = false
-  let loaded = false
-  try {
-    if (!primaryEnd.value) {
-      const nextPage = gridState.value.primarySize + 1
-      gridState.value.primaryPages.push(await fetchPage(props.pageType, nextPage))
-      gridState.value.primarySize = nextPage
-    } else if (props.nextPageType && !nextEnd.value) {
-      const nextPage = gridState.value.nextSize + 1
-      if (nextPage === 1 && props.nextInitialData) gridState.value.nextPages.push(props.nextInitialData)
-      else gridState.value.nextPages.push(await fetchPage(props.nextPageType, nextPage))
-      gridState.value.nextSize = nextPage
-    }
-    loaded = true
-  } catch {
-    loadError.value = true
-  } finally {
-    loading.value = false
-  }
-  if (!loaded) return
-  await nextTick()
-  if (isSentinelNearViewport()) void loadMore()
-}
-
-function isSentinelNearViewport() {
-  if (!sentinelRef.value || isEnd.value) return false
-  const rect = sentinelRef.value.getBoundingClientRect()
-  return rect.top <= window.innerHeight + 800 && rect.bottom >= -800
-}
-
-let resizeObserver: ResizeObserver | null = null
-onMounted(() => {
-  if (gridRef.value) {
-    const update = () => {
-      if (!gridRef.value) return
-      cols.value = getComputedStyle(gridRef.value).gridTemplateColumns.split(' ').length
-    }
-    update()
-    resizeObserver = new ResizeObserver(update)
-    resizeObserver.observe(gridRef.value)
-  }
-  const observer = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting)) void loadMore()
-  }, { rootMargin: '800px 0px' })
-  if (sentinelRef.value) observer.observe(sentinelRef.value)
-  onBeforeUnmount(() => {
-    observer.disconnect()
-    resizeObserver?.disconnect()
+  await loadGridPage({
+    loading,
+    loadError,
+    isEnd,
+    load: loadNextAvailablePage,
+    afterLoad: () => fillGridViewport(isSentinelNearViewport, loadMore),
   })
-})
+}
+
+const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
 
 function episodeBadge(episode: string) {
   const num = episode.match(/\d+/)?.[0]

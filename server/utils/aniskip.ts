@@ -1,6 +1,7 @@
 import { cached } from './cache'
 import { timeoutSignal } from './fetch'
 import { searchAnime } from './jikan'
+import { cleanTitleWithRules, type TitleCleanupRule } from './title'
 
 export interface SkipInterval {
   startTime: number
@@ -22,17 +23,18 @@ interface AniskipResponse {
 const MAL_ID_TTL = 12 * 60 * 60 * 1000
 const SKIP_TIMES_TTL = 24 * 60 * 60 * 1000
 const ANISKIP_TIMEOUT_MS = 6000
+const ANIME_TITLE_CLEANUP: TitleCleanupRule[] = [
+  /\s*Subtitle\s+Indonesia\s*$/i,
+  /\s*Sub\s+Indo(nesia)?\s*$/i,
+  /\s*Episode\s+\d+.*$/i,
+  /\s*\(?(Season|S)\s*\d+\)?/gi,
+  /\s*\(?Musim\s+\d+\)?/gi,
+  /\s*\(?\d{4}\)?$/g,
+  [/\s+/g, ' '],
+]
 
 function cleanAnimeTitle(title: string): string {
-  return title
-    .replace(/\s*Subtitle\s+Indonesia\s*$/i, '')
-    .replace(/\s*Sub\s+Indo(nesia)?\s*$/i, '')
-    .replace(/\s*Episode\s+\d+.*$/i, '')
-    .replace(/\s*\(?(Season|S)\s*\d+\)?/gi, '')
-    .replace(/\s*\(?Musim\s+\d+\)?/gi, '')
-    .replace(/\s*\(?\d{4}\)?$/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return cleanTitleWithRules(title, ANIME_TITLE_CLEANUP)
 }
 
 export async function fetchMalId(animeTitle: string): Promise<number | null> {

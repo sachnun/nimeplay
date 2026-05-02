@@ -5,6 +5,18 @@ import { isDesuStreamHd, extractDesuStream } from './desustream'
 import { isDesuDrive, extractDesuDrive } from './desudrive'
 import { isFiledon, extractFiledon } from './filedon'
 
+type HostExtractor = {
+  matches: (url: string) => boolean
+  extract: (url: string, html: string) => Promise<string | null> | string | null
+}
+
+const HOST_EXTRACTORS: HostExtractor[] = [
+  { matches: isVidhide, extract: extractVidhide },
+  { matches: isDesuStreamHd, extract: extractDesuStream },
+  { matches: isDesuDrive, extract: extractDesuDrive },
+  { matches: isFiledon, extract: extractFiledon },
+]
+
 async function fetchIframeHTML(iframeUrl: string): Promise<string> {
   const res = await fetch(iframeUrl, {
     headers: getSpoofHeaders(iframeUrl, 'iframe'),
@@ -26,26 +38,25 @@ export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
   }
 }
 
+async function extractKnownHost(iframeUrl: string, html: string): Promise<string | null> {
+  const extractor = HOST_EXTRACTORS.find((candidate) => candidate.matches(iframeUrl))
+  return extractor ? extractor.extract(iframeUrl, html) : null
+}
+
+async function extractFallbackHost(iframeUrl: string, html: string): Promise<string | null> {
+  const vidhideUrl = await extractVidhide(iframeUrl, html)
+  if (vidhideUrl) return vidhideUrl
+  const mp4Match = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)
+  if (mp4Match?.[1]) return mp4Match[1]
+  return extractDesuDrive(iframeUrl, html)
+}
+
 export async function extractStreamUrl(iframeUrl: string): Promise<{ proxiedUrl: string | null; iframeUrl: string }> {
   try {
     const html = await fetchIframeHTML(iframeUrl)
     if (!html) return { proxiedUrl: null, iframeUrl }
-
-    if (isVidhide(iframeUrl)) return { proxiedUrl: await extractVidhide(iframeUrl, html), iframeUrl }
-    if (isDesuStreamHd(iframeUrl)) return { proxiedUrl: await extractDesuStream(iframeUrl, html), iframeUrl }
-    if (isDesuDrive(iframeUrl)) return { proxiedUrl: await extractDesuDrive(iframeUrl, html), iframeUrl }
-    if (isFiledon(iframeUrl)) return { proxiedUrl: await extractFiledon(iframeUrl, html), iframeUrl }
-
-    const vidhideUrl = await extractVidhide(iframeUrl, html)
-    if (vidhideUrl) return { proxiedUrl: vidhideUrl, iframeUrl }
-
-    const mp4Match = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)
-    if (mp4Match?.[1]) return { proxiedUrl: mp4Match[1], iframeUrl }
-
-    const driveUrl = await extractDesuDrive(iframeUrl, html)
-    if (driveUrl) return { proxiedUrl: driveUrl, iframeUrl }
-
-    return { proxiedUrl: null, iframeUrl }
+    const proxiedUrl = await extractKnownHost(iframeUrl, html) ?? await extractFallbackHost(iframeUrl, html)
+    return { proxiedUrl, iframeUrl }
   } catch {
     return { proxiedUrl: null, iframeUrl }
   }

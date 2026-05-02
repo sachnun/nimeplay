@@ -1,4 +1,4 @@
-type Direction = 'up' | 'down' | 'left' | 'right'
+import { bestCandidate, hasHiddenOverflow, isEditableElement, rectsIntersect, type Direction, type TvCandidate } from '~/utils/tvNavigation'
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -27,11 +27,6 @@ const DIRECTION_BY_KEY_CODE: Record<number, Direction | undefined> = {
   40: 'down',
 }
 
-interface Candidate {
-  element: HTMLElement
-  rect: DOMRect
-}
-
 export default defineNuxtPlugin((nuxtApp) => {
   const router = useRouter()
 
@@ -43,37 +38,29 @@ export default defineNuxtPlugin((nuxtApp) => {
     document.body.classList.remove('tv-remote-active')
   }
 
-  function isEditable(element: HTMLElement | null) {
-    if (!element) return false
-    const tag = element.tagName
-    return element.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+  function isHiddenByOverflow(element: HTMLElement, rect: DOMRect) {
+    return overflowParents(element).some((parent) => hasHiddenOverflow(parent) && !rectsIntersect(rect, parent.getBoundingClientRect()))
   }
 
-  function isHiddenByOverflow(element: HTMLElement, rect: DOMRect) {
-    let parent = element.parentElement
-    while (parent && parent !== document.body) {
-      const style = window.getComputedStyle(parent)
-      if (`${style.overflow} ${style.overflowX} ${style.overflowY}`.includes('hidden')) {
-        const parentRect = parent.getBoundingClientRect()
-        const intersects = rect.right > parentRect.left
-          && rect.left < parentRect.right
-          && rect.bottom > parentRect.top
-          && rect.top < parentRect.bottom
-        if (!intersects) return true
-      }
-      parent = parent.parentElement
-    }
-    return false
+  function overflowParents(element: HTMLElement) {
+    const parents: HTMLElement[] = []
+    for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) parents.push(parent)
+    return parents
+  }
+
+  function hasUsableStyle(element: HTMLElement) {
+    const style = window.getComputedStyle(element)
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none'
+  }
+
+  function hasUsableRect(element: HTMLElement) {
+    const rect = element.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0 && !isHiddenByOverflow(element, rect)
   }
 
   function isUsable(element: HTMLElement) {
     if (element.closest('[aria-hidden="true"], [inert]')) return false
-    const style = window.getComputedStyle(element)
-    if (style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') return false
-    const rect = element.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return false
-    if (isHiddenByOverflow(element, rect)) return false
-    return true
+    return hasUsableStyle(element) && hasUsableRect(element)
   }
 
   function getVisibleScopes() {
@@ -81,11 +68,16 @@ export default defineNuxtPlugin((nuxtApp) => {
   }
 
   function getScope(active: HTMLElement | null) {
-    const activeScope = active?.closest<HTMLElement>('[data-tv-nav-scope]')
-    if (activeScope && isUsable(activeScope)) return activeScope
+    const activeScope = activeNavScope(active)
+    if (activeScope) return activeScope
 
     const scopes = getVisibleScopes()
     return scopes.at(-1) ?? document.body
+  }
+
+  function activeNavScope(active: HTMLElement | null) {
+    const activeScope = active?.closest<HTMLElement>('[data-tv-nav-scope]')
+    return activeScope && isUsable(activeScope) ? activeScope : null
   }
 
   function shouldLetPlayerHandle(active: HTMLElement | null) {
@@ -111,64 +103,49 @@ export default defineNuxtPlugin((nuxtApp) => {
     return true
   }
 
-  function scoreCandidate(direction: Direction, from: DOMRect, to: DOMRect) {
-    const fromX = from.left + from.width / 2
-    const fromY = from.top + from.height / 2
-    const toX = to.left + to.width / 2
-    const toY = to.top + to.height / 2
-    const deltaX = toX - fromX
-    const deltaY = toY - fromY
-    const sameColumn = to.right >= from.left && to.left <= from.right
-    const sameRow = to.bottom >= from.top && to.top <= from.bottom
-
-    if (direction === 'left' && deltaX >= -4) return Number.POSITIVE_INFINITY
-    if (direction === 'right' && deltaX <= 4) return Number.POSITIVE_INFINITY
-    if (direction === 'up' && deltaY >= -4) return Number.POSITIVE_INFINITY
-    if (direction === 'down' && deltaY <= 4) return Number.POSITIVE_INFINITY
-
-    if (direction === 'left' || direction === 'right') {
-      return Math.abs(deltaX) * 1000 + Math.abs(deltaY) + (sameRow ? 0 : 500)
-    }
-    return Math.abs(deltaY) * 1000 + Math.abs(deltaX) + (sameColumn ? 0 : 500)
+  function activeElement() {
+    return document.activeElement instanceof HTMLElement ? document.activeElement : null
   }
 
-  function moveFocus(direction: Direction) {
-    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    if (shouldLetPlayerHandle(active)) return false
+  function shouldFocusFirst(active: HTMLElement | null, scope: HTMLElement) {
+    if (!active) return true
+    return active === document.body || !isUsable(active) || !scope.contains(active)
+  }
 
-    const scope = getScope(active)
-    if (!active || active === document.body || !isUsable(active) || !scope.contains(active)) {
-      return focusFirst(scope)
-    }
-
-    const fromRect = active.getBoundingClientRect()
-    let next: Candidate | null = null
-    let nextScore = Number.POSITIVE_INFINITY
-
-    for (const candidate of getCandidates(scope)) {
-      if (candidate.element === active) continue
-      const score = scoreCandidate(direction, fromRect, candidate.rect)
-      if (score < nextScore) {
-        next = candidate
-        nextScore = score
-      }
-    }
-
+  function focusFromActive(scope: HTMLElement, active: HTMLElement, direction: Direction) {
+    const next = bestCandidate(getCandidates(scope), active, direction, active.getBoundingClientRect())
     if (!next) return false
     focusElement(next.element)
     return true
   }
 
-  function onKeyDown(event: KeyboardEvent) {
-    const direction = DIRECTION_BY_KEY[event.key] ?? DIRECTION_BY_KEY_CODE[event.keyCode]
-    if (!direction) return
+  function moveFocus(direction: Direction) {
+    const active = activeElement()
+    if (shouldLetPlayerHandle(active)) return false
 
-    const target = event.target instanceof HTMLElement ? event.target : null
-    if (isEditable(target) && direction !== 'up' && direction !== 'down') return
+    const scope = getScope(active)
+    if (shouldFocusFirst(active, scope)) return focusFirst(scope)
+    return focusFromActive(scope, active as HTMLElement, direction)
+  }
 
+  function directionFromEvent(event: KeyboardEvent) {
+    return DIRECTION_BY_KEY[event.key] ?? DIRECTION_BY_KEY_CODE[event.keyCode] ?? null
+  }
+
+  function handleDirectionalKey(event: KeyboardEvent, direction: Direction) {
+    if (!canHandleDirection(event, direction)) return false
     markRemoteActive()
-    if (!moveFocus(direction)) return
-    event.preventDefault()
+    return moveFocus(direction)
+  }
+
+  function canHandleDirection(event: KeyboardEvent, direction: Direction) {
+    const target = event.target instanceof HTMLElement ? event.target : null
+    return !isEditableElement(target) || direction === 'up' || direction === 'down'
+  }
+
+  function onKeyDown(event: KeyboardEvent) {
+    const direction = directionFromEvent(event)
+    if (direction && handleDirectionalKey(event, direction)) event.preventDefault()
   }
 
   window.addEventListener('keydown', onKeyDown)

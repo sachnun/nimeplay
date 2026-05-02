@@ -23,10 +23,38 @@ const showAll = ref(false)
 const visibleCount = ref(SKELETON_WIDTHS.length)
 const measureRef = ref<HTMLDivElement | null>(null)
 
+function fallbackVisibleCount() {
+  return Math.max(1, Math.floor((window.innerWidth - 88) / (AVG_PILL + 8)))
+}
+
+function countFirstRowItems(children: HTMLElement[], firstTop: number, limit: number) {
+  let count = 0
+  for (let i = 1; i < limit; i++) {
+    const child = children[i]
+    if (!child || child.offsetTop > firstTop) break
+    count++
+  }
+  return count
+}
+
+function fitMoreSlot(el: HTMLElement, children: HTMLElement[], count: number, moreEl: HTMLElement) {
+  const containerWidth = el.offsetWidth
+  const moreWidth = moreEl.offsetWidth
+  const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
+  let fitted = count
+  while (fitted >= 1) {
+    const child = children[fitted]
+    if (!child) break
+    if (child.offsetLeft + child.offsetWidth + gap + moreWidth <= containerWidth) break
+    fitted--
+  }
+  return Math.max(1, fitted)
+}
+
 function calculate() {
   const el = measureRef.value
   if (!el) {
-    visibleCount.value = Math.max(1, Math.floor((window.innerWidth - 88) / (AVG_PILL + 8)))
+    visibleCount.value = fallbackVisibleCount()
     return
   }
   const children = Array.from(el.children) as HTMLElement[]
@@ -34,31 +62,10 @@ function calculate() {
   if (children.length < 2) return
   const first = children[0]
   if (!first) return
-  const firstTop = first.offsetTop
-  let count = 0
   const limit = moreEl ? children.length - 1 : children.length
-  for (let i = 1; i < limit; i++) {
-    const child = children[i]
-    if (!child || child.offsetTop > firstTop) break
-    count++
-  }
+  let count = countFirstRowItems(children, first.offsetTop, limit)
   if (count < props.genres.length) {
-    if (moreEl) {
-      const containerWidth = el.offsetWidth
-      const moreWidth = moreEl.offsetWidth
-      const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
-      let k = count
-      while (k >= 1) {
-        const child = children[k]
-        if (!child) break
-        const rightEdge = child.offsetLeft + child.offsetWidth
-        if (rightEdge + gap + moreWidth <= containerWidth) break
-        k--
-      }
-      count = Math.max(1, k)
-    } else {
-      count = Math.max(1, count - 1)
-    }
+    count = moreEl ? fitMoreSlot(el, children, count, moreEl) : Math.max(1, count - 1)
   }
   visibleCount.value = count
 }

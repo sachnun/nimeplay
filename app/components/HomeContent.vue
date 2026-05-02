@@ -4,6 +4,9 @@ import type { ContinueItem } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 
 type HomeData = TrpcOutputs['home']
+type AnimeDetail = NonNullable<TrpcOutputs['animeDetails'][number]['anime']>
+type ContinueProgress = ReturnType<typeof getContinueWatching>[number]
+type ContinueEpisode = Pick<ContinueItem, 'episodeNum' | 'episodeSlug' | 'currentTime' | 'duration' | 'latestEpisode'>
 
 withDefaults(defineProps<{
   ongoingData: HomeData['ongoingData']
@@ -22,6 +25,44 @@ const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
 const continueCount = ref(initialContinueItems.length)
 
+function episodeNumberFromTitle(title: string, fallback: string | number) {
+  return title.match(/episode\s*(\d+)/i)?.[1] ?? `${fallback}`
+}
+
+function latestEpisodeNumber(detail: AnimeDetail, fallback: string) {
+  return episodeNumberFromTitle(detail.episodes[0]?.title ?? '', detail.episodes.length || fallback)
+}
+
+function currentContinueEpisode(p: ContinueProgress, latestEpisode: string): ContinueEpisode {
+  return { episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode }
+}
+
+function nextEpisodeAfterCompleted(p: ContinueProgress, detail: AnimeDetail, latestEpisode: string): ContinueEpisode | null {
+  const ascending = [...detail.episodes].reverse()
+  const currentIdx = ascending.findIndex((ep) => ep.slug === p.episodeSlug)
+  const nextEp = currentIdx === -1 ? null : ascending[currentIdx + 1]
+  return nextEp ? {
+    episodeNum: episodeNumberFromTitle(nextEp.title, currentIdx + 2),
+    episodeSlug: nextEp.slug,
+    currentTime: 0,
+    duration: 1,
+    latestEpisode,
+  } : null
+}
+
+function nextContinueEpisode(p: ContinueProgress, detail: AnimeDetail): ContinueEpisode | null {
+  const latest = latestEpisodeNumber(detail, p.episodeNum)
+  return getProgressStatus(p) !== 'completed'
+    ? currentContinueEpisode(p, latest)
+    : nextEpisodeAfterCompleted(p, detail, latest)
+}
+
+function toContinueItem(p: ContinueProgress, detail: AnimeDetail): ContinueItem | null {
+  const next = nextContinueEpisode(p, detail)
+  if (!next) return null
+  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, ...next }
+}
+
 async function fetchContinueWatching() {
   const items = initialContinueItems.length > 0 && continueItems.value.length === 0
     ? initialContinueItems
@@ -36,32 +77,11 @@ async function fetchContinueWatching() {
   try {
     const result = await trpc.animeDetails.query({ slugs: items.map((item) => item.animeSlug) })
     const details = new Map(result.map((item) => [item.slug, item.anime]))
-    const results = items.map((p) => {
+    continueItems.value = items.map((p) => {
       const detail = details.get(p.animeSlug)
       if (!detail) return null
-      const newestEpisode = detail.episodes[0]
-      const latestEp = detail.episodes.length > 0
-        ? newestEpisode?.title.match(/episode\s*(\d+)/i)?.[1] ?? `${detail.episodes.length}`
-        : p.episodeNum
-      let episodeNum = p.episodeNum
-      let episodeSlug = p.episodeSlug
-      let currentTime = p.currentTime
-      let duration = p.duration
-      if (getProgressStatus(p) === 'completed' && detail.episodes.length > 0) {
-        const ascending = [...detail.episodes].reverse()
-        const currentIdx = ascending.findIndex((ep) => ep.slug === p.episodeSlug)
-        if (currentIdx !== -1 && currentIdx + 1 < ascending.length) {
-          const nextEp = ascending[currentIdx + 1]
-          if (!nextEp) return null
-          episodeNum = nextEp.title.match(/episode\s*(\d+)/i)?.[1] ?? `${currentIdx + 2}`
-          episodeSlug = nextEp.slug
-          currentTime = 0
-          duration = 1
-        } else return null
-      }
-      return { animeSlug: p.animeSlug, episodeNum, episodeSlug, currentTime, duration, title: detail.title, thumbnail: detail.thumbnail, latestEpisode: latestEp } satisfies ContinueItem
-    })
-    continueItems.value = results.filter((item): item is ContinueItem => item !== null)
+      return toContinueItem(p, detail)
+    }).filter((item): item is ContinueItem => item !== null)
   } catch {
     continueItems.value = []
   } finally {

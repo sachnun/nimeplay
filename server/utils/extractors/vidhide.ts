@@ -1,3 +1,13 @@
+const EMPTY_HLS = { hls4: null, hls2: null }
+
+function toBase(num: number, radix: number): string {
+  return num.toString(radix)
+}
+
+function replaceToken(value: string, token: string, replacement: string) {
+  return value.replace(new RegExp(`\\b${token}\\b`, 'g'), replacement)
+}
+
 function unpackJS(packed: string): string | null {
   const match = packed.match(/eval\(function\(p,a,c,k,e,d\)\{[^}]+\}\('([\s\S]*?)',(\d+),(\d+),'([^']*)'/)
   if (!match) return null
@@ -11,23 +21,31 @@ function unpackJS(packed: string): string | null {
 
   while (c--) {
     const replacement = k[c]
-    if (replacement) p = p.replace(new RegExp('\\b' + c.toString(a) + '\\b', 'g'), replacement)
+    if (replacement) p = replaceToken(p, toBase(c, a), replacement)
   }
   return p
 }
 
+function emptyHls(): { hls4: string | null; hls2: string | null } {
+  return { ...EMPTY_HLS }
+}
+
+function extractLinksBody(unpacked: string): string | null {
+  return unpacked.match(/var\s+links\s*=\s*\{([^}]+)\}/)?.[1] ?? null
+}
+
+function extractHlsValue(body: string, key: 'hls4' | 'hls2'): string | null {
+  return body.match(new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`))?.[1] ?? null
+}
+
 function extractHls(html: string): { hls4: string | null; hls2: string | null } {
   const unpacked = unpackJS(html)
-  if (!unpacked) return { hls4: null, hls2: null }
-
-  const linksMatch = unpacked.match(/var\s+links\s*=\s*\{([^}]+)\}/)
-  if (!linksMatch) return { hls4: null, hls2: null }
-
-  const body = linksMatch[1]
-  if (!body) return { hls4: null, hls2: null }
+  if (!unpacked) return emptyHls()
+  const body = extractLinksBody(unpacked)
+  if (!body) return emptyHls()
   return {
-    hls4: body.match(/"hls4"\s*:\s*"([^"]+)"/)?.[1] ?? null,
-    hls2: body.match(/"hls2"\s*:\s*"([^"]+)"/)?.[1] ?? null,
+    hls4: extractHlsValue(body, 'hls4'),
+    hls2: extractHlsValue(body, 'hls2'),
   }
 }
 

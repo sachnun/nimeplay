@@ -1,20 +1,20 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { useRouter } from '#app'
+import { useEpisodePlayerGestures } from './useEpisodePlayerGestures'
+import { useEpisodePlayerMediaEvents } from './useEpisodePlayerMediaEvents'
+import { useEpisodePlayerResolution } from './useEpisodePlayerResolution'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
 import { getMalId, saveMalId } from '~/utils/jikanCache'
 import {
-  buildFallbackOrder,
   episodeNumFor,
   extractEpisodeNumber,
   findDefaultMirror,
   formatTime,
   getEpNum,
-  isExtractable,
   ProxyPlaylistLoader,
   sourcePriority,
-  type MirrorCandidate,
 } from '~/utils/player'
 
 export interface EpisodePlayerProps {
@@ -35,6 +35,7 @@ function isAndroidNative() {
 
 const CONTROLS_IDLE_MS = 3000
 const MOBILE_CONTROLS_IDLE_MS = 5000
+const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
@@ -75,60 +76,29 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const videoRef = ref<HTMLVideoElement | null>(null)
 
   let hls: any | null = null
-  let fallbackFn: (() => void) | null = null
-  let playbackSession = 0
-  let fallbackRunning = false
   let watchedMarked = false
-  let playSeconds = 0
-  let playTimer: ReturnType<typeof setInterval> | null = null
   let iframeTimer: ReturnType<typeof setTimeout> | null = null
   let autoPlayOnLoad = false
   let resumeTime = 0
-  let progressSaveTimer: ReturnType<typeof setInterval> | null = null
   let lastSavedTime = 0
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   let countdownTimer: ReturnType<typeof setInterval> | null = null
   let volumeTimer: ReturnType<typeof setTimeout> | null = null
-  let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
-  let seekAccumulator = 0
   let skipFetched = false
-  let longPressTimer: ReturnType<typeof setTimeout> | null = null
-  let longPressActive = false
-  let seeking = false
-  const lastTap = { left: 0, center: 0, right: 0 }
-  const tapTimers: Record<'left' | 'center' | 'right', ReturnType<typeof setTimeout> | null> = { left: null, center: null, right: null }
 
-  function clearTapTimer(zone: 'left' | 'center' | 'right') {
-    if (tapTimers[zone]) clearTimeout(tapTimers[zone])
-    tapTimers[zone] = null
-  }
-
-  function clearTapTimers() {
-    clearTapTimer('left')
-    clearTapTimer('center')
-    clearTapTimer('right')
+  function episodeAtOffset(offset: number) {
+    const ascending = [...episode.value.episodeNav].reverse()
+    const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
+    const target = idx === -1 ? null : ascending[idx + offset]
+    return target ? { slug: target.slug, num: getEpNum(episode.value.episodeNav, target.slug) } : null
   }
 
   const nextEpisode = computed(() => {
-    const ascending = [...episode.value.episodeNav].reverse()
-    const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
-    if (idx !== -1 && idx + 1 < ascending.length) {
-      const next = ascending[idx + 1]
-      if (!next) return null
-      return { slug: next.slug, num: getEpNum(episode.value.episodeNav, next.slug) }
-    }
-    return null
+    return episodeAtOffset(1)
   })
 
   const prevEpisode = computed(() => {
-    const ascending = [...episode.value.episodeNav].reverse()
-    const idx = ascending.findIndex((ep) => ep.slug === currentSlug.value)
-    if (idx > 0) {
-      const prev = ascending[idx - 1]
-      if (!prev) return null
-      return { slug: prev.slug, num: getEpNum(episode.value.episodeNav, prev.slug) }
-    }
-    return null
+    return episodeAtOffset(-1)
   })
 
   const qualityOptions = computed(() => {
@@ -166,20 +136,18 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
   }
 
+  function setHlsMaxBufferLength(length: number) {
+    if (hls) hls.config.maxBufferLength = length
+  }
+
   function resetForEpisode() {
-    clearAnyTimer(playTimer)
     clearAnyTimer(iframeTimer)
     clearAnyTimer(countdownTimer)
-    clearAnyTimer(progressSaveTimer)
-    playTimer = null
+    resetPlaybackTracking()
     iframeTimer = null
     countdownTimer = null
-    progressSaveTimer = null
-    playSeconds = 0
     lastSavedTime = 0
-    resumeTime = 0
-    seeking = false
-    seekAccumulator = 0
+    resumeTime = savedResumeTime()
     autoNextCountdown.value = null
     currentTime.value = 0
     duration.value = 0
@@ -190,22 +158,25 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     resolving.value = true
     loadingMessage.value = 'Menyiapkan player...'
     watchedMarked = getEpisodeStatus(currentSlug.value) === 'completed'
-    const saved = getProgress(currentSlug.value)
-    if (saved && getEpisodeStatus(currentSlug.value) === 'in_progress' && saved.currentTime > 0) resumeTime = saved.currentTime
     skipFetched = false
     skipTimes.value = []
     showEmbedAlert.value = true
-    if (longPressTimer) clearTimeout(longPressTimer)
-    longPressTimer = null
-    clearTapTimers()
-    longPressActive = false
-    wasLongPress.value = false
-    speedBoost.value = false
+    clearGestureState()
+  }
+
+  function savedResumeTime() {
+    const saved = getProgress(currentSlug.value)
+    if (!saved || getEpisodeStatus(currentSlug.value) !== 'in_progress') return 0
+    return saved.currentTime > 0 ? saved.currentTime : 0
+  }
+
+  function hasFiniteDuration(video: HTMLVideoElement | null) {
+    return Boolean(video?.duration && Number.isFinite(video.duration))
   }
 
   function doSaveProgress() {
     const video = videoRef.value
-    if (!video || !video.duration || !Number.isFinite(video.duration)) return
+    if (!video || !hasFiniteDuration(video)) return
     if (video.currentTime === lastSavedTime) return
     lastSavedTime = video.currentTime
     saveProgress(currentSlug.value, {
@@ -226,40 +197,57 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     })
   }
 
-  function doMark() {
-    if (watchedMarked) return
-    watchedMarked = true
+  function progressFallbackDuration() {
+    return duration.value || 1
+  }
+
+  function progressCurrentTime(fallback: number) {
     const video = videoRef.value
-    markWatched(currentSlug.value, {
-      currentTime: video?.currentTime ?? (duration.value || 1),
-      duration: video?.duration && Number.isFinite(video.duration) ? video.duration : (duration.value || 1),
+    return video ? video.currentTime : fallback
+  }
+
+  function progressDuration(fallback: number) {
+    const video = videoRef.value
+    if (!hasFiniteDuration(video)) return fallback
+    return video?.duration ?? fallback
+  }
+
+  function currentProgressPayload() {
+    const fallbackDuration = progressFallbackDuration()
+    return {
+      currentTime: progressCurrentTime(fallbackDuration),
+      duration: progressDuration(fallbackDuration),
       animeSlug: props.animeSlug,
       episodeNum: currentEpisodeNum.value,
-    })
-    clearAnyTimer(playTimer)
+    }
+  }
+
+  function clearWatchTimers() {
+    clearWatchedTimer()
     clearAnyTimer(iframeTimer)
-    playTimer = null
     iframeTimer = null
   }
 
+  function doMark() {
+    if (watchedMarked) return
+    watchedMarked = true
+    markWatched(currentSlug.value, currentProgressPayload())
+    clearWatchTimers()
+  }
+
+  function shouldHideControlsOnIdle() {
+    return !isSeeking.value && !showEpisodes.value && Boolean(videoRef.value && !videoRef.value.paused)
+  }
+
   function resetIdle() {
-    if (speedBoost.value) {
-      showControls.value = false
-      showEpisodes.value = false
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = null
-      return
-    }
+    if (speedBoost.value) return hideControlsNow()
     showControls.value = true
-    if (idleTimer) clearTimeout(idleTimer)
-    idleTimer = setTimeout(() => {
-      if (seeking) return
-      if (showEpisodes.value) return
-      if (videoRef.value && !videoRef.value.paused) {
-        showControls.value = false
-        showEpisodes.value = false
-      }
-    }, controlsIdleMs())
+    clearIdleTimer()
+    idleTimer = setTimeout(hideControlsIfIdle, controlsIdleMs())
+  }
+
+  function hideControlsIfIdle() {
+    if (shouldHideControlsOnIdle()) hideControlsNow()
   }
 
   function toggleEpisodesPanel() {
@@ -271,129 +259,30 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function toggleControlsVisibility() {
-    if (speedBoost.value) {
-      showControls.value = false
-      showEpisodes.value = false
-      return
-    }
-    if (showControls.value) {
-      showControls.value = false
-      showEpisodes.value = false
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = null
-    } else resetIdle()
+    if (speedBoost.value || showControls.value) return hideControlsNow()
+    resetIdle()
   }
 
-  function triggerFallback() {
-    fallbackFn?.()
+  function hideControlsNow() {
+    showControls.value = false
+    showEpisodes.value = false
+    clearIdleTimer()
   }
 
-  async function tryMirror(candidate: MirrorCandidate, sessionId: number): Promise<boolean> {
-    if (sessionId !== playbackSession) return false
-    activeQuality.value = candidate.quality
-    try {
-      const shouldExtract = isExtractable(candidate.name)
-      const prepared = await trpc.prepareMirror.mutate({ dataContent: candidate.dataContent, extract: shouldExtract })
-      const iframeUrl = prepared?.iframeUrl
-      if (sessionId !== playbackSession || !iframeUrl) return false
-      iframeSrc.value = iframeUrl
-
-      if (!shouldExtract) {
-        if (sessionId !== playbackSession || !prepared.ok) return false
-        directUrl.value = null
-        useIframe.value = true
-        return true
-      }
-
-      const proxiedUrl = prepared.proxiedUrl
-      if (sessionId !== playbackSession) return false
-      if (proxiedUrl) {
-        useIframe.value = false
-        directUrl.value = proxiedUrl
-        return true
-      }
-      if (iframeUrl.includes('desustream.info')) {
-        directUrl.value = null
-        useIframe.value = true
-        return true
-      }
-      return false
-    } catch {
-      return false
-    }
-  }
-
-  async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
-    const sessionId = ++playbackSession
-    fallbackRunning = false
-    loadingMessage.value = seamless ? 'Mengganti kualitas...' : 'Menyiapkan player...'
-    if (!seamless) {
-      resolving.value = true
-      useIframe.value = false
-      directUrl.value = null
-    }
-
-    const candidates = manual ? [startCandidate] : [
-      startCandidate,
-      ...buildFallbackOrder(episode.value.mirrors, startCandidate.quality, startCandidate.name),
-    ]
-    let fallbackIdx = 1
-
-    fallbackFn = () => {
-      if (fallbackRunning || sessionId !== playbackSession) return
-      fallbackRunning = true
-      ;(async () => {
-        try {
-          while (fallbackIdx < candidates.length) {
-            if (sessionId !== playbackSession) return
-            const next = candidates[fallbackIdx++]
-            if (!next) break
-            resolving.value = true
-            loadingMessage.value = 'Mencoba sumber video lain...'
-            useIframe.value = false
-            directUrl.value = null
-            const ok = await tryMirror(next, sessionId)
-            if (sessionId !== playbackSession) return
-            if (ok) {
-              resolving.value = false
-              return
-            }
-          }
-          if (sessionId === playbackSession) {
-            if (iframeSrc.value || episode.value.defaultIframeSrc) {
-              iframeSrc.value ||= episode.value.defaultIframeSrc
-              useIframe.value = true
-            }
-            resolving.value = false
-          }
-        } finally {
-          if (sessionId === playbackSession) fallbackRunning = false
-        }
-      })()
-    }
-
-    let resolved = await tryMirror(startCandidate, sessionId)
-    if (sessionId !== playbackSession) return
-    if (!resolved) {
-      while (fallbackIdx < candidates.length) {
-        loadingMessage.value = 'Mencoba sumber video lain...'
-        const next = candidates[fallbackIdx++]
-        if (!next) break
-        resolved = await tryMirror(next, sessionId)
-        if (sessionId !== playbackSession) return
-        if (resolved) break
-      }
-    }
-    if (!resolved && sessionId === playbackSession) {
-      if (iframeSrc.value || episode.value.defaultIframeSrc) {
-        iframeSrc.value ||= episode.value.defaultIframeSrc
-        directUrl.value = null
-        useIframe.value = true
-      }
-    }
-    if (sessionId === playbackSession) fallbackRunning = false
-    resolving.value = false
-  }
+  const {
+    activateIframe,
+    invalidatePlaybackSession,
+    playWithFallback,
+    triggerFallback,
+  } = useEpisodePlayerResolution({
+    activeQuality,
+    directUrl,
+    episode,
+    iframeSrc,
+    loadingMessage,
+    resolving,
+    useIframe,
+  })
 
   function switchQuality(opt: { dataContent: string; quality: string; name: string }) {
     const video = videoRef.value
@@ -415,9 +304,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function loadEpisodeInPlace(slug: string, epNum: string, shouldAutoPlay = false) {
-    playbackSession += 1
-    fallbackFn = null
-    fallbackRunning = false
+    invalidatePlaybackSession()
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
@@ -425,7 +312,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     iframeSrc.value = null
     autoPlayOnLoad = shouldAutoPlay
     resumeTime = 0
-    seeking = false
     destroyHls()
     const video = videoRef.value
     if (video) {
@@ -454,6 +340,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (countdownTimer) clearInterval(countdownTimer)
     countdownTimer = null
     autoNextCountdown.value = null
+  }
+
+  function startAutoNextCountdown() {
+    autoNextCountdown.value = 5
+    countdownTimer = setInterval(() => {
+      if (autoNextCountdown.value === null) return
+      if (!isFullscreen.value) return cancelAutoNext()
+      if (autoNextCountdown.value <= 1) goNextNow()
+      else autoNextCountdown.value -= 1
+    }, 1000)
   }
 
   function goNextNow() {
@@ -538,163 +434,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
   }
 
-  function showSeekFeedback(side: 'left' | 'right', seconds: number) {
-    if (seekIndicatorTimer) clearTimeout(seekIndicatorTimer)
-    seekAccumulator += seconds
-    seekIndicator.value = { side, seconds: seekAccumulator }
-    seekIndicatorKey.value++
-    seekIndicatorTimer = setTimeout(() => {
-      seekIndicator.value = null
-      seekAccumulator = 0
-    }, 600)
-  }
-
-  function handleZoneTap(zone: 'left' | 'center' | 'right') {
-    const now = Date.now()
-    const isDoubleTap = now - lastTap[zone] < 300
-    lastTap[zone] = now
-
-    if (zone === 'center') {
-      if (isDoubleTap) {
-        clearTapTimer('center')
-        void toggleFullscreen()
-      } else {
-        tapTimers.center = setTimeout(() => {
-          tapTimers.center = null
-          toggleControlsVisibility()
-        }, 300)
-      }
-      return
-    }
-    const side = zone
-    if (isDoubleTap) {
-      clearTapTimer(side)
-      const delta = side === 'left' ? -10 : 10
-      seekRelative(delta)
-      showSeekFeedback(side, Math.abs(delta))
-    } else {
-      tapTimers[side] = setTimeout(() => {
-        tapTimers[side] = null
-        toggleControlsVisibility()
-      }, 300)
-    }
-  }
-
-  function handleZonePointerUp(zone: 'left' | 'center' | 'right', event: PointerEvent) {
-    if (event.pointerType === 'touch') return
-    if (event.button !== 0) return
-    event.preventDefault()
-    if (zone === 'right' && wasLongPress.value) return
-    handleZoneTap(zone)
-  }
-
-  function handleZoneTouchEnd(zone: 'left' | 'center' | 'right', event: TouchEvent) {
-    event.preventDefault()
-    if (zone === 'right' && wasLongPress.value) return
-    handleZoneTap(zone)
-  }
-
-  function handleSpeedHoldStart(event?: PointerEvent) {
-    if (event?.pointerType === 'mouse' && event.button !== 0) return
-    event?.preventDefault()
-    if (event?.currentTarget instanceof HTMLElement) {
-      try { event.currentTarget.setPointerCapture(event.pointerId) } catch {}
-    }
-    const video = videoRef.value
-    if (!video || video.paused) return
-    if (longPressTimer) clearTimeout(longPressTimer)
-    longPressActive = false
-    longPressTimer = setTimeout(() => {
-      longPressActive = true
-      wasLongPress.value = true
-      const v = videoRef.value
-      if (!v) return
-      if (hls) hls.config.maxBufferLength = 120
-      v.playbackRate = 3
-      showControls.value = false
-      showEpisodes.value = false
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = null
-      speedBoost.value = true
-    }, 400)
-    let ended = false
-    const cleanup = () => {
-      window.removeEventListener('pointerup', end)
-      window.removeEventListener('mouseup', end)
-      window.removeEventListener('touchend', end)
-      window.removeEventListener('pointercancel', cancelPending)
-      window.removeEventListener('touchcancel', cancelPending)
-    }
-    const end = () => {
-      if (ended) return
-      ended = true
-      if (longPressTimer) clearTimeout(longPressTimer)
-      longPressTimer = null
-      if (longPressActive) {
-        longPressActive = false
-        const v = videoRef.value
-        if (v) v.playbackRate = 1
-        if (hls) hls.config.maxBufferLength = 60
-        speedBoost.value = false
-      }
-      setTimeout(() => { wasLongPress.value = false }, 50)
-      cleanup()
-    }
-    const cancelPending = () => {
-      if (longPressActive) return
-      end()
-    }
-    window.addEventListener('pointerup', end)
-    window.addEventListener('mouseup', end)
-    window.addEventListener('touchend', end, { passive: true })
-    window.addEventListener('pointercancel', cancelPending)
-    window.addEventListener('touchcancel', cancelPending, { passive: true })
-  }
-
-  function getSeekTime(clientX: number, bar: HTMLElement | null): number | null {
-    if (!bar || !duration.value) return null
-    const rect = bar.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return ratio * duration.value
-  }
-
-  function onProgressDown(event: MouseEvent | TouchEvent) {
-    event.preventDefault()
-    const bar = event.currentTarget as HTMLElement | null
-    seeking = true
-    isSeeking.value = true
+  function clearIdleTimer() {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = null
-    const touch = 'touches' in event ? event.touches[0] : null
-    const clientX = touch ? touch.clientX : 'clientX' in event ? event.clientX : null
-    if (clientX === null) return
-    const time = getSeekTime(clientX, bar)
-    if (time !== null) currentTime.value = time
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      const moveTouch = 'touches' in ev ? ev.touches[0] : null
-      const cx = moveTouch ? moveTouch.clientX : 'clientX' in ev ? ev.clientX : null
-      if (cx === null) return
-      const t = getSeekTime(cx, bar)
-      if (t !== null) currentTime.value = t
-    }
-    const onUp = (ev: MouseEvent | TouchEvent) => {
-      const changedTouch = 'changedTouches' in ev ? ev.changedTouches[0] : null
-      const cx = changedTouch ? changedTouch.clientX : 'clientX' in ev ? ev.clientX : null
-      if (cx === null) return
-      const t = getSeekTime(cx, bar)
-      if (t !== null) seekTo(t)
-      seeking = false
-      isSeeking.value = false
-      resetIdle()
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('touchmove', onMove)
-      window.removeEventListener('touchend', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('touchmove', onMove)
-    window.addEventListener('touchend', onUp)
   }
 
   function showVolumeControl() {
@@ -706,37 +448,142 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     volumeTimer = setTimeout(() => { showVolume.value = false }, 300)
   }
 
+  function isInteractiveTarget(target: HTMLElement | null) {
+    return Boolean(target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"]')))
+  }
+
+  function isPlayPauseKey(event: KeyboardEvent) {
+    return ['Enter', ' ', 'MediaPlayPause'].includes(event.key) || [23, 66].includes(event.keyCode)
+  }
+
+  function handleKeyboardShortcut(event: KeyboardEvent) {
+    const volume = videoRef.value?.volume ?? 1
+    const shortcuts: Record<string, () => void> = {
+      k: togglePlay,
+      ArrowLeft: () => seekRelative(-5),
+      ArrowRight: () => seekRelative(5),
+      ArrowUp: () => changeVolume(volume + 0.1),
+      ArrowDown: () => changeVolume(volume - 0.1),
+      m: toggleMute,
+      f: () => { void toggleFullscreen() },
+    }
+    const handler = shortcuts[keyboardShortcutKey(event)]
+    if (!handler) return false
+    event.preventDefault()
+    handler()
+    return true
+  }
+
+  function keyboardShortcutKey(event: KeyboardEvent) {
+    return event.key.length === 1 ? event.key.toLowerCase() : event.key
+  }
+
+  async function lookupAndSaveSkipTimes(epNum: number, episodeLength: number) {
+    const res = await trpc.skipTimesLookup.query({ title: episode.value.title, episode: epNum, episodeLength })
+    if (res.malId) saveMalId(episode.value.animeSlug || props.animeSlug, res.malId)
+    skipTimes.value = res.skipTimes
+  }
+
+  async function loadSkipTimes(epNum: number, episodeLength: number, malId: number | null) {
+    if (!malId) return lookupAndSaveSkipTimes(epNum, episodeLength)
+    skipTimes.value = await trpc.skipTimes.query({ malId, episode: epNum, episodeLength })
+  }
+
+  function shouldSkipSegment(skipTime: SkipTime, time: number) {
+    return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
+  }
+
+  function autoSkipCurrentSegment(video: HTMLVideoElement) {
+    if (!autoSkip.value) return
+    const current = skipTimes.value.find((skipTime) => shouldSkipSegment(skipTime, video.currentTime))
+    if (current) video.currentTime = current.interval.endTime
+  }
+
   async function fetchSkipTimesIfNeeded() {
-    const video = videoRef.value
-    if (skipFetched || !video?.duration || !Number.isFinite(video.duration)) return
+    if (skipFetched) return
+    const episodeLength = currentVideoDuration()
+    if (episodeLength === null) return
     skipFetched = true
     const epNum = extractEpisodeNumber(currentSlug.value)
     if (!epNum) return
-    let malId = getMalId(episode.value.animeSlug || props.animeSlug)
-    if (!malId) {
-      const res = await trpc.skipTimesLookup.query({ title: episode.value.title, episode: epNum, episodeLength: video.duration })
-      malId = res.malId
-      if (malId) saveMalId(episode.value.animeSlug || props.animeSlug, malId)
-      skipTimes.value = res.skipTimes
-      return
-    }
-    if (!malId) return
-    skipTimes.value = await trpc.skipTimes.query({ malId, episode: epNum, episodeLength: video.duration })
+    await loadSkipTimes(epNum, episodeLength, getMalId(currentAnimeSlug()))
   }
+
+  function currentAnimeSlug() {
+    return episode.value.animeSlug || props.animeSlug
+  }
+
+  function currentVideoDuration() {
+    const video = videoRef.value
+    return hasFiniteDuration(video) ? video?.duration ?? null : null
+  }
+
+  const {
+    clearPlaybackTimers,
+    clearWatchedTimer,
+    registerVideoEvents,
+    resetPlaybackTracking,
+  } = useEpisodePlayerMediaEvents({
+    isPlaying,
+    isSeeking,
+    currentTime,
+    duration,
+    buffered,
+    volume,
+    isMuted,
+    isFullscreen,
+    nextEpisode,
+    skipTimes,
+    autoSkipCurrentSegment,
+    canMarkWatched: () => !watchedMarked,
+    doMark,
+    doSaveProgress,
+    fetchSkipTimesIfNeeded,
+    saveNextEpisodeResume,
+    startAutoNextCountdown,
+  })
+
+  const {
+    clearGestureState,
+    handleSpeedHoldStart,
+    handleZonePointerUp,
+    handleZoneTouchEnd,
+    handleZoneTap,
+    onProgressDown,
+  } = useEpisodePlayerGestures({
+    videoRef,
+    currentTime,
+    duration,
+    isSeeking,
+    showControls,
+    showEpisodes,
+    speedBoost,
+    wasLongPress,
+    seekIndicator,
+    seekIndicatorKey,
+    clearIdleTimer,
+    resetIdle,
+    seekRelative,
+    seekTo,
+    setHlsMaxBufferLength,
+    toggleControlsVisibility,
+    toggleFullscreen,
+  })
 
   watch(currentSlug, resetForEpisode, { immediate: true })
 
-  watch(episode, (value) => {
+  function activateEpisodeFallback(value: EpisodeData) {
+    if (value.defaultIframeSrc) activateIframe(value.defaultIframeSrc)
+    resolving.value = false
+  }
+
+  function loadEpisodeSource(value: EpisodeData) {
     const def = findDefaultMirror(value)
-    if (def) void playWithFallback(def, false)
-    else {
-      if (value.defaultIframeSrc) {
-        iframeSrc.value = value.defaultIframeSrc
-        useIframe.value = true
-      }
-      resolving.value = false
-    }
-  }, { immediate: true })
+    if (!def) return activateEpisodeFallback(value)
+    void playWithFallback(def, false)
+  }
+
+  watch(episode, loadEpisodeSource, { immediate: true })
 
   watch(showIframe, (shown) => {
     if (iframeTimer) clearTimeout(iframeTimer)
@@ -748,26 +595,82 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (import.meta.client) localStorage.setItem('nimeplay:autoskip', value ? '1' : '0')
   })
 
-  watch(isPlaying, (playing) => {
-    if (playing) resetIdle()
-    else {
-      showControls.value = true
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = null
-    }
+  function setMediaPlaybackState(playing: boolean) {
     if (import.meta.client && 'mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
-  })
+  }
 
-  watch([() => episode.value.title, () => currentEpisodeNum.value], () => {
-    if (!import.meta.client || !('mediaSession' in navigator)) return
+  function showPausedControls() {
+    showControls.value = true
+    clearIdleTimer()
+  }
+
+  function updatePlayingState(playing: boolean) {
+    if (playing) resetIdle()
+    else showPausedControls()
+    setMediaPlaybackState(playing)
+  }
+
+  watch(isPlaying, updatePlayingState)
+
+  function mediaArtwork() {
     const artworkUrl = episode.value.thumbnail || props.animeThumbnail
+    return artworkUrl ? [96, 192, 256, 384, 512].map((size) => ({ src: artworkUrl, sizes: `${size}x${size}`, type: 'image/jpeg' })) : []
+  }
+
+  function updateMediaMetadata() {
+    if (!import.meta.client || !('mediaSession' in navigator)) return
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.value.title,
       artist: episode.value.animeTitle,
       album: `Episode ${currentEpisodeNum.value}`,
-      artwork: artworkUrl ? [96, 192, 256, 384, 512].map((size) => ({ src: artworkUrl, sizes: `${size}x${size}`, type: 'image/jpeg' })) : [],
+      artwork: mediaArtwork(),
     })
-  }, { immediate: true })
+  }
+
+  watch([() => episode.value.title, () => currentEpisodeNum.value], updateMediaMetadata, { immediate: true })
+
+  function proxyLoaderFor(url: string) {
+    return url.includes('vidhide') || url.includes('odvidhide') ? { pLoader: ProxyPlaylistLoader as any } : {}
+  }
+
+  function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+    video.src = url
+    video.addEventListener('error', onVideoError, { once: true })
+  }
+
+  async function attachHlsSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+    const Hls = (await import('hls.js/light')).default
+    if (Hls.isSupported()) {
+      hls = new Hls({
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        ...proxyLoaderFor(url),
+      })
+      hls.loadSource(url)
+      hls.attachMedia(video)
+      hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal?: boolean }) => {
+        if (data.fatal) triggerFallback()
+      })
+      return
+    }
+    if (video.canPlayType('application/vnd.apple.mpegurl')) return attachNativeSource(video, url, onVideoError)
+    triggerFallback()
+  }
+
+  function resumeAndAutoplay(video: HTMLVideoElement) {
+    if (resumeTime > 0) {
+      video.currentTime = resumeTime
+      resumeTime = 0
+    }
+    if (!autoPlayOnLoad) return
+    autoPlayOnLoad = false
+    if (video.paused) void video.play().catch(() => {})
+  }
+
+  async function attachVideoSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+    if (url.includes('.m3u8')) return attachHlsSource(video, url, onVideoError)
+    attachNativeSource(video, url, onVideoError)
+  }
 
   watch(directUrl, async (url, _, onCleanup) => {
     const video = videoRef.value
@@ -779,39 +682,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const onVideoError = () => triggerFallback()
     video.addEventListener('canplay', onCanPlay, { once: true })
 
-    if (url.includes('.m3u8')) {
-      const Hls = (await import('hls.js/light')).default
-      if (Hls.isSupported()) {
-        const needsProxy = url.includes('vidhide') || url.includes('odvidhide')
-        hls = new Hls({
-          maxBufferLength: 60,
-          maxMaxBufferLength: 120,
-          ...(needsProxy ? { pLoader: ProxyPlaylistLoader as any } : {}),
-        })
-        hls.loadSource(url)
-        hls.attachMedia(video)
-        hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal?: boolean }) => {
-          if (data.fatal) triggerFallback()
-        })
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = url
-        video.addEventListener('error', onVideoError, { once: true })
-      } else triggerFallback()
-    } else {
-      video.src = url
-      video.addEventListener('error', onVideoError, { once: true })
-    }
+    await attachVideoSource(video, url, onVideoError)
 
-    const onReady = () => {
-      if (resumeTime > 0) {
-        video.currentTime = resumeTime
-        resumeTime = 0
-      }
-      if (autoPlayOnLoad) {
-        autoPlayOnLoad = false
-        if (video.paused) void video.play().catch(() => {})
-      }
-    }
+    const onReady = () => resumeAndAutoplay(video)
     video.addEventListener('canplay', onReady, { once: true })
     onCleanup(() => {
       video.removeEventListener('canplay', onCanPlay)
@@ -825,80 +698,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
     autoSkip.value = localStorage.getItem('nimeplay:autoskip') === '1'
     const video = videoRef.value
-    if (video) {
-      const onPlay = () => {
-        isPlaying.value = true
-        if (!watchedMarked && !playTimer) {
-          playTimer = setInterval(() => {
-            playSeconds += 1
-            if (playSeconds >= 10) doMark()
-          }, 1000)
-        }
-        if (!progressSaveTimer) progressSaveTimer = setInterval(doSaveProgress, 5000)
-      }
-      const onPause = () => {
-        isPlaying.value = false
-        doSaveProgress()
-        clearAnyTimer(playTimer)
-        clearAnyTimer(progressSaveTimer)
-        playTimer = null
-        progressSaveTimer = null
-      }
-      const onEnded = () => {
-        isPlaying.value = false
-        doSaveProgress()
-        doMark()
-        saveNextEpisodeResume()
-        clearAnyTimer(playTimer)
-        clearAnyTimer(progressSaveTimer)
-        playTimer = null
-        progressSaveTimer = null
-        if (isFullscreen.value && nextEpisode.value) {
-          autoNextCountdown.value = 5
-          countdownTimer = setInterval(() => {
-            if (autoNextCountdown.value === null) return
-            if (!isFullscreen.value) return cancelAutoNext()
-            if (autoNextCountdown.value <= 1) goNextNow()
-            else autoNextCountdown.value -= 1
-          }, 1000)
-        }
-      }
-      const onTimeUpdate = () => {
-        if (!seeking) currentTime.value = video.currentTime
-        if (skipTimes.value.length > 0 && autoSkip.value) {
-          const current = skipTimes.value.find((s) => video.currentTime >= s.interval.startTime && video.currentTime < s.interval.endTime - 1)
-          if (current) video.currentTime = current.interval.endTime
-        }
-      }
-      const onDurationChange = () => {
-        if (video.duration && Number.isFinite(video.duration)) duration.value = video.duration
-        void fetchSkipTimesIfNeeded()
-      }
-      const onProgress = () => {
-        if (video.buffered.length > 0) buffered.value = video.buffered.end(video.buffered.length - 1)
-      }
-      const onVolumeChange = () => {
-        volume.value = video.volume
-        isMuted.value = video.muted
-      }
-      video.addEventListener('play', onPlay)
-      video.addEventListener('pause', onPause)
-      video.addEventListener('ended', onEnded)
-      video.addEventListener('timeupdate', onTimeUpdate)
-      video.addEventListener('durationchange', onDurationChange)
-      video.addEventListener('progress', onProgress)
-      video.addEventListener('volumechange', onVolumeChange)
-
-      onBeforeUnmount(() => {
-        video.removeEventListener('play', onPlay)
-        video.removeEventListener('pause', onPause)
-        video.removeEventListener('ended', onEnded)
-        video.removeEventListener('timeupdate', onTimeUpdate)
-        video.removeEventListener('durationchange', onDurationChange)
-        video.removeEventListener('progress', onProgress)
-        video.removeEventListener('volumechange', onVolumeChange)
-      })
-    }
+    if (video) onBeforeUnmount(registerVideoEvents(video))
 
     const onFullscreenChange = () => {
       isFullscreen.value = !!document.fullscreenElement
@@ -911,29 +711,17 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const onKey = (event: KeyboardEvent) => {
       if (!showNative.value) return
       const target = event.target instanceof HTMLElement ? event.target : null
-      const tag = target?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.closest('a, button, [role="button"]')) return
-      if (event.key === 'Enter' || event.key === ' ' || event.key === 'MediaPlayPause' || event.keyCode === 23 || event.keyCode === 66) {
+      if (isInteractiveTarget(target)) return
+      if (isPlayPauseKey(event)) {
         event.preventDefault()
         togglePlay()
         return
       }
-      switch (event.key) {
-        case 'k':
-        case 'K': event.preventDefault(); togglePlay(); break
-        case 'ArrowLeft': event.preventDefault(); seekRelative(-5); break
-        case 'ArrowRight': event.preventDefault(); seekRelative(5); break
-        case 'ArrowUp': event.preventDefault(); changeVolume((videoRef.value?.volume ?? 1) + 0.1); break
-        case 'ArrowDown': event.preventDefault(); changeVolume((videoRef.value?.volume ?? 1) - 0.1); break
-        case 'm':
-        case 'M': event.preventDefault(); toggleMute(); break
-        case 'f':
-        case 'F': event.preventDefault(); void toggleFullscreen(); break
-      }
+      handleKeyboardShortcut(event)
     }
     const onPointerActivity = () => resetIdle()
     const onLeave = () => {
-      if (seeking) return
+      if (isSeeking.value) return
       if (videoRef.value && !videoRef.value.paused) {
         showControls.value = false
         showEpisodes.value = false
@@ -959,16 +747,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     onBeforeUnmount(() => {
       doSaveProgress()
       destroyHls()
-      fallbackFn = null
-      playbackSession += 1
-      clearAnyTimer(playTimer)
+      invalidatePlaybackSession()
       clearAnyTimer(iframeTimer)
       clearAnyTimer(countdownTimer)
-      clearAnyTimer(progressSaveTimer)
       clearAnyTimer(idleTimer)
       clearAnyTimer(volumeTimer)
-      clearAnyTimer(seekIndicatorTimer)
-      clearTapTimers()
+      clearPlaybackTimers()
+      clearGestureState()
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       window.removeEventListener('keydown', onKey)
       containerRef.value?.removeEventListener('mousemove', onPointerActivity)

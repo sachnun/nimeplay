@@ -1,17 +1,8 @@
 <script setup lang="ts">
 import type { TrpcOutputs } from '~/types/trpc'
 import type { ContinueItem } from '~/utils/types'
-import { getContinueWatching } from '~/utils/watchHistory'
 
 type PageData = TrpcOutputs['genre']
-
-interface ProgressEntry {
-  animeSlug: string
-  episodeNum: string
-  episodeSlug: string
-  currentTime: number
-  duration: number
-}
 
 const props = withDefaults(defineProps<{
   genreSlug: string
@@ -28,24 +19,12 @@ const pages = ref<PageData[]>([])
 const size = ref(0)
 const loading = ref(false)
 const loadError = ref(false)
-const allProgress = ref<ProgressEntry[]>([])
-const {
-  onProgressCardPointerDown,
-  onProgressCardPointerMove,
-  onProgressCardPointerEnd,
-  onProgressCardClick,
-  onProgressCardContextMenu,
-} = useProgressCardLongPress()
+const { progressMap, syncProgress } = useAnimeProgressMap(() => props.continueItems)
+const progressCard = useProgressCardLongPress()
 
 const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
 const totalPages = computed(() => pages.value[0]?.totalPages ?? 1)
 const isEnd = computed(() => size.value >= totalPages.value)
-const progressMap = computed(() => {
-  const map = new Map<string, ProgressEntry>()
-  for (const item of allProgress.value) map.set(item.animeSlug, item)
-  for (const item of props.continueItems) map.set(item.animeSlug, item)
-  return map
-})
 const animeCards = computed(() => allAnime.value.map((anime) => {
   const progress = progressMap.value.get(anime.slug)
   return {
@@ -60,24 +39,20 @@ async function loadPage(page: number) {
   return trpc.genre.query({ slug: props.genreSlug, page })
 }
 
+async function appendNextPage() {
+  const next = size.value + 1
+  pages.value.push(await loadPage(next))
+  size.value = next
+}
+
 async function loadMore() {
-  if (loading.value || isEnd.value) return
-  loading.value = true
-  loadError.value = false
-  let loaded = false
-  try {
-    const next = size.value + 1
-    pages.value.push(await loadPage(next))
-    size.value = next
-    loaded = true
-  } catch {
-    loadError.value = true
-  } finally {
-    loading.value = false
-  }
-  if (!loaded) return
-  await nextTick()
-  if (isSentinelNearViewport()) void loadMore()
+  await loadGridPage({
+    loading,
+    loadError,
+    isEnd,
+    load: appendNextPage,
+    afterLoad: () => fillGridViewport(isSentinelNearViewport, loadMore),
+  })
 }
 
 async function reset() {
@@ -88,18 +63,8 @@ async function reset() {
 
 watch(() => props.genreSlug, () => { void reset() }, { immediate: true })
 
-function isSentinelNearViewport() {
-  if (!sentinelRef.value || isEnd.value) return false
-  const rect = sentinelRef.value.getBoundingClientRect()
-  return rect.top <= window.innerHeight + 800 && rect.bottom >= -800
-}
+const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
 
-function syncProgress() {
-  const all = getContinueWatching()
-  allProgress.value = all.length > 0 ? all : props.continueItems
-}
-
-let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
   syncProgress()
   window.addEventListener('storage', syncProgress)
@@ -108,26 +73,9 @@ onMounted(() => {
   }
   document.addEventListener('visibilitychange', onVisibility)
 
-  if (gridRef.value) {
-    const update = () => {
-      if (!gridRef.value) return
-      cols.value = getComputedStyle(gridRef.value).gridTemplateColumns.split(' ').length
-    }
-    update()
-    resizeObserver = new ResizeObserver(update)
-    resizeObserver.observe(gridRef.value)
-  }
-
-  const observer = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting)) void loadMore()
-  }, { rootMargin: '800px 0px' })
-  if (sentinelRef.value) observer.observe(sentinelRef.value)
-
   onBeforeUnmount(() => {
     window.removeEventListener('storage', syncProgress)
     document.removeEventListener('visibilitychange', onVisibility)
-    observer.disconnect()
-    resizeObserver?.disconnect()
   })
 })
 </script>
@@ -140,13 +88,13 @@ onMounted(() => {
         :key="`${anime.slug}-${i}`"
         :to="to"
         class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="onProgressCardPointerDown($event, progress ? anime.slug : null)"
-        @pointermove="onProgressCardPointerMove"
-        @pointerup="onProgressCardPointerEnd"
-        @pointerleave="onProgressCardPointerEnd"
-        @pointercancel="onProgressCardPointerEnd"
-        @click.capture="onProgressCardClick"
-        @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
+        @pointerdown="progressCard.onProgressCardPointerDown($event, progress ? anime.slug : null)"
+        @pointermove="progressCard.onProgressCardPointerMove"
+        @pointerup="progressCard.onProgressCardPointerEnd"
+        @pointerleave="progressCard.onProgressCardPointerEnd"
+        @pointercancel="progressCard.onProgressCardPointerEnd"
+        @click.capture="progressCard.onProgressCardClick"
+        @contextmenu="progressCard.onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4]">
           <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">

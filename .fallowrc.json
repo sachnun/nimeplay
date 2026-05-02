@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "ignoreDependencies": ["@capacitor/android"],
+  "audit": {
+    "gate": "all"
+  },
+  "health": {
+    "maxCognitive": 17,
+    "maxCrap": 91
+  }
+}

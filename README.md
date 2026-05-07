@@ -20,6 +20,38 @@ pnpm dev
 
 Open `http://localhost:3000` in your browser.
 
+Database setup:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/nimeplay pnpm db:migrate
+```
+
+Initial Otakudesu catalog sync stores anime route/episode data from Otakudesu and anime metadata/posters from MyAnimeList via Jikan:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/nimeplay pnpm sync:catalog
+```
+
+Catalog sync processes anime concurrently while Jikan requests are globally paced. Tune workers with `--concurrency` or `SYNC_CATALOG_CONCURRENCY`:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/nimeplay pnpm sync:catalog -- --concurrency=3
+```
+
+For a small smoke test:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/nimeplay pnpm sync:catalog -- --limit=20
+```
+
+Latest ongoing anime refresh is designed for hourly cron:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/nimeplay pnpm sync:latest
+```
+
+Production cron can also call `POST /api/cron/otakudesu/latest` with `Authorization: Bearer $CRON_SECRET` when `CRON_SECRET` is set.
+
 Production build and preview:
 
 ```bash

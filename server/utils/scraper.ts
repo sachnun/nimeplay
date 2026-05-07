@@ -89,6 +89,14 @@ export interface GenreAnimeCard {
   date: string
 }
 
+export interface AnimeIndexItem {
+  title: string
+  slug: string
+  isOngoing: boolean
+}
+
+export type LatestAnimeKind = 'ONGOING' | 'COMPLETED'
+
 function cleanTitle(title: string): string {
   return cleanTitleWithRules(title, SCRAPER_TITLE_CLEANUP)
 }
@@ -104,6 +112,10 @@ function extractAnimeSlug(href: string): string {
 
 function extractEpisodeSlug(href: string): string {
   return href.match(/\/episode\/([^/]+)/)?.[1] ?? ''
+}
+
+function cleanIndexTitle(title: string): string {
+  return cleanTitle(title.replace(/\s+On-Going\s*$/i, ''))
 }
 
 function parseEpztipe(raw: string): { day: string; rating?: string } {
@@ -186,6 +198,10 @@ async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime
   return { anime: parseAnimeCards($), totalPages: getTotalPages($) }
 }
 
+function latestPath(kind: LatestAnimeKind): string {
+  return kind === 'COMPLETED' ? 'complete-anime' : 'ongoing-anime'
+}
+
 async function fetchHTML(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: getSpoofHeaders(BASE_URL + '/'),
@@ -194,6 +210,34 @@ async function fetchHTML(url: string): Promise<string> {
   const html = await res.text()
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
   return html
+}
+
+function parseAnimeIndex($: cheerio.CheerioAPI): AnimeIndexItem[] {
+  const seen = new Set<string>()
+  const anime: AnimeIndexItem[] = []
+
+  $('.daftarkartun a[href*="/anime/"]').each((_, el) => {
+    const slug = extractAnimeSlug($(el).attr('href') || '')
+    const text = $(el).text().trim()
+    if (!slug || !text || seen.has(slug)) return
+    seen.add(slug)
+    anime.push({
+      title: cleanIndexTitle(text),
+      slug,
+      isOngoing: /\bOn-Going\b/i.test(text),
+    })
+  })
+
+  return anime
+}
+
+export async function scrapeAnimeIndex(): Promise<AnimeIndexItem[]> {
+  const html = await fetchHTML(`${BASE_URL}/anime-list/`)
+  return parseAnimeIndex(cheerio.load(html))
+}
+
+export function scrapeLatestAnime(kind: LatestAnimeKind, page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+  return scrapeAnimeListFresh(latestPath(kind), page)
 }
 
 async function corsPost(url: string, body: string): Promise<Record<string, unknown>> {
@@ -248,6 +292,10 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null>
     synopsis: $('.sinopc p').text().trim(),
     episodes: parseDetailEpisodes($),
   }
+}
+
+export function scrapeAnimeDetailForSync(slug: string): Promise<AnimeDetail | null> {
+  return scrapeAnimeDetailFresh(slug)
 }
 
 export function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {

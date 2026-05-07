@@ -1,29 +1,12 @@
 import { z } from 'zod'
 import { procedure } from '../init'
-import { fetchJikanData } from '../../utils/jikan'
-import {
-  scrapeAnimeDetail,
-  scrapeCompleted,
-  scrapeEpisode,
-  scrapeGenre,
-  scrapeGenreList,
-  scrapeOngoing,
-  scrapeSearch,
-} from '../../utils/scraper'
+import { getAnimeDetail, getAnimeDetails, getAnimePage, getGenreAnime, getGenreList, getHomeData, getPersistedJikanData, searchAnime } from '../../services/animeRepository'
+import { scrapeEpisode } from '../../utils/scraper'
 
 const pageInput = z.object({ page: z.number().int().positive().default(1) })
-const emptyAnimePage = { anime: [], totalPages: 1 }
 
 function episodeNumberFromTitle(title: string, index: number) {
   return title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
-}
-
-async function safeLoad<T>(load: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await load()
-  } catch {
-    return fallback
-  }
 }
 
 function uniqueSlugs(slugs: string[]) {
@@ -31,32 +14,16 @@ function uniqueSlugs(slugs: string[]) {
   return slugs.map((slug) => slug.trim()).filter((slug) => slug && !seen.has(slug) && seen.add(slug))
 }
 
-async function loadAnimeDetail(slug: string) {
-  try {
-    return { slug, anime: await scrapeAnimeDetail(slug) }
-  } catch {
-    return { slug, anime: null }
-  }
-}
-
 export const animeProcedures = {
-  home: procedure.query(async () => {
-    const [ongoingData, completedData, genres] = await Promise.all([
-      safeLoad(() => scrapeOngoing(1), emptyAnimePage),
-      safeLoad(() => scrapeCompleted(1), emptyAnimePage),
-      safeLoad(() => scrapeGenreList(), []),
-    ])
-
-    return { ongoingData, completedData, genres }
-  }),
+  home: procedure.query(() => getHomeData()),
 
   anime: procedure
     .input(z.object({ slug: z.string() }))
-    .query(({ input }) => scrapeAnimeDetail(input.slug)),
+    .query(({ input }) => getAnimeDetail(input.slug)),
 
   animeDetails: procedure
     .input(z.object({ slugs: z.array(z.string()) }))
-    .query(({ input }) => Promise.all(uniqueSlugs(input.slugs).map(loadAnimeDetail))),
+    .query(({ input }) => getAnimeDetails(uniqueSlugs(input.slugs))),
 
   episode: procedure
     .input(z.object({ slug: z.string() }))
@@ -69,7 +36,7 @@ export const animeProcedures = {
       const episodeNumber = input.episode.trim()
       if (!animeSlug || !episodeNumber) return { anime: null, episodeSlug: null, episode: null }
 
-      const anime = await scrapeAnimeDetail(animeSlug)
+      const anime = await getAnimeDetail(animeSlug)
       if (!anime) return { anime: null, episodeSlug: null, episode: null }
 
       const reversed = [...anime.episodes].reverse()
@@ -82,19 +49,19 @@ export const animeProcedures = {
 
   animePage: procedure
     .input(pageInput.extend({ type: z.enum(['ONGOING', 'COMPLETED']) }))
-    .query(({ input }) => input.type === 'COMPLETED' ? scrapeCompleted(input.page) : scrapeOngoing(input.page)),
+    .query(({ input }) => getAnimePage(input.type, input.page)),
 
-  genres: procedure.query(() => scrapeGenreList()),
+  genres: procedure.query(() => getGenreList()),
 
   genre: procedure
     .input(pageInput.extend({ slug: z.string() }))
-    .query(({ input }) => scrapeGenre(input.slug, input.page)),
+    .query(({ input }) => getGenreAnime(input.slug, input.page)),
 
   search: procedure
     .input(z.object({ query: z.string() }))
     .query(({ input }) => {
       const query = input.query.trim()
-      return query ? scrapeSearch(query) : []
+      return query ? searchAnime(query) : []
     }),
 
   jikanAnime: procedure
@@ -102,6 +69,6 @@ export const animeProcedures = {
     .query(({ input }) => {
       const title = input.title.trim()
       if (!title) return null
-      return fetchJikanData(title, input.japaneseTitle || undefined, input.cachedMalId || null)
+      return getPersistedJikanData({ title, japaneseTitle: input.japaneseTitle || undefined, cachedMalId: input.cachedMalId || null })
     }),
 }

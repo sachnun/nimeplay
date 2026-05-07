@@ -125,5 +125,19 @@ watchEffect(() => {
       releaseDate: anime.releaseDate,
     }"
     :episodes="anime.episodes"
+    :mal="{
+      malId: anime.malId,
+      synopsisEn: anime.synopsis || '',
+      background: anime.background || '',
+      malScore: anime.score ? Number(anime.score) : null,
+      malRank: anime.malRank,
+      popularity: anime.popularity,
+      rating: anime.rating,
+      season: anime.season,
+      year: anime.year,
+      trailerEmbedUrl: anime.trailerEmbedUrl,
+      characters: anime.characters || [],
+    }"
+    :characters="anime.characters || []"
   />
 </template>

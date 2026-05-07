@@ -26,12 +26,26 @@ const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
 const trpc = useTrpc()
 const cols = ref(2)
+
+function pageSignature(data?: PageData) {
+  return `${data?.totalPages ?? 1}:${data?.anime.map((anime) => anime.slug).join('|') ?? ''}`
+}
+
+const dataKey = computed(() => [
+  props.pageType,
+  props.nextPageType ?? '',
+  pageSignature(props.initialData),
+  pageSignature(props.nextInitialData),
+].join(':'))
+
 const gridState = useState<{
+  dataKey: string
   primaryPages: PageData[]
   nextPages: PageData[]
   primarySize: number
   nextSize: number
 }>(`anime-grid:${props.pageType}:${props.nextPageType ?? ''}`, () => ({
+  dataKey: dataKey.value,
   primaryPages: [props.initialData],
   nextPages: [],
   primarySize: 1,
@@ -52,13 +66,19 @@ onMounted(() => {
   syncProgress()
 })
 
-watch(() => props.initialData, (data) => {
-  if (gridState.value.primaryPages[0]?.anime.length) return
-  gridState.value.primaryPages = [data]
-  gridState.value.primarySize = 1
-  gridState.value.nextPages = []
-  gridState.value.nextSize = 0
-})
+function resetGridState() {
+  gridState.value = {
+    dataKey: dataKey.value,
+    primaryPages: [props.initialData],
+    nextPages: [],
+    primarySize: 1,
+    nextSize: 0,
+  }
+}
+
+watch(dataKey, () => {
+  if (gridState.value.dataKey !== dataKey.value) resetGridState()
+}, { immediate: true })
 
 const primaryAnime = computed(() => gridState.value.primaryPages.flatMap((d) => d.anime))
 const totalPages = computed(() => gridState.value.primaryPages[0]?.totalPages ?? 1)

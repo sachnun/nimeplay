@@ -9,8 +9,12 @@
     "android:open": "cap open android",
     "android:sync": "pnpm android:generate && cap sync android",
     "build": "nuxt build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
+    "sync:catalog": "tsx server/jobs/sync-catalog.ts",
+    "sync:latest": "tsx server/jobs/sync-latest.ts",
     "typecheck": "nuxt typecheck",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
@@ -24,8 +28,10 @@
     "@trpc/client": "^11.17.0",
     "@trpc/server": "^11.17.0",
     "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.2",
     "hls.js": "^1.6.16",
     "nuxt": "^4.4.4",
+    "pg": "^8.20.0",
     "tailwindcss": "^4.2.4",
     "vue": "^3.5.33",
     "vue-router": "^5.0.6",
@@ -35,6 +41,9 @@
     "@capacitor/cli": "^8.3.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.2.8"
   }

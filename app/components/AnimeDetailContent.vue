@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OtakudesuInfo } from '~/utils/types'
+import type { JikanAnimeData, JikanCharacter } from '~/utils/types'
 
 const props = defineProps<{
   animeSlug: string
@@ -10,9 +11,10 @@ const props = defineProps<{
   synopsisId?: string
   otakudesu: OtakudesuInfo
   episodes: { title: string; slug: string }[]
+  mal: JikanAnimeData
+  characters: JikanCharacter[]
 }>()
 
-const { data, loading } = useJikanData(toRef(props, 'animeSlug'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
 const posterOpen = ref(false)
 const showTrailerBackground = ref(false)
 
@@ -29,7 +31,7 @@ onMounted(() => {
   const { $runIdle } = useNuxtApp()
   let cancelTrailerIdle: (() => void) | null = null
 
-  const stopTrailerWatch = watch(() => data.value?.trailerEmbedUrl, (url, _, onCleanup) => {
+  const stopTrailerWatch = watch(() => props.mal.trailerEmbedUrl, (url, _, onCleanup) => {
     showTrailerBackground.value = false
     cancelTrailerIdle?.()
     cancelTrailerIdle = null
@@ -56,7 +58,7 @@ onMounted(() => {
     <div class="absolute inset-0 z-0">
       <img :src="thumbnail" alt="" width="1200" height="1600" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-110 blur-3xl opacity-15">
     </div>
-    <LazyTrailerBackground v-if="showTrailerBackground" :trailer-embed-url="data?.trailerEmbedUrl" />
+    <LazyTrailerBackground v-if="showTrailerBackground" :trailer-embed-url="mal.trailerEmbedUrl" />
     <div class="absolute inset-0 z-[1] bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.35)_15%,rgba(0,0,0,0.55)_30%,rgba(0,0,0,0.75)_45%,rgba(0,0,0,0.9)_60%,rgba(0,0,0,1)_75%)] lg:bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.3)_15%,rgba(0,0,0,0.45)_30%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.8)_60%,rgba(0,0,0,0.95)_75%,rgba(0,0,0,1)_85%)]" />
 
     <div class="relative z-10">
@@ -88,7 +90,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">
-              <InfoSection :otakudesu="otakudesu" :jikan="data" :loading="loading" />
+              <InfoSection :otakudesu="otakudesu" :jikan="mal" :loading="false" />
             </div>
             <div class="lg:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
@@ -114,10 +116,10 @@ onMounted(() => {
       <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8">
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_minmax(280px,400px)] gap-6 lg:gap-8 xl:gap-10">
           <div class="space-y-6 lg:space-y-8 min-w-0">
-            <SynopsisSection :synopsis-id="synopsisId" :synopsis-en="data?.synopsisEn" :loading="loading" />
+            <SynopsisSection :synopsis-id="synopsisId" :synopsis-en="mal.synopsisEn" :loading="false" />
           </div>
           <div>
-            <CharactersSection :characters="data?.characters" :loading="loading" />
+            <CharactersSection :characters="characters" :loading="false" />
           </div>
         </div>
       </div>

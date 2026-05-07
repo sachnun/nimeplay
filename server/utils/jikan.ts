@@ -22,12 +22,48 @@ export interface JikanAnimeData {
   characters: JikanCharacter[]
 }
 
+export interface JikanGenre {
+  name: string
+  slug: string
+}
+
+export interface JikanPersistedAnime {
+  malId: number
+  title: string
+  titleEnglish: string | null
+  titleJapanese: string | null
+  synopsis: string
+  background: string
+  imageUrl: string
+  trailerEmbedUrl: string | null
+  score: number | null
+  rank: number | null
+  popularity: number | null
+  rating: string
+  season: string | null
+  year: number | null
+  type: string
+  status: string
+  episodes: number | null
+  duration: string
+  studios: string[]
+  genres: JikanGenre[]
+  characters: JikanCharacter[]
+}
+
 const JIKAN_BASE = 'https://api.jikan.moe/v4'
 const JIKAN_TTL = 12 * 60 * 60 * 1000
 const JIKAN_TIMEOUT_MS = 8000
+const JIKAN_MIN_DELAY_MS = Number(process.env.JIKAN_MIN_DELAY_MS || 700)
+let nextJikanAt = 0
 
 interface JikanAnimeDetailResponse {
   data: {
+    mal_id?: number
+    title?: string
+    title_english?: string
+    title_japanese?: string
+    images?: { jpg?: { image_url?: string; large_image_url?: string } }
     synopsis?: string
     background?: string
     score?: number
@@ -37,6 +73,12 @@ interface JikanAnimeDetailResponse {
     season?: string
     year?: number
     trailer?: { embed_url?: string }
+    type?: string
+    status?: string
+    episodes?: number
+    duration?: string
+    studios?: { name?: string }[]
+    genres?: { name?: string }[]
   }
 }
 
@@ -47,8 +89,16 @@ interface JikanCharacterEntry {
   voice_actors: { person: { name: string; images: { jpg: { image_url: string } } }; language: string }[]
 }
 
+async function waitForJikanSlot() {
+  const now = Date.now()
+  const waitMs = Math.max(0, nextJikanAt - now)
+  nextJikanAt = Math.max(now, nextJikanAt) + JIKAN_MIN_DELAY_MS
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs))
+}
+
 async function jikanFetch<T>(path: string): Promise<T | null> {
   try {
+    await waitForJikanSlot()
     const res = await fetch(`${JIKAN_BASE}${path}`, { signal: timeoutSignal(JIKAN_TIMEOUT_MS) })
     if (!res.ok) return null
     return res.json()
@@ -66,13 +116,50 @@ function numberOrNull(value: number | undefined): number | null {
 }
 
 function animeSearchQueries(title: string, japaneseTitle?: string) {
-  return japaneseTitle ? [japaneseTitle, title] : [title]
+  return japaneseTitle ? [title, japaneseTitle] : [title]
+}
+
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function normalizeSearchTitle(value: string): string {
+  return value.toLowerCase().replace(/[ōó]/g, 'o').replace(/[éè]/g, 'e').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function seasonNumber(value: string): number | null {
+  const normalized = normalizeSearchTitle(value)
+  const numeric = normalized.match(/\bseason\s*(\d+)\b/)?.[1]
+  if (numeric) return Number(numeric)
+  if (/\bii\b/.test(normalized)) return 2
+  if (/\biii\b/.test(normalized)) return 3
+  if (/\biv\b/.test(normalized)) return 4
+  if (/\bv\b/.test(normalized)) return 5
+  return null
+}
+
+function bestAnimeSearchMatch(title: string, items: { mal_id: number; title?: string; title_english?: string; title_japanese?: string; type?: string }[]) {
+  const target = normalizeSearchTitle(title)
+  const targetSeason = seasonNumber(title)
+  const score = (item: typeof items[number]) => {
+    const titles = [item.title, item.title_english, item.title_japanese].filter(Boolean).map((value) => normalizeSearchTitle(value!))
+    const exact = titles.some((value) => value === target)
+    const startsWith = titles.some((value) => value.startsWith(target))
+    const contains = titles.some((value) => value.includes(target))
+    const itemSeason = seasonNumber(titles.join(' '))
+    const seasonPenalty = targetSeason ? itemSeason === targetSeason ? -20 : itemSeason ? 40 : 10 : 0
+    const typePenalty = item.type === 'Movie' ? 30 : item.type === 'Special' ? 20 : item.type === 'TV' ? 0 : 5
+    return (exact ? 0 : startsWith ? 10 : contains ? 25 : 50) + typePenalty + seasonPenalty
+  }
+  const [best] = [...items].sort((a, b) => score(a) - score(b))
+  return best && score(best) < 50 ? best.mal_id : null
 }
 
 export async function searchAnime(title: string, japaneseTitle?: string): Promise<number | null> {
   for (const q of animeSearchQueries(title, japaneseTitle)) {
-    const data = await jikanFetch<{ data: { mal_id: number }[] }>(`/anime?q=${encodeURIComponent(q)}&limit=1`)
-    if (data?.data?.[0]) return data.data[0].mal_id
+    const data = await jikanFetch<{ data: { mal_id: number; title?: string; title_english?: string; title_japanese?: string; type?: string }[] }>(`/anime?q=${encodeURIComponent(q)}&limit=5`)
+    const malId = data?.data ? bestAnimeSearchMatch(q, data.data) : null
+    if (malId) return malId
   }
   return null
 }
@@ -92,6 +179,39 @@ async function getAnimeDetail(malId: number): Promise<Omit<JikanAnimeData, 'char
     season: d.season ?? null,
     year: numberOrNull(d.year),
     trailerEmbedUrl: d.trailer?.embed_url ?? null,
+  }
+}
+
+async function getPersistedAnimeDetail(malId: number): Promise<Omit<JikanPersistedAnime, 'characters'> | null> {
+  const data = await jikanFetch<JikanAnimeDetailResponse>(`/anime/${malId}/full`)
+  if (!data?.data) return null
+  const d = data.data
+  const title = d.title || d.title_english || d.title_japanese || ''
+  if (!title) return null
+  return {
+    malId: d.mal_id || malId,
+    title,
+    titleEnglish: d.title_english ?? null,
+    titleJapanese: d.title_japanese ?? null,
+    synopsis: stringOrEmpty(d.synopsis),
+    background: stringOrEmpty(d.background),
+    imageUrl: d.images?.jpg?.large_image_url || d.images?.jpg?.image_url || '',
+    trailerEmbedUrl: d.trailer?.embed_url ?? null,
+    score: numberOrNull(d.score),
+    rank: numberOrNull(d.rank),
+    popularity: numberOrNull(d.popularity),
+    rating: stringOrEmpty(d.rating),
+    season: d.season ?? null,
+    year: numberOrNull(d.year),
+    type: stringOrEmpty(d.type),
+    status: stringOrEmpty(d.status),
+    episodes: numberOrNull(d.episodes),
+    duration: stringOrEmpty(d.duration),
+    studios: (d.studios || []).map((studio) => studio.name || '').filter(Boolean),
+    genres: (d.genres || [])
+      .map((genre) => genre.name || '')
+      .filter(Boolean)
+      .map((name) => ({ name, slug: slugify(name) })),
   }
 }
 
@@ -140,4 +260,21 @@ async function fetchJikanDataFresh(title: string, japaneseTitle?: string, cached
 export function fetchJikanData(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanAnimeData | null> {
   const key = cachedMalId ? `jikan:${cachedMalId}` : `jikan:${japaneseTitle || ''}:${title}`.toLowerCase()
   return cached(key, JIKAN_TTL, () => fetchJikanDataFresh(title, japaneseTitle, cachedMalId))
+}
+
+async function fetchPersistedJikanAnimeFresh(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanPersistedAnime | null> {
+  try {
+    const malId = await resolveMalId(title, japaneseTitle, cachedMalId)
+    if (!malId) return null
+    const [detail, characters] = await Promise.all([getPersistedAnimeDetail(malId), getCharacters(malId)])
+    if (!detail) return null
+    return { ...detail, characters }
+  } catch {
+    return null
+  }
+}
+
+export function fetchPersistedJikanAnime(title: string, japaneseTitle?: string, cachedMalId?: number | null): Promise<JikanPersistedAnime | null> {
+  const key = cachedMalId ? `jikan:persist:${cachedMalId}` : `jikan:persist:${japaneseTitle || ''}:${title}`.toLowerCase()
+  return cached(key, JIKAN_TTL, () => fetchPersistedJikanAnimeFresh(title, japaneseTitle, cachedMalId))
 }

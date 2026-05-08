@@ -457,6 +457,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function handleKeyboardShortcut(event: KeyboardEvent) {
+    if (!isPlaying.value && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return false
+
     const volume = videoRef.value?.volume ?? 1
     const shortcuts: Record<string, () => void> = {
       k: togglePlay,

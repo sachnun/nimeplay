@@ -65,7 +65,7 @@ const {
 </script>
 
 <template>
-  <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'">
+  <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'" :data-tv-nav-scope="showNative && !isPlaying && !showLoading && !showEpisodes && autoNextCountdown === null ? '' : undefined">
     <video v-show="showNative" ref="videoRef" class="absolute inset-0 w-full h-full object-contain" playsinline />
 
     <div v-if="showNative" class="absolute inset-0 z-10 flex touch-none">

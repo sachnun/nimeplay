@@ -7,12 +7,8 @@ export interface TvCandidate {
 
 const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
-const DIRECTION_PREDICATES: Record<Direction, (deltaX: number, deltaY: number) => boolean> = {
-  left: (deltaX) => deltaX >= -4,
-  right: (deltaX) => deltaX <= 4,
-  up: (_, deltaY) => deltaY >= -4,
-  down: (_, deltaY) => deltaY <= 4,
-}
+const DIRECTION_TOLERANCE = 4
+const DIAGONAL_PENALTY = 1_000_000
 
 export function rectsIntersect(a: DOMRect, b: DOMRect): boolean {
   return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom
@@ -27,10 +23,6 @@ export function hasHiddenOverflow(element: HTMLElement): boolean {
   return `${style.overflow} ${style.overflowX} ${style.overflowY}`.includes('hidden')
 }
 
-export function isCandidateBehind(direction: Direction, deltaX: number, deltaY: number): boolean {
-  return DIRECTION_PREDICATES[direction](deltaX, deltaY)
-}
-
 export function rectCenter(rect: DOMRect) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
@@ -38,19 +30,33 @@ export function rectCenter(rect: DOMRect) {
 export function scoreCandidate(direction: Direction, from: DOMRect, to: DOMRect) {
   const fromCenter = rectCenter(from)
   const toCenter = rectCenter(to)
-  const deltaX = toCenter.x - fromCenter.x
-  const deltaY = toCenter.y - fromCenter.y
-  if (isCandidateBehind(direction, deltaX, deltaY)) return Number.POSITIVE_INFINITY
 
-  const sameColumn = overlapsAxis(to.left, to.right, from.left, from.right)
-  const sameRow = overlapsAxis(to.top, to.bottom, from.top, from.bottom)
-  return direction === 'left' || direction === 'right'
-    ? Math.abs(deltaX) * 1000 + Math.abs(deltaY) + (sameRow ? 0 : 500)
-    : Math.abs(deltaY) * 1000 + Math.abs(deltaX) + (sameColumn ? 0 : 500)
+  if (direction === 'left' || direction === 'right') {
+    const deltaX = toCenter.x - fromCenter.x
+    if ((direction === 'left' && deltaX >= -DIRECTION_TOLERANCE) || (direction === 'right' && deltaX <= DIRECTION_TOLERANCE)) return Number.POSITIVE_INFINITY
+
+    const aligned = overlapSize(to.top, to.bottom, from.top, from.bottom) > 0
+    const primaryDistance = direction === 'left' ? Math.max(0, from.left - to.right) : Math.max(0, to.left - from.right)
+    const orthogonalDistance = axisGap(to.top, to.bottom, from.top, from.bottom)
+    return (aligned ? 0 : DIAGONAL_PENALTY) + primaryDistance * 1000 + orthogonalDistance
+  }
+
+  const deltaY = toCenter.y - fromCenter.y
+  if ((direction === 'up' && deltaY >= -DIRECTION_TOLERANCE) || (direction === 'down' && deltaY <= DIRECTION_TOLERANCE)) return Number.POSITIVE_INFINITY
+
+  const aligned = overlapSize(to.left, to.right, from.left, from.right) > 0
+  const primaryDistance = direction === 'up' ? Math.max(0, from.top - to.bottom) : Math.max(0, to.top - from.bottom)
+  const orthogonalDistance = axisGap(to.left, to.right, from.left, from.right)
+  return (aligned ? 0 : DIAGONAL_PENALTY) + primaryDistance * 1000 + orthogonalDistance
 }
 
-function overlapsAxis(start: number, end: number, otherStart: number, otherEnd: number) {
-  return end >= otherStart && start <= otherEnd
+function overlapSize(start: number, end: number, otherStart: number, otherEnd: number) {
+  return Math.max(0, Math.min(end, otherEnd) - Math.max(start, otherStart))
+}
+
+function axisGap(start: number, end: number, otherStart: number, otherEnd: number) {
+  if (overlapSize(start, end, otherStart, otherEnd) > 0) return 0
+  return start > otherEnd ? start - otherEnd : otherStart - end
 }
 
 export function bestCandidate(candidates: TvCandidate[], active: HTMLElement, direction: Direction, fromRect: DOMRect) {

@@ -6,16 +6,16 @@ Minimal anime streaming app built with Nuxt 4, Vue 3, Tailwind CSS, tRPC, and Ca
 
 ## Setup
 
-Requires Node.js 20+ and pnpm 10+.
+Requires Node.js 20+ and npm 11+.
 
 ```bash
-pnpm install
+npm install
 ```
 
 Run locally:
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 Open `http://localhost:3000` in your browser.
@@ -23,14 +23,14 @@ Open `http://localhost:3000` in your browser.
 Production build and preview:
 
 ```bash
-pnpm build
-pnpm preview
+npm run build
+npm run preview
 ```
 
 Static build:
 
 ```bash
-pnpm generate
+npm run generate
 ```
 
 ## Development
@@ -38,7 +38,7 @@ pnpm generate
 The main app lives in `app/`, server APIs and tRPC live in `server/`, static files live in `public/`, and the Capacitor project lives in `android/`.
 
 ```bash
-pnpm typecheck
+npm run typecheck
 ```
 
 ## Android
@@ -46,7 +46,7 @@ pnpm typecheck
 Requires Android Studio and JDK.
 
 ```bash
-pnpm android:sync
-pnpm android:debug
-pnpm android:open
+npm run android:sync
+npm run android:debug
+npm run android:open
 ```

@@ -15,17 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          version: 10.33.2
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Setup Java
         uses: actions/setup-java@v5
@@ -43,10 +38,10 @@ jobs:
           packages: "tools platform-tools platforms;android-36 build-tools;36.0.0"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Sync Capacitor Android project
-        run: pnpm android:sync
+        run: npm run android:sync
 
       - name: Build debug APK
         run: ./gradlew assembleDebug

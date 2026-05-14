@@ -14,7 +14,17 @@ export default defineNuxtConfig({
   ssr: !isAndroidStatic,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV === 'development' },
-  ...(isAndroidStatic ? { nitro: { prerender: { crawlLinks: false, routes: ['/'] } } } : {}),
+  nitro: {
+    preset: 'cloudflare_module',
+    ...(isAndroidStatic ? { prerender: { crawlLinks: false, routes: ['/'] } } : {}),
+    cloudflare: {
+      deployConfig: true,
+      wrangler: {
+        name: 'nimeplay',
+        compatibility_date: '2025-07-15',
+      },
+    },
+  },
   modules: ['@nuxt/fonts'],
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],

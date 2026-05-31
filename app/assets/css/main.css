@@ -104,3 +104,8 @@ body.tv-remote-active :where(a, button, [tabindex]:not([tabindex="-1"])):focus {
   position: relative;
   z-index: 20;
 }
+
+summary::marker,
+summary::-webkit-details-marker {
+  display: none;
+}

@@ -101,7 +101,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <GenreFilter :genres="genres" :selected-genre="selectedGenre" @select="setSelectedGenre" @search="searchOpen = true" />
+  <GenreFilter :genres="genres" :selected-genre="selectedGenre" @select="setSelectedGenre" @search="searchOpen = true" @sign-in="searchOpen = false" />
 
   <section v-if="isLoading">
     <div class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">

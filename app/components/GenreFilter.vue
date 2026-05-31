@@ -9,7 +9,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [genre: Genre | null]
   search: []
+  signIn: []
 }>()
+
+const detailsRef = ref<HTMLDetailsElement | null>(null)
+
+function onClickOutside(event: MouseEvent) {
+  if (detailsRef.value?.open && !detailsRef.value.contains(event.target as Node)) {
+    detailsRef.value.open = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', onClickOutside))
+onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
 const SKELETON_WIDTHS = [
   56, 72, 88, 64, 80, 56, 72, 64, 88, 72,
@@ -104,12 +116,29 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
       <span data-more-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">+{{ genres.length }} more</span>
     </div>
 
-    <div class="flex flex-wrap gap-2" :class="effectiveShowAll ? '' : 'overflow-hidden max-h-7'">
-      <button class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors cursor-pointer" title="Search" @click="emit('search')">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      </button>
+    <div class="flex gap-2">
+      <details ref="detailsRef" class="group relative shrink-0">
+        <summary class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 group-open:bg-zinc-700 group-open:text-zinc-100 transition-colors cursor-pointer list-none" title="Menu">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </summary>
+        <div class="absolute top-full left-0 mt-2 w-40 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-2 z-50">
+          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('search')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            Search
+          </button>
+          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('signIn')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Sign In
+          </button>
+        </div>
+      </details>
+      <div class="flex flex-wrap gap-2 flex-1 min-w-0" :class="effectiveShowAll ? '' : 'overflow-hidden max-h-7'">
       <button
         v-for="genre in displayed"
         :key="genre.slug"
@@ -127,5 +156,6 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
         {{ effectiveShowAll ? 'Show less' : `+${hiddenCount} more` }}
       </button>
     </div>
+  </div>
   </div>
 </template>

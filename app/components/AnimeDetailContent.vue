@@ -15,6 +15,15 @@ const props = defineProps<{
 const { data, loading } = useJikanData(toRef(props, 'animeSlug'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
 const posterOpen = ref(false)
 const showTrailerBackground = ref(false)
+const router = useRouter()
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/')
+  }
+}
 
 function closePoster() {
   posterOpen.value = false
@@ -61,6 +70,10 @@ onMounted(() => {
 
     <div class="relative z-10">
       <section class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10">
+        <button type="button" class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors mb-4 w-fit cursor-pointer" @click="goBack">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Back
+        </button>
         <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
           <div class="flex gap-4 lg:block">
             <button type="button" class="flex-shrink-0 cursor-pointer rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50" @click="posterOpen = true">

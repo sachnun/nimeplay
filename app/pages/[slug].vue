@@ -33,6 +33,10 @@ watchEffect(() => {
     <div class="absolute inset-0 z-0 bg-zinc-900/50" />
     <div class="relative z-10">
       <section class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10">
+        <div class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-zinc-800 animate-pulse mb-4 w-fit">
+          <div class="w-4 h-4 bg-zinc-700 rounded-full" />
+          <div class="w-8 h-3 bg-zinc-700 rounded" />
+        </div>
         <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
           <div class="flex gap-4 lg:block">
             <div class="w-32 sm:w-40 lg:w-48 xl:w-56 aspect-[3/4] rounded-lg bg-zinc-800 animate-pulse flex-shrink-0" />

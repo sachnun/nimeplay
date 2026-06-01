@@ -1,3 +1,4 @@
+import { Effect, pipe } from 'effect'
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
 import { isDesuStreamHd, extractDesuStream } from './desustream'
@@ -16,47 +17,70 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isFiledon, extract: extractFiledon },
 ]
 
-async function fetchIframeHTML(iframeUrl: string): Promise<string> {
-  const res = await fetch(iframeUrl, {
-    headers: getSpoofHeaders(iframeUrl, 'iframe'),
-    signal: AbortSignal.timeout(8000),
-  })
-  return res.text()
+function fetchIframeHtmlEffect(iframeUrl: string) {
+  return pipe(
+    Effect.tryPromise({
+      try: () =>
+        fetch(iframeUrl, {
+          headers: getSpoofHeaders(iframeUrl, 'iframe'),
+          signal: AbortSignal.timeout(8000),
+        }).then((r) => r.text()),
+      catch: () => null,
+    }),
+    Effect.catchAll(() => Effect.succeed('')),
+  )
 }
 
-export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
-  try {
-    const res = await fetch(iframeUrl, {
-      headers: getSpoofHeaders(iframeUrl, 'iframe'),
-      signal: AbortSignal.timeout(5000),
-    })
-    const body = await res.text()
-    return body.length > 100
-  } catch {
-    return false
-  }
+function extractKnownHost(iframeUrl: string, html: string) {
+  const extractor = HOST_EXTRACTORS.find((c) => c.matches(iframeUrl))
+  return extractor
+    ? pipe(
+        Effect.tryPromise({ try: () => extractor.extract(iframeUrl, html) as Promise<string | null>, catch: () => null }),
+        Effect.catchAll(() => Effect.succeed(null)),
+      )
+    : Effect.succeed<string | null>(null)
 }
 
-async function extractKnownHost(iframeUrl: string, html: string): Promise<string | null> {
-  const extractor = HOST_EXTRACTORS.find((candidate) => candidate.matches(iframeUrl))
-  return extractor ? extractor.extract(iframeUrl, html) : null
-}
-
-async function extractFallbackHost(iframeUrl: string, html: string): Promise<string | null> {
-  const vidhideUrl = await extractVidhide(iframeUrl, html)
-  if (vidhideUrl) return vidhideUrl
+function extractFallbackHost(iframeUrl: string, html: string) {
   const mp4Match = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)
-  if (mp4Match?.[1]) return mp4Match[1]
-  return extractDesuDrive(iframeUrl, html)
+
+  const effects = [
+    pipe(
+      Effect.tryPromise({ try: () => extractVidhide(iframeUrl, html), catch: () => null }),
+      Effect.catchAll(() => Effect.succeed(null)),
+    ),
+    ...(mp4Match?.[1] ? [Effect.succeed<string | null>(mp4Match[1])] : []),
+    pipe(
+      Effect.tryPromise({ try: () => extractDesuDrive(iframeUrl, html), catch: () => null }),
+      Effect.catchAll(() => Effect.succeed(null)),
+    ),
+  ]
+
+  return Effect.firstSuccessOf(effects)
 }
 
-export async function extractStreamUrl(iframeUrl: string): Promise<{ proxiedUrl: string | null; iframeUrl: string }> {
-  try {
-    const html = await fetchIframeHTML(iframeUrl)
-    if (!html) return { proxiedUrl: null, iframeUrl }
-    const proxiedUrl = await extractKnownHost(iframeUrl, html) ?? await extractFallbackHost(iframeUrl, html)
-    return { proxiedUrl, iframeUrl }
-  } catch {
-    return { proxiedUrl: null, iframeUrl }
-  }
+export function probeIframeUrl(iframeUrl: string): Promise<boolean> {
+  return Effect.runPromise(
+    pipe(
+      fetchIframeHtmlEffect(iframeUrl),
+      Effect.map((body) => body.length > 100),
+      Effect.catchAll(() => Effect.succeed(false)),
+    ),
+  )
+}
+
+export function extractStreamUrl(iframeUrl: string): Promise<{ proxiedUrl: string | null; iframeUrl: string }> {
+  return Effect.runPromise(
+    pipe(
+      fetchIframeHtmlEffect(iframeUrl),
+      Effect.flatMap((html) =>
+        Effect.firstSuccessOf([
+          extractKnownHost(iframeUrl, html),
+          extractFallbackHost(iframeUrl, html),
+        ]),
+      ),
+      Effect.map((proxiedUrl) => ({ proxiedUrl, iframeUrl })),
+      Effect.catchAll(() => Effect.succeed({ proxiedUrl: null, iframeUrl })),
+    ),
+  )
 }

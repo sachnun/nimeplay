@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
-import { cached } from './cache'
+import { Schema } from 'effect'
+import { cache } from './cache'
 import { getSpoofHeaders } from './spoof'
 import { cleanTitleWithRules, type TitleCleanupRule } from './title'
 
@@ -212,7 +213,7 @@ async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; total
 }
 
 export function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return cached(`scrape:ongoing:${page}`, LIST_TTL, () => scrapeOngoingFresh(page))
+  return cache.ongoing.get(page, LIST_TTL, () => scrapeOngoingFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
 }
 
 async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
@@ -220,7 +221,7 @@ async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; tot
 }
 
 export function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return cached(`scrape:completed:${page}`, LIST_TTL, () => scrapeCompletedFresh(page))
+  return cache.completed.get(page, LIST_TTL, () => scrapeCompletedFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
@@ -250,7 +251,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null>
 }
 
 export function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {
-  return cached(`scrape:anime:${slug}`, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug))
+  return cache.anime.get(slug, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug)) as Promise<AnimeDetail | null>
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
@@ -312,7 +313,7 @@ function parseEpisodeNav($: cheerio.CheerioAPI): EpisodeData['episodeNav'] {
 }
 
 export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
-  return cached(`scrape:episode:${slug}`, EPISODE_TTL, () => scrapeEpisodeFresh(slug))
+  return cache.episode.get(slug, EPISODE_TTL, () => scrapeEpisodeFresh(slug)) as Promise<EpisodeData | null>
 }
 
 async function resolvemirrorFresh(dataContent: string): Promise<string | null> {
@@ -337,7 +338,7 @@ async function resolvemirrorFresh(dataContent: string): Promise<string | null> {
 }
 
 export function resolvemirror(dataContent: string): Promise<string | null> {
-  return cached(`mirror:${dataContent}`, MIRROR_TTL, () => resolvemirrorFresh(dataContent))
+  return cache.mirror.get(dataContent, MIRROR_TTL, () => resolvemirrorFresh(dataContent)) as Promise<string | null>
 }
 
 async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
@@ -362,7 +363,7 @@ async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
 }
 
 export function scrapeSearch(query: string): Promise<SearchResult[]> {
-  return cached(`scrape:search:${query.toLowerCase()}`, SEARCH_TTL, () => scrapeSearchFresh(query))
+  return cache.search.get(query.toLowerCase(), SEARCH_TTL, () => scrapeSearchFresh(query)) as Promise<SearchResult[]>
 }
 
 async function scrapeGenreListFresh(): Promise<Genre[]> {
@@ -388,7 +389,7 @@ async function scrapeGenreListFresh(): Promise<Genre[]> {
 }
 
 export function scrapeGenreList(): Promise<Genre[]> {
-  return cached('scrape:genre-list', GENRE_LIST_TTL, scrapeGenreListFresh)
+  return cache.genre.list(GENRE_LIST_TTL, scrapeGenreListFresh) as Promise<Genre[]>
 }
 
 async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
@@ -415,5 +416,84 @@ async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreA
 }
 
 export function scrapeGenre(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
-  return cached(`scrape:genre:${slug}:${page}`, LIST_TTL, () => scrapeGenreFresh(slug, page))
+  return cache.genre.page(slug, page, LIST_TTL, () => scrapeGenreFresh(slug, page)) as Promise<{ anime: GenreAnimeCard[]; totalPages: number }>
+}
+
+const AnimeCardSchema = Schema.Struct({
+  title: Schema.String,
+  slug: Schema.String,
+  thumbnail: Schema.String,
+  episode: Schema.String,
+  day: Schema.String,
+  date: Schema.String,
+  rating: Schema.optional(Schema.String),
+})
+
+const AnimeDetailSchema = Schema.Struct({
+  title: Schema.String,
+  japanese: Schema.String,
+  score: Schema.String,
+  producer: Schema.String,
+  type: Schema.String,
+  status: Schema.String,
+  totalEpisode: Schema.String,
+  duration: Schema.String,
+  releaseDate: Schema.String,
+  studio: Schema.String,
+  genres: Schema.Array(Schema.Struct({ name: Schema.String, slug: Schema.String })),
+  thumbnail: Schema.String,
+  synopsis: Schema.String,
+  episodes: Schema.Array(Schema.Struct({ title: Schema.String, slug: Schema.String, date: Schema.String })),
+})
+
+const EpisodeDataSchema = Schema.Struct({
+  title: Schema.String,
+  animeSlug: Schema.String,
+  animeTitle: Schema.String,
+  defaultIframeSrc: Schema.String,
+  mirrors: Schema.Array(Schema.Struct({
+    quality: Schema.String,
+    sources: Schema.Array(Schema.Struct({ name: Schema.String, dataContent: Schema.String })),
+  })),
+  episodeNav: Schema.Array(Schema.Struct({ title: Schema.String, slug: Schema.String })),
+  thumbnail: Schema.String,
+})
+
+const SearchResultSchema = Schema.Struct({
+  title: Schema.String,
+  slug: Schema.String,
+  thumbnail: Schema.String,
+  genres: Schema.String,
+  status: Schema.String,
+  rating: Schema.String,
+})
+
+const GenreSchema = Schema.Struct({
+  name: Schema.String,
+  slug: Schema.String,
+})
+
+const GenreAnimeCardSchema = Schema.Struct({
+  title: Schema.String,
+  slug: Schema.String,
+  thumbnail: Schema.String,
+  studio: Schema.String,
+  episodes: Schema.String,
+  rating: Schema.String,
+  genres: Schema.String,
+  date: Schema.String,
+})
+
+function decodeSync<A>(schema: Schema.Schema<A>, input: unknown): A {
+  return Schema.decodeUnknownSync(schema)(input)
+}
+
+export const ScraperSchema = {
+  AnimeCard: AnimeCardSchema,
+  AnimeDetail: AnimeDetailSchema,
+  EpisodeData: EpisodeDataSchema,
+  SearchResult: SearchResultSchema,
+  Genre: GenreSchema,
+  GenreAnimeCard: GenreAnimeCardSchema,
+  decodeSync,
 }

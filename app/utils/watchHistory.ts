@@ -13,39 +13,6 @@ export interface WatchProgress {
   episodeSlug: string
 }
 
-async function migrateFromLocalStorage() {
-  if (!import.meta.client) return
-  try {
-    const db = await getDb()
-    const count = await db.count('progress')
-    if (count > 0) return
-
-    const oldData = localStorage.getItem('nimeplay:progress')
-    if (!oldData) return
-
-    const map: Record<string, WatchProgress> = JSON.parse(oldData)
-    const tx = db.transaction('progress', 'readwrite')
-    await Promise.all(
-      Object.entries(map).map(([key, value]) => tx.store.put(value, key)),
-    )
-    await tx.done
-
-    localStorage.removeItem('nimeplay:progress')
-    localStorage.removeItem('nimeplay:jikan')
-    localStorage.removeItem('nimeplay:autoskip')
-  } catch (error) {
-    console.warn('watchHistory.migrateFromLocalStorage failed', error)
-  }
-}
-
-let migrationDone = false
-function ensureMigrated() {
-  if (!migrationDone) {
-    migrationDone = true
-    void migrateFromLocalStorage()
-  }
-}
-
 export async function markWatched(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
   if (!import.meta.client) return
   const entry: WatchProgress = {
@@ -68,7 +35,6 @@ export async function saveProgress(episodeSlug: string, data: Omit<WatchProgress
 
 export async function getProgress(episodeSlug: string): Promise<WatchProgress | null> {
   if (!import.meta.client) return null
-  ensureMigrated()
   try {
     const db = await getDb()
     return (await db.get('progress', episodeSlug)) ?? null
@@ -79,7 +45,6 @@ export async function getProgress(episodeSlug: string): Promise<WatchProgress | 
 
 export async function getAllProgress(): Promise<WatchProgress[]> {
   if (!import.meta.client) return []
-  ensureMigrated()
   try {
     const db = await getDb()
     const all = await db.getAll('progress')

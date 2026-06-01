@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { episodeNumFor } from '~/utils/player'
-import { getEpisodeStatus, type WatchProgressStatus } from '~/utils/watchHistory'
+import type { WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
   episodes: { title: string; slug: string }[]

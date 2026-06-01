@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { AnimeDetail } from '~/utils/types'
-import { getFreshAnimeDetail, setAnimeDetail, TTL } from '~/utils/apiCache'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))

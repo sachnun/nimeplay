@@ -1,5 +1,4 @@
-import { fetchJikanData } from '../utils/jikan'
-import { setApiCorsHeaders } from '../utils/cors'
+
 
 export default defineEventHandler(async (event) => {
   setApiCorsHeaders(event)

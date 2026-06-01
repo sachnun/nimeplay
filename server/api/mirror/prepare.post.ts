@@ -1,7 +1,4 @@
-import { resolvemirror } from '../../utils/scraper'
-import { probeIframeUrl, extractStreamUrl } from '../../utils/extractors'
-import { cached } from '../../utils/cache'
-import { setApiCorsHeaders } from '../../utils/cors'
+
 
 const MIRROR_PREPARE_TTL = 10 * 60 * 1000
 

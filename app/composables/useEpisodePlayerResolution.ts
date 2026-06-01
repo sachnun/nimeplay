@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import type { EpisodeData } from '~/utils/types'
-import { buildFallbackOrder, isExtractable, type MirrorCandidate } from '~/utils/player'
+import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
   activeQuality: Ref<string>

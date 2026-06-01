@@ -1,6 +1,4 @@
 import type { JikanAnimeData } from '~/utils/types'
-import { getMalId, saveMalId } from '~/utils/jikanCache'
-import { getFreshJikanData, setJikanData, TTL } from '~/utils/apiCache'
 
 export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
   const data = ref<JikanAnimeData | null>(null)

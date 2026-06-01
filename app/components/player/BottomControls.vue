@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { SkipTime } from '~/utils/types'
-import { formatTime } from '~/utils/player'
 
 defineProps<{
   activeQualityLabel: string

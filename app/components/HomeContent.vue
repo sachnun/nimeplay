@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { AnimeCard, AnimeDetail, Genre, ContinueItem } from '~/utils/types'
-import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
 import type { WatchProgress } from '~/utils/watchHistory'
-import { getFreshAnimeDetail, setAnimeDetail, TTL } from '~/utils/apiCache'
 
 type ContinueProgress = WatchProgress
 type ContinueEpisode = Pick<ContinueItem, 'episodeNum' | 'episodeSlug' | 'currentTime' | 'duration' | 'latestEpisode'>

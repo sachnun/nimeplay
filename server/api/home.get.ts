@@ -1,5 +1,4 @@
-import { scrapeOngoing, scrapeCompleted, scrapeGenreList } from '../utils/scraper'
-import { apiCorsPreflightResponse, setApiCorsHeaders } from '../utils/cors'
+
 
 export default defineEventHandler(async (event) => {
   if (event.method === 'OPTIONS') return apiCorsPreflightResponse()

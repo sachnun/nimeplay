@@ -1,23 +1,5 @@
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Capacitor } from '@capacitor/core'
-import { useRouter } from '#app'
-import { useEpisodePlayerGestures } from './useEpisodePlayerGestures'
-import { useEpisodePlayerMediaEvents } from './useEpisodePlayerMediaEvents'
-import { useEpisodePlayerResolution } from './useEpisodePlayerResolution'
 import type { EpisodeData, SkipTime } from '~/utils/types'
-import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
-import { getMalId, saveMalId } from '~/utils/jikanCache'
-import { getAutoSkip, setAutoSkip } from '~/utils/prefs'
-import { getFreshSkipTimes, setSkipTimes, TTL } from '~/utils/apiCache'
-import {
-  episodeNumFor,
-  extractEpisodeNumber,
-  findDefaultMirror,
-  formatTime,
-  getEpNum,
-  ProxyPlaylistLoader,
-  sourcePriority,
-} from '~/utils/player'
 
 export interface EpisodePlayerProps {
   episode: EpisodeData

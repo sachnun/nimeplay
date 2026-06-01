@@ -1,5 +1,4 @@
-import { fetchMalId } from '../../utils/aniskip'
-import { setApiCorsHeaders } from '../../utils/cors'
+
 
 export default defineEventHandler(async (event) => {
   setApiCorsHeaders(event)

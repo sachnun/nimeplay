@@ -1,5 +1,4 @@
-import { computed, onBeforeUnmount, onMounted, ref, toValue, type MaybeRefOrGetter, type Ref } from 'vue'
-import { getContinueWatching } from '~/utils/watchHistory'
+import type { MaybeRefOrGetter, Ref } from 'vue'
 
 export interface AnimeProgressEntry {
   animeSlug: string

@@ -1,5 +1,4 @@
-import { getSpoofHeaders } from '../utils/spoof'
-import { apiCorsPreflightResponse, setApiCorsHeaders } from '../utils/cors'
+
 
 export default defineEventHandler(async (event) => {
   if (event.method === 'OPTIONS') return apiCorsPreflightResponse()

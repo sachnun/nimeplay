@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
 import type { EpisodeData } from '~/utils/types'
-import { episodeNumFor } from '~/utils/player'
-import { getEpisodeStatus, type WatchProgressStatus } from '~/utils/watchHistory'
+import type { WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
   episode: EpisodeData

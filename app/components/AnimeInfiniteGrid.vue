@@ -149,7 +149,7 @@ function episodeBadge(episode: string) {
         v-for="(item, i) in continueItems"
         :key="`continue-${item.animeSlug}`"
         :to="`/${item.animeSlug}`"
-        class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="onProgressCardPointerDown($event, item.animeSlug)"
         @pointermove="onProgressCardPointerMove"
         @pointerup="onProgressCardPointerEnd"
@@ -158,8 +158,8 @@ function episodeBadge(episode: string) {
         @click.capture="onProgressCardClick"
         @contextmenu="onProgressCardContextMenu($event, true)"
       >
-        <div class="relative aspect-[3/4]">
-          <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 2 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 2 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
           <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-white text-black text-xs px-2 py-0.5 rounded font-medium">
             {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
           </div>
@@ -177,7 +177,7 @@ function episodeBadge(episode: string) {
         v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
         :key="`${anime.slug}-${i}`"
         :to="to"
-        class="block rounded-lg overflow-hidden bg-card relative outline-none hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="onProgressCardPointerDown($event, progress ? anime.slug : null)"
         @pointermove="onProgressCardPointerMove"
         @pointerup="onProgressCardPointerEnd"
@@ -186,8 +186,8 @@ function episodeBadge(episode: string) {
         @click.capture="onProgressCardClick"
         @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
-        <div class="relative aspect-[3/4]">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="continueItems.length + i < 4 ? 'eager' : 'lazy'" :fetchpriority="continueItems.length + i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
+        <div class="relative aspect-[3/4] overflow-hidden">
+          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="continueItems.length + i < 4 ? 'eager' : 'lazy'" :fetchpriority="continueItems.length + i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
           <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ badge }}
           </div>

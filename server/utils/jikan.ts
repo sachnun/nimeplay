@@ -1,5 +1,4 @@
 import { cached } from './cache'
-import { timeoutSignal } from './fetch'
 
 export interface JikanCharacter {
   name: string
@@ -49,20 +48,12 @@ interface JikanCharacterEntry {
 
 async function jikanFetch<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${JIKAN_BASE}${path}`, { signal: timeoutSignal(JIKAN_TIMEOUT_MS) })
+    const res = await fetch(`${JIKAN_BASE}${path}`, { signal: AbortSignal.timeout(JIKAN_TIMEOUT_MS) })
     if (!res.ok) return null
     return res.json()
   } catch {
     return null
   }
-}
-
-function stringOrEmpty(value: string | undefined): string {
-  return value ?? ''
-}
-
-function numberOrNull(value: number | undefined): number | null {
-  return value ?? null
 }
 
 function animeSearchQueries(title: string, japaneseTitle?: string) {
@@ -83,14 +74,14 @@ async function getAnimeDetail(malId: number): Promise<Omit<JikanAnimeData, 'char
   const d = data.data
   return {
     malId,
-    synopsisEn: stringOrEmpty(d.synopsis),
-    background: stringOrEmpty(d.background),
-    malScore: numberOrNull(d.score),
-    malRank: numberOrNull(d.rank),
-    popularity: numberOrNull(d.popularity),
-    rating: stringOrEmpty(d.rating),
+    synopsisEn: d.synopsis ?? '',
+    background: d.background ?? '',
+    malScore: d.score ?? null,
+    malRank: d.rank ?? null,
+    popularity: d.popularity ?? null,
+    rating: d.rating ?? '',
     season: d.season ?? null,
-    year: numberOrNull(d.year),
+    year: d.year ?? null,
     trailerEmbedUrl: d.trailer?.embed_url ?? null,
   }
 }

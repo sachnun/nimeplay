@@ -1,5 +1,4 @@
 import { getSpoofHeaders } from '../utils/spoof'
-import { timeoutSignal } from '../utils/fetch'
 import { apiCorsPreflightResponse, setApiCorsHeaders } from '../utils/cors'
 
 export default defineEventHandler(async (event) => {
@@ -25,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const res = await fetch(target, {
     headers: getSpoofHeaders(`${target.origin}/`, 'iframe'),
-    signal: timeoutSignal(8000),
+    signal: AbortSignal.timeout(8000),
   })
 
   if (!res.ok) {

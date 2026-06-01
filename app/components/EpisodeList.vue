@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { episodeNumFor } from '~/utils/player'
 import { getEpisodeStatus, type WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
@@ -30,9 +31,6 @@ function episodeStatus(slug: string) {
   return episodeStatuses.value[slug] ?? 'unstarted'
 }
 
-function episodeNumber(ep: { title: string }, index: number) {
-  return ep.title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
-}
 </script>
 
 <template>
@@ -42,11 +40,11 @@ function episodeNumber(ep: { title: string }, index: number) {
       <NuxtLink
         v-for="(ep, i) in [...episodes].reverse()"
         :key="ep.slug"
-        :to="`/${animeSlug}/${episodeNumber(ep, i)}`"
+        :to="`/${animeSlug}/${episodeNumFor(ep, i)}`"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
         :class="episodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(ep.slug) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >
-        {{ episodeNumber(ep, i) }}
+        {{ episodeNumFor(ep, i) }}
       </NuxtLink>
     </div>
   </div>

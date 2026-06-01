@@ -1,5 +1,4 @@
 import { getSpoofHeaders } from '../spoof'
-import { timeoutSignal } from '../fetch'
 import { isVidhide, extractVidhide } from './vidhide'
 import { isDesuStreamHd, extractDesuStream } from './desustream'
 import { isDesuDrive, extractDesuDrive } from './desudrive'
@@ -20,7 +19,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
 async function fetchIframeHTML(iframeUrl: string): Promise<string> {
   const res = await fetch(iframeUrl, {
     headers: getSpoofHeaders(iframeUrl, 'iframe'),
-    signal: timeoutSignal(8000),
+    signal: AbortSignal.timeout(8000),
   })
   return res.text()
 }
@@ -29,7 +28,7 @@ export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
   try {
     const res = await fetch(iframeUrl, {
       headers: getSpoofHeaders(iframeUrl, 'iframe'),
-      signal: timeoutSignal(5000),
+      signal: AbortSignal.timeout(5000),
     })
     const body = await res.text()
     return body.length > 100

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Genre } from '~/utils/types'
+
 const props = defineProps<{ name: string; slug: string }>()
-const { setSelectedGenre } = useGenre()
+const selectedGenre = useState<Genre | null>('selected-genre')
 
 function selectGenre() {
-  setSelectedGenre({ name: props.name, slug: props.slug })
+  selectedGenre.value = { name: props.name, slug: props.slug }
 }
 </script>
 

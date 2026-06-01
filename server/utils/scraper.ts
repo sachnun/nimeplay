@@ -1,6 +1,5 @@
 import * as cheerio from 'cheerio'
 import { cached } from './cache'
-import { timeoutSignal } from './fetch'
 import { getSpoofHeaders } from './spoof'
 import { cleanTitleWithRules, type TitleCleanupRule } from './title'
 
@@ -106,7 +105,7 @@ function extractEpisodeSlug(href: string): string {
   return href.match(/\/episode\/([^/]+)/)?.[1] ?? ''
 }
 
-function parseEpztipe(raw: string): { day: string; rating?: string } {
+function parseEpsType(raw: string): { day: string; rating?: string } {
   const text = raw.replace(/[^\w\s.]/g, '').trim()
   if (/^\d+(\.\d+)?$/.test(text)) return { day: '', rating: text }
   return { day: text }
@@ -121,7 +120,7 @@ function parseAnimeCards($: cheerio.CheerioAPI): AnimeCard[] {
   const anime: AnimeCard[] = []
   $('.detpost').each((_, el) => {
     const $el = $(el)
-    const epztipe = parseEpztipe($el.find('.epztipe').text())
+    const epztipe = parseEpsType($el.find('.epztipe').text())
     anime.push({
       title: $el.find('.jdlflm').text().trim(),
       slug: extractAnimeSlug($el.find('.thumb a').attr('href') || ''),
@@ -189,7 +188,7 @@ async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime
 async function fetchHTML(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: getSpoofHeaders(BASE_URL + '/'),
-    signal: timeoutSignal(HTML_TIMEOUT_MS),
+    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
   })
   const html = await res.text()
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
@@ -203,7 +202,7 @@ async function corsPost(url: string, body: string): Promise<Record<string, unkno
     method: 'POST',
     headers,
     body,
-    signal: timeoutSignal(POST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(POST_TIMEOUT_MS),
   })
   return res.json()
 }

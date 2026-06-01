@@ -16,8 +16,8 @@ withDefaults(defineProps<{
   isLoading: false,
 })
 
+const selectedGenre = useState<Genre | null>('selected-genre')
 const searchOpen = ref(false)
-const { selectedGenre, setSelectedGenre } = useGenre()
 const initialContinueItems = ref<WatchProgress[]>([])
 const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
@@ -120,7 +120,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <GenreFilter :genres="genres" :selected-genre="selectedGenre" @select="setSelectedGenre" @search="searchOpen = true" @sign-in="searchOpen = false" />
+  <GenreFilter :genres="genres" :selected-genre="selectedGenre" @select="selectedGenre = $event" @search="searchOpen = true" @sign-in="searchOpen = false" />
 
   <section v-if="isLoading">
     <div class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">

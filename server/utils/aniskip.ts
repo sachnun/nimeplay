@@ -1,5 +1,4 @@
 import { cached } from './cache'
-import { timeoutSignal } from './fetch'
 import { searchAnime } from './jikan'
 import { cleanTitleWithRules, type TitleCleanupRule } from './title'
 
@@ -49,11 +48,6 @@ export async function fetchMalId(animeTitle: string): Promise<number | null> {
   })
 }
 
-export function extractEpisodeNumber(slug: string): number | null {
-  const match = slug.match(/episode-(\d+)/i)
-  return match?.[1] ? Number.parseInt(match[1]) : null
-}
-
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
   const length = Math.floor(episodeLength)
   return cached(`aniskip:skip-times:${malId}:${episode}:${length}`, SKIP_TIMES_TTL, async () => {
@@ -65,7 +59,7 @@ export async function fetchSkipTimes(malId: number, episode: number, episodeLeng
       params.append('types', 'mixed-ed')
       params.append('types', 'recap')
       params.append('episodeLength', length.toString())
-      const res = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`, { signal: timeoutSignal(ANISKIP_TIMEOUT_MS) })
+      const res = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`, { signal: AbortSignal.timeout(ANISKIP_TIMEOUT_MS) })
       if (!res.ok) return []
       const data: AniskipResponse = await res.json()
       return data.found ? data.results : []

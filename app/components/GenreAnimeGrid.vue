@@ -98,6 +98,7 @@ onMounted(() => {
       >
         <div class="relative aspect-[3/4]">
           <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
+          <div class="absolute inset-0 bg-black/15 pointer-events-none" />
           <div v-if="anime.episodes && /\d/.test(anime.episodes)" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ anime.episodes }}
           </div>

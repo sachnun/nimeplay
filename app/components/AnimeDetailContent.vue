@@ -64,7 +64,7 @@ onMounted(() => {
         <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
           <div class="flex gap-4 lg:block">
             <button type="button" class="flex-shrink-0 cursor-pointer rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50" @click="posterOpen = true">
-              <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" sizes="(min-width: 1280px) 224px, (min-width: 1024px) 192px, (min-width: 640px) 160px, 128px" class="w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto">
+              <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" sizes="(min-width: 1280px) 224px, (min-width: 1024px) 192px, (min-width: 640px) 160px, 128px" class="w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
             </button>
             <div class="lg:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
@@ -131,7 +131,7 @@ onMounted(() => {
         </svg>
       </button>
       <div class="relative max-w-[90vw] max-h-[90vh]" @click.stop>
-        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" decoding="async" class="max-h-[90vh] w-auto rounded-lg shadow-2xl object-contain">
+        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" decoding="async" class="max-h-[90vh] w-auto rounded-lg shadow-2xl object-contain [filter:brightness(0.9)]">
       </div>
     </div>
   </div>

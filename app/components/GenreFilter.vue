@@ -13,6 +13,11 @@ const emit = defineEmits<{
 }>()
 
 const detailsRef = ref<HTMLDetailsElement | null>(null)
+const detailsOpen = ref(false)
+
+function onToggle(e: Event) {
+  detailsOpen.value = (e.target as HTMLDetailsElement).open
+}
 
 function onClickOutside(event: MouseEvent) {
   if (detailsRef.value?.open && !detailsRef.value.contains(event.target as Node)) {
@@ -116,8 +121,8 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
       <span data-more-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">+{{ genres.length }} more</span>
     </div>
 
-    <div class="flex flex-wrap gap-2 flex-1 min-w-0 select-none">
-      <details ref="detailsRef" class="group relative shrink-0">
+    <div class="flex flex-wrap gap-2 flex-1 min-w-0 select-none" :class="effectiveShowAll || detailsOpen ? '' : 'overflow-hidden max-h-7'">
+      <details ref="detailsRef" class="group relative shrink-0" @toggle="onToggle">
         <summary class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 group-open:bg-white group-open:text-black group-open:hover:bg-white group-open:hover:text-black transition-colors cursor-pointer list-none" title="Menu">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />

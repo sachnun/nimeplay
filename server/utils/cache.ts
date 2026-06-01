@@ -25,10 +25,6 @@ function table<K extends string | number>() {
   }
 }
 
-const jikan = table<number>()
-const jikanTitle = table<string>()
-const aniskipMalId = table<string>()
-const aniskipSkipTimes = table<string>()
 const ongoing = table<number>()
 const completed = table<number>()
 const anime = table<string>()
@@ -40,14 +36,6 @@ const mirror = table<string>()
 const prepare = table<string>()
 
 export const cache = {
-  jikan: {
-    byId(id: number, ttl: number, load: () => Promise<unknown>) { return jikan.get(id, ttl, load) },
-    byTitle(key: string, ttl: number, load: () => Promise<unknown>) { return jikanTitle.get(key, ttl, load) },
-  },
-  aniskip: {
-    malId(title: string, ttl: number, load: () => Promise<unknown>) { return aniskipMalId.get(title, ttl, load) },
-    skipTimes(key: string, ttl: number, load: () => Promise<unknown>) { return aniskipSkipTimes.get(key, ttl, load) },
-  },
   ongoing: {
     get(page: number, ttl: number, load: () => Promise<unknown>) { return ongoing.get(page, ttl, load) },
   },

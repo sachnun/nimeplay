@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { fetchMalId, fetchSkipTimes } from '~/utils/aniskip'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 
 export interface EpisodePlayerProps {
@@ -470,12 +471,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       skipTimes.value = cached
       return
     }
-    const res = await $fetch<{ malId: number | null; skipTimes: SkipTime[] }>('/api/aniskip/skip-times-lookup', {
-      params: { title: episode.value.title, episode: epNum, episodeLength },
-    })
-    if (res.malId) await saveMalId(episode.value.animeSlug || props.animeSlug, res.malId)
-    if (import.meta.client) await setSkipTimes(key, res.skipTimes)
-    skipTimes.value = res.skipTimes
+    const malId = await fetchMalId(episode.value.title)
+    const skipTimeData = malId ? await fetchSkipTimes(malId, epNum, episodeLength) : []
+    if (malId) await saveMalId(episode.value.animeSlug || props.animeSlug, malId)
+    if (import.meta.client) await setSkipTimes(key, skipTimeData)
+    skipTimes.value = skipTimeData
   }
 
   async function loadSkipTimes(epNum: number, episodeLength: number, malId: number | null) {
@@ -486,9 +486,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       skipTimes.value = cached
       return
     }
-    const data = await $fetch<SkipTime[]>('/api/aniskip/skip-times', {
-      params: { malId, episode: epNum, episodeLength },
-    })
+    const data = await fetchSkipTimes(malId, epNum, episodeLength)
     if (import.meta.client) await setSkipTimes(key, data)
     skipTimes.value = data
   }

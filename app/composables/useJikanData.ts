@@ -1,3 +1,4 @@
+import { fetchJikanData } from '~/utils/jikan'
 import type { JikanAnimeData } from '~/utils/types'
 
 export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
@@ -17,13 +18,7 @@ export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string>
       return
     }
     const cachedMalId = await getMalId(slugRef.value)
-    const result = await $fetch<JikanAnimeData | null>('/api/jikan', {
-      params: {
-        title: titleRef.value,
-        japaneseTitle: japaneseRef.value || undefined,
-        cachedMalId: cachedMalId ?? undefined,
-      },
-    })
+    const result = await fetchJikanData(titleRef.value, japaneseRef.value, cachedMalId)
     if (result) {
       await saveMalId(slugRef.value, result.malId)
       await setJikanData(slugRef.value, result)

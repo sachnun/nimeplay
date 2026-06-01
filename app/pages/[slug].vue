@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
-
-type AnimeDetail = NonNullable<TrpcOutputs['anime']>
+import type { AnimeDetail } from '~/utils/types'
+import { getFreshAnimeDetail, setAnimeDetail, TTL } from '~/utils/apiCache'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 const isEpisodeRoute = computed(() => Boolean(route.params.episode))
-const trpc = useTrpc()
 
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${slug.value}`,
   async () => {
     if (isEpisodeRoute.value) return null
-    return trpc.anime.query({ slug: slug.value })
+    const cached = await getFreshAnimeDetail(slug.value)
+    if (cached) return cached
+    return $fetch(`/api/anime/${slug.value}`)
   },
   { watch: [slug, isEpisodeRoute] },
 )
+
+if (import.meta.client) {
+  watch(anime, async (val) => {
+    if (val) await setAnimeDetail(slug.value, val)
+  }, { immediate: true })
+}
 
 if (!isEpisodeRoute.value && !anime.value) {
   await navigateTo('/')

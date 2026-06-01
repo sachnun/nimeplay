@@ -21,15 +21,13 @@
     "@capacitor/core": "^8.3.3",
     "@capacitor/screen-orientation": "^8.0.1",
     "@nuxt/fonts": "^0.14.0",
-    "@trpc/client": "^11.17.0",
-    "@trpc/server": "^11.17.0",
     "cheerio": "^1.2.0",
     "hls.js": "^1.6.16",
+    "idb": "^8.0.3",
     "nuxt": "^4.4.5",
     "tailwindcss": "^4.3.0",
     "vue": "^3.5.34",
-    "vue-router": "^5.0.6",
-    "zod": "^4.4.3"
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.3",

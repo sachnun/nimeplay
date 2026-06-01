@@ -13,7 +13,6 @@ interface EpisodePlayerResolutionOptions {
 }
 
 export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
-  const trpc = useTrpc()
   let fallbackFn: (() => void) | null = null
   let playbackSession = 0
   let fallbackRunning = false
@@ -77,7 +76,10 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   async function prepareCandidate(candidate: MirrorCandidate) {
     try {
       const shouldExtract = isExtractable(candidate.name)
-      const prepared = await trpc.prepareMirror.mutate({ dataContent: candidate.dataContent, extract: shouldExtract })
+      const prepared = await $fetch<{ iframeUrl: string | null; proxiedUrl: string | null; ok: boolean }>('/api/mirror/prepare', {
+        method: 'POST',
+        body: { dataContent: candidate.dataContent, extract: shouldExtract },
+      })
       return { prepared, shouldExtract, iframeUrl: prepared?.iframeUrl }
     } catch {
       return null

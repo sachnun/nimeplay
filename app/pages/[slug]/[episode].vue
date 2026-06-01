@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
+import type { AnimeDetail, EpisodeData } from '~/utils/types'
 
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 const episodeParam = computed(() => String(route.params.episode || ''))
-const trpc = useTrpc()
 
-type EpisodePageData = TrpcOutputs['episodePage']
+interface EpisodePageData {
+  anime: { thumbnail: string } | null
+  episodeSlug: string | null
+  episode: EpisodeData | null
+}
 
 const { data: pageData, pending } = await useAsyncData<EpisodePageData>(
   () => `episode-page-${slug.value}-${episodeParam.value}`,
   async () => {
-    return trpc.episodePage.query({ animeSlug: slug.value, episode: episodeParam.value })
+    return $fetch('/api/episode-page', { params: { animeSlug: slug.value, episode: episodeParam.value } })
   },
   {
     watch: [slug, episodeParam],

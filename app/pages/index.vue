@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
+import type { AnimeCard, Genre } from '~/utils/types'
 
-type HomeData = TrpcOutputs['home']
+interface HomeData {
+  ongoingData: { anime: AnimeCard[]; totalPages: number }
+  completedData: { anime: AnimeCard[]; totalPages: number }
+  genres: Genre[]
+}
 
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
-const trpc = useTrpc()
 const { data, pending } = await useAsyncData<HomeData>('home', async () => {
-  return trpc.home.query()
+  return $fetch('/api/home')
 }, {
   default: () => ({
     ongoingData: { anime: [], totalPages: 1 },

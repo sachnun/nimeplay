@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
-import type { ContinueItem } from '~/utils/types'
+import type { AnimeCard, AnimeDetail, Genre, ContinueItem } from '~/utils/types'
 import { getContinueWatching, getProgressStatus } from '~/utils/watchHistory'
+import type { WatchProgress } from '~/utils/watchHistory'
+import { getFreshAnimeDetail, setAnimeDetail, TTL } from '~/utils/apiCache'
 
-type HomeData = TrpcOutputs['home']
-type AnimeDetail = NonNullable<TrpcOutputs['animeDetails'][number]['anime']>
-type ContinueProgress = ReturnType<typeof getContinueWatching>[number]
+type ContinueProgress = WatchProgress
 type ContinueEpisode = Pick<ContinueItem, 'episodeNum' | 'episodeSlug' | 'currentTime' | 'duration' | 'latestEpisode'>
 
 withDefaults(defineProps<{
-  ongoingData: HomeData['ongoingData']
-  completedData: HomeData['completedData']
-  genres: HomeData['genres']
+  ongoingData: { anime: AnimeCard[]; totalPages: number }
+  completedData: { anime: AnimeCard[]; totalPages: number }
+  genres: Genre[]
   isLoading?: boolean
 }>(), {
   isLoading: false,
@@ -19,11 +18,10 @@ withDefaults(defineProps<{
 
 const searchOpen = ref(false)
 const { selectedGenre, setSelectedGenre } = useGenre()
-const trpc = useTrpc()
-const initialContinueItems = import.meta.client ? getContinueWatching().slice(0, 3) : []
+const initialContinueItems = ref<WatchProgress[]>([])
 const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
-const continueCount = ref(initialContinueItems.length)
+const continueCount = ref(0)
 
 function episodeNumberFromTitle(title: string, fallback: string | number) {
   return title.match(/episode\s*(\d+)/i)?.[1] ?? `${fallback}`
@@ -50,23 +48,22 @@ function nextEpisodeAfterCompleted(p: ContinueProgress, detail: AnimeDetail, lat
   } : null
 }
 
-function nextContinueEpisode(p: ContinueProgress, detail: AnimeDetail): ContinueEpisode | null {
+async function nextContinueEpisode(p: ContinueProgress, detail: AnimeDetail): Promise<ContinueEpisode | null> {
   const latest = latestEpisodeNumber(detail, p.episodeNum)
-  return getProgressStatus(p) !== 'completed'
+  return (await getProgressStatus(p)) !== 'completed'
     ? currentContinueEpisode(p, latest)
     : nextEpisodeAfterCompleted(p, detail, latest)
 }
 
 function toContinueItem(p: ContinueProgress, detail: AnimeDetail): ContinueItem | null {
-  const next = nextContinueEpisode(p, detail)
-  if (!next) return null
-  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, ...next }
+  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode: p.episodeNum }
 }
 
 async function fetchContinueWatching() {
-  const items = initialContinueItems.length > 0 && continueItems.value.length === 0
-    ? initialContinueItems
-    : getContinueWatching().slice(0, 3)
+  const all = await getContinueWatching()
+  const items = initialContinueItems.value.length > 0 && continueItems.value.length === 0
+    ? initialContinueItems.value
+    : all.slice(0, 3)
   continueCount.value = items.length
   if (items.length === 0) {
     continueItems.value = []
@@ -75,8 +72,24 @@ async function fetchContinueWatching() {
 
   continueLoading.value = true
   try {
-    const result = await trpc.animeDetails.query({ slugs: items.map((item) => item.animeSlug) })
-    const details = new Map(result.map((item) => [item.slug, item.anime]))
+    const slugs = items.map((item) => item.animeSlug)
+    const cachedEntries = await Promise.all(slugs.map(async (s) => [s, await getFreshAnimeDetail(s)] as const))
+    const missing = cachedEntries.filter(([, v]) => !v).map(([s]) => s)
+    let details: Map<string, typeof cachedEntries[number][1]>
+    if (missing.length === 0) {
+      details = new Map(cachedEntries)
+    } else {
+      const fetched = await $fetch<{ slug: string; anime: AnimeDetail | null }[]>('/api/anime/details', {
+        method: 'POST',
+        body: { slugs: missing },
+      })
+      if (import.meta.client) {
+        await Promise.all(fetched.map(async (item) => {
+          if (item.anime) await setAnimeDetail(item.slug, item.anime)
+        }))
+      }
+      details = new Map([...cachedEntries, ...fetched.map((item) => [item.slug, item.anime] as const)])
+    }
     continueItems.value = items.map((p) => {
       const detail = details.get(p.animeSlug)
       if (!detail) return null
@@ -90,6 +103,12 @@ async function fetchContinueWatching() {
 }
 
 onMounted(() => {
+  if (import.meta.client) {
+    getContinueWatching().then((all) => {
+      initialContinueItems.value = all.slice(0, 3)
+      continueCount.value = initialContinueItems.value.length
+    })
+  }
   void fetchContinueWatching()
   const onVisibility = () => {
     if (document.visibilityState !== 'visible') return

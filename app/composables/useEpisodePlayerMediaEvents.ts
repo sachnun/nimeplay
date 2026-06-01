@@ -16,10 +16,10 @@ interface EpisodePlayerMediaEventOptions {
   skipTimes: Ref<SkipTime[]>
   autoSkipCurrentSegment: (video: HTMLVideoElement) => void
   canMarkWatched: () => boolean
-  doMark: () => void
-  doSaveProgress: () => void
+  doMark: () => void | Promise<void>
+  doSaveProgress: () => void | Promise<void>
   fetchSkipTimesIfNeeded: () => Promise<void>
-  saveNextEpisodeResume: () => void
+  saveNextEpisodeResume: () => void | Promise<void>
   startAutoNextCountdown: () => void
 }
 

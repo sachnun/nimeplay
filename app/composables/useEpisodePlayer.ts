@@ -7,6 +7,8 @@ import { useEpisodePlayerResolution } from './useEpisodePlayerResolution'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 import { getEpisodeStatus, getProgress, markWatched, saveProgress } from '~/utils/watchHistory'
 import { getMalId, saveMalId } from '~/utils/jikanCache'
+import { getAutoSkip, setAutoSkip } from '~/utils/prefs'
+import { getFreshSkipTimes, setSkipTimes, TTL } from '~/utils/apiCache'
 import {
   episodeNumFor,
   extractEpisodeNumber,
@@ -39,7 +41,6 @@ const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
-  const trpc = useTrpc()
 
   const episode = ref(props.episode)
   const currentSlug = ref(props.currentSlug)
@@ -140,14 +141,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (hls) hls.config.maxBufferLength = length
   }
 
-  function resetForEpisode() {
+  async function resetForEpisode() {
     clearAnyTimer(iframeTimer)
     clearAnyTimer(countdownTimer)
     resetPlaybackTracking()
     iframeTimer = null
     countdownTimer = null
     lastSavedTime = 0
-    resumeTime = savedResumeTime()
+    resumeTime = await savedResumeTime()
     autoNextCountdown.value = null
     currentTime.value = 0
     duration.value = 0
@@ -157,16 +158,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     seekIndicator.value = null
     resolving.value = true
     loadingMessage.value = 'Menyiapkan player...'
-    watchedMarked = getEpisodeStatus(currentSlug.value) === 'completed'
+    watchedMarked = (await getEpisodeStatus(currentSlug.value)) === 'completed'
     skipFetched = false
     skipTimes.value = []
     showEmbedAlert.value = true
     clearGestureState()
   }
 
-  function savedResumeTime() {
-    const saved = getProgress(currentSlug.value)
-    if (!saved || getEpisodeStatus(currentSlug.value) !== 'in_progress') return 0
+  async function savedResumeTime() {
+    const saved = await getProgress(currentSlug.value)
+    if (!saved || (await getEpisodeStatus(currentSlug.value)) !== 'in_progress') return 0
     return saved.currentTime > 0 ? saved.currentTime : 0
   }
 
@@ -174,12 +175,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return Boolean(video?.duration && Number.isFinite(video.duration))
   }
 
-  function doSaveProgress() {
+  async function doSaveProgress() {
     const video = videoRef.value
     if (!video || !hasFiniteDuration(video)) return
     if (video.currentTime === lastSavedTime) return
     lastSavedTime = video.currentTime
-    saveProgress(currentSlug.value, {
+    await saveProgress(currentSlug.value, {
       currentTime: video.currentTime,
       duration: video.duration,
       animeSlug: props.animeSlug,
@@ -187,9 +188,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     })
   }
 
-  function saveNextEpisodeResume() {
+  async function saveNextEpisodeResume() {
     if (!nextEpisode.value) return
-    saveProgress(nextEpisode.value.slug, {
+    await saveProgress(nextEpisode.value.slug, {
       currentTime: 0,
       duration: 1,
       animeSlug: props.animeSlug,
@@ -228,10 +229,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     iframeTimer = null
   }
 
-  function doMark() {
+  async function doMark() {
     if (watchedMarked) return
     watchedMarked = true
-    markWatched(currentSlug.value, currentProgressPayload())
+    await markWatched(currentSlug.value, currentProgressPayload())
     clearWatchTimers()
   }
 
@@ -300,7 +301,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function toggleAutoSkip() {
     autoSkip.value = !autoSkip.value
-    localStorage.setItem('nimeplay:autoskip', autoSkip.value ? '1' : '0')
+    void setAutoSkip(autoSkip.value)
   }
 
   async function loadEpisodeInPlace(slug: string, epNum: string, shouldAutoPlay = false) {
@@ -319,7 +320,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       video.removeAttribute('src')
       video.load()
     }
-    const data = await trpc.episode.query({ slug })
+    const data = await $fetch<EpisodeData | null>(`/api/episode/${slug}`)
     if (!data) {
       resolving.value = false
       return
@@ -481,14 +482,33 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function lookupAndSaveSkipTimes(epNum: number, episodeLength: number) {
-    const res = await trpc.skipTimesLookup.query({ title: episode.value.title, episode: epNum, episodeLength })
-    if (res.malId) saveMalId(episode.value.animeSlug || props.animeSlug, res.malId)
+    const key = `lookup:${episode.value.title}:${epNum}`
+    const cached = await getFreshSkipTimes(key)
+    if (cached) {
+      skipTimes.value = cached
+      return
+    }
+    const res = await $fetch<{ malId: number | null; skipTimes: SkipTime[] }>('/api/aniskip/skip-times-lookup', {
+      params: { title: episode.value.title, episode: epNum, episodeLength },
+    })
+    if (res.malId) await saveMalId(episode.value.animeSlug || props.animeSlug, res.malId)
+    if (import.meta.client) await setSkipTimes(key, res.skipTimes)
     skipTimes.value = res.skipTimes
   }
 
   async function loadSkipTimes(epNum: number, episodeLength: number, malId: number | null) {
     if (!malId) return lookupAndSaveSkipTimes(epNum, episodeLength)
-    skipTimes.value = await trpc.skipTimes.query({ malId, episode: epNum, episodeLength })
+    const key = `${malId}:${epNum}`
+    const cached = await getFreshSkipTimes(key)
+    if (cached) {
+      skipTimes.value = cached
+      return
+    }
+    const data = await $fetch<SkipTime[]>('/api/aniskip/skip-times', {
+      params: { malId, episode: epNum, episodeLength },
+    })
+    if (import.meta.client) await setSkipTimes(key, data)
+    skipTimes.value = data
   }
 
   function shouldSkipSegment(skipTime: SkipTime, time: number) {
@@ -508,7 +528,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     skipFetched = true
     const epNum = extractEpisodeNumber(currentSlug.value)
     if (!epNum) return
-    await loadSkipTimes(epNum, episodeLength, getMalId(currentAnimeSlug()))
+    await loadSkipTimes(epNum, episodeLength, await getMalId(currentAnimeSlug()))
   }
 
   function currentAnimeSlug() {
@@ -594,7 +614,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   watch(autoSkip, (value) => {
-    if (import.meta.client) localStorage.setItem('nimeplay:autoskip', value ? '1' : '0')
+    if (import.meta.client) void setAutoSkip(value)
   })
 
   function setMediaPlaybackState(playing: boolean) {
@@ -698,7 +718,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   onMounted(() => {
     isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
-    autoSkip.value = localStorage.getItem('nimeplay:autoskip') === '1'
+    getAutoSkip().then((val) => { autoSkip.value = val })
     const video = videoRef.value
     if (video) onBeforeUnmount(registerVideoEvents(video))
 

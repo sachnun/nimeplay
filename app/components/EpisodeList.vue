@@ -9,14 +9,15 @@ const props = defineProps<{
 
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
 
-function refreshEpisodeStatuses() {
-  episodeStatuses.value = Object.fromEntries(
-    props.episodes.map((ep) => [ep.slug, getEpisodeStatus(ep.slug)]),
+async function refreshEpisodeStatuses() {
+  const entries = await Promise.all(
+    props.episodes.map(async (ep) => [ep.slug, await getEpisodeStatus(ep.slug)] as const),
   )
+  episodeStatuses.value = Object.fromEntries(entries)
 }
 
 onMounted(() => {
-  refreshEpisodeStatuses()
+  void refreshEpisodeStatuses()
 
   const onVisibility = () => {
     if (document.visibilityState === 'visible') refreshEpisodeStatuses()
@@ -43,7 +44,7 @@ function episodeNumber(ep: { title: string }, index: number) {
         :key="ep.slug"
         :to="`/${animeSlug}/${episodeNumber(ep, i)}`"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
-        :class="episodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
+        :class="episodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(ep.slug) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >
         {{ episodeNumber(ep, i) }}
       </NuxtLink>

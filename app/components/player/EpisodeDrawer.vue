@@ -2,7 +2,7 @@
 import type { ComponentPublicInstance } from 'vue'
 import type { EpisodeData } from '~/utils/types'
 import { episodeNumFor } from '~/utils/player'
-import { getEpisodeStatus } from '~/utils/watchHistory'
+import { getEpisodeStatus, type WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
   episode: EpisodeData
@@ -10,16 +10,29 @@ const props = defineProps<{
 }>()
 
 const currentEpRef = ref<HTMLButtonElement | null>(null)
+const statuses = ref<Record<string, WatchProgressStatus>>({})
 
 function setCurrentEpRef(el: Element | ComponentPublicInstance | null, slug: string) {
   if (slug === props.currentSlug && el instanceof HTMLButtonElement) currentEpRef.value = el
 }
 
+async function loadStatuses() {
+  const entries = await Promise.all(
+    props.episode.episodeNav.map(async (ep) => [ep.slug, await getEpisodeStatus(ep.slug)] as const),
+  )
+  statuses.value = Object.fromEntries(entries)
+}
+
 onMounted(() => {
+  void loadStatuses()
   requestAnimationFrame(() => {
     currentEpRef.value?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   })
 })
+
+function epStatus(slug: string): WatchProgressStatus {
+  return statuses.value[slug] ?? 'unstarted'
+}
 
 defineEmits<{
   close: []
@@ -44,7 +57,7 @@ defineEmits<{
           :ref="(el) => setCurrentEpRef(el, ep.slug)"
           type="button"
           class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer"
-          :class="ep.slug === currentSlug ? 'bg-white/25 text-white font-semibold' : getEpisodeStatus(ep.slug) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
+          :class="ep.slug === currentSlug ? 'bg-white/25 text-white font-semibold' : epStatus(ep.slug) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : epStatus(ep.slug) === 'in_progress' ? 'bg-white/5 text-zinc-400 opacity-75' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
           @click="ep.slug !== currentSlug && $emit('navigate', ep.slug, episodeNumFor(ep, i))"
         >
           {{ episodeNumFor(ep, i) }}

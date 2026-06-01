@@ -12,8 +12,8 @@ export interface AnimeProgressEntry {
 export function useAnimeProgressMap(continueItems: MaybeRefOrGetter<AnimeProgressEntry[]>) {
   const allProgress = ref<AnimeProgressEntry[]>([])
 
-  function syncProgress() {
-    const all = getContinueWatching()
+  async function syncProgress() {
+    const all = await getContinueWatching()
     allProgress.value = all.length > 0 ? all : toValue(continueItems)
   }
 

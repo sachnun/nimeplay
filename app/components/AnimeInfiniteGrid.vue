@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
-import type { ContinueItem } from '~/utils/types'
+import type { AnimeCard, ContinueItem } from '~/utils/types'
 
-type PageData = TrpcOutputs['animePage']
+interface PageData {
+  anime: AnimeCard[]
+  totalPages: number
+}
 
 const props = withDefaults(defineProps<{
   pageType: 'ONGOING' | 'COMPLETED'
@@ -24,7 +26,6 @@ const props = withDefaults(defineProps<{
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
-const trpc = useTrpc()
 const cols = ref(2)
 const gridState = useState<{
   primaryPages: PageData[]
@@ -49,7 +50,7 @@ const {
 } = useProgressCardLongPress()
 
 onMounted(() => {
-  syncProgress()
+  void syncProgress()
 })
 
 watch(() => props.initialData, (data) => {
@@ -91,7 +92,7 @@ const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continu
 const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
-  return trpc.animePage.query({ type, page })
+  return $fetch('/api/anime-page', { params: { type, page } })
 }
 
 async function loadPrimaryPage() {
@@ -160,7 +161,7 @@ function episodeBadge(episode: string) {
         <div class="relative aspect-[3/4]">
           <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 2 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
           <div class="absolute inset-0 bg-black/15 pointer-events-none" />
-          <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
+          <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-white text-black text-xs px-2 py-0.5 rounded font-medium">
             {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-12" :class="item.duration > 0 && item.currentTime > 0 ? 'pb-5' : ''">

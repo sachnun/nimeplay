@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { TrpcOutputs } from '~/types/trpc'
-import type { ContinueItem } from '~/utils/types'
+import type { GenreAnimeCard, ContinueItem } from '~/utils/types'
 
-type PageData = TrpcOutputs['genre']
+interface PageData {
+  anime: GenreAnimeCard[]
+  totalPages: number
+}
 
 const props = withDefaults(defineProps<{
   genreSlug: string
@@ -13,7 +15,6 @@ const props = withDefaults(defineProps<{
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
-const trpc = useTrpc()
 const cols = ref(2)
 const pages = ref<PageData[]>([])
 const size = ref(0)
@@ -36,7 +37,7 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
 const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))
 
 async function loadPage(page: number) {
-  return trpc.genre.query({ slug: props.genreSlug, page })
+  return $fetch<PageData>(`/api/genre/${props.genreSlug}`, { params: { page } })
 }
 
 async function appendNextPage() {
@@ -66,15 +67,13 @@ watch(() => props.genreSlug, () => { void reset() }, { immediate: true })
 const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
 
 onMounted(() => {
-  syncProgress()
-  window.addEventListener('storage', syncProgress)
+  void syncProgress()
   const onVisibility = () => {
-    if (document.visibilityState === 'visible') syncProgress()
+    if (document.visibilityState === 'visible') void syncProgress()
   }
   document.addEventListener('visibilitychange', onVisibility)
 
   onBeforeUnmount(() => {
-    window.removeEventListener('storage', syncProgress)
     document.removeEventListener('visibilitychange', onVisibility)
   })
 })

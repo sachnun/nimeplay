@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'nimeplay:progress'
+import { getDb } from './db'
 
 export const COMPLETED_PROGRESS_THRESHOLD = 0.87
 
@@ -13,44 +13,79 @@ export interface WatchProgress {
   episodeSlug: string
 }
 
-function getProgressMap(): Record<string, WatchProgress> {
-  if (!import.meta.client) return {}
+async function migrateFromLocalStorage() {
+  if (!import.meta.client) return
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const db = await getDb()
+    const count = await db.count('progress')
+    if (count > 0) return
+
+    const oldData = localStorage.getItem('nimeplay:progress')
+    if (!oldData) return
+
+    const map: Record<string, WatchProgress> = JSON.parse(oldData)
+    const tx = db.transaction('progress', 'readwrite')
+    await Promise.all(
+      Object.entries(map).map(([key, value]) => tx.store.put(value, key)),
+    )
+    await tx.done
+
+    localStorage.removeItem('nimeplay:progress')
+    localStorage.removeItem('nimeplay:jikan')
+    localStorage.removeItem('nimeplay:autoskip')
   } catch {
-    return {}
   }
 }
 
-function writeProgressMap(map: Record<string, WatchProgress>) {
-  if (!import.meta.client) return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
+let migrationDone = false
+function ensureMigrated() {
+  if (!migrationDone) {
+    migrationDone = true
+    void migrateFromLocalStorage()
+  }
 }
 
-export function markWatched(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
-  const map = getProgressMap()
-  map[episodeSlug] = {
+export async function markWatched(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
+  if (!import.meta.client) return
+  const entry: WatchProgress = {
     ...data,
     episodeSlug,
     currentTime: Math.max(data.currentTime, data.duration),
     duration: Math.max(data.duration, 1),
     updatedAt: Date.now(),
   }
-  writeProgressMap(map)
+  const db = await getDb()
+  await db.put('progress', entry, episodeSlug)
 }
 
-export function saveProgress(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
-  const map = getProgressMap()
-  map[episodeSlug] = { ...data, episodeSlug, updatedAt: Date.now() }
-  writeProgressMap(map)
+export async function saveProgress(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
+  if (!import.meta.client) return
+  const entry: WatchProgress = { ...data, episodeSlug, updatedAt: Date.now() }
+  const db = await getDb()
+  await db.put('progress', entry, episodeSlug)
 }
 
-export function getProgress(episodeSlug: string): WatchProgress | null {
-  return getProgressMap()[episodeSlug] ?? null
+export async function getProgress(episodeSlug: string): Promise<WatchProgress | null> {
+  if (!import.meta.client) return null
+  ensureMigrated()
+  try {
+    const db = await getDb()
+    return (await db.get('progress', episodeSlug)) ?? null
+  } catch {
+    return null
+  }
 }
 
-export function getAllProgress(): WatchProgress[] {
-  return Object.values(getProgressMap()).sort((a, b) => b.updatedAt - a.updatedAt)
+export async function getAllProgress(): Promise<WatchProgress[]> {
+  if (!import.meta.client) return []
+  ensureMigrated()
+  try {
+    const db = await getDb()
+    const all = await db.getAll('progress')
+    return all.sort((a, b) => b.updatedAt - a.updatedAt)
+  } catch {
+    return []
+  }
 }
 
 export function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | null): number {
@@ -58,16 +93,16 @@ export function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | '
   return Math.min(progress.currentTime / progress.duration, 1)
 }
 
-export function getProgressStatus(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null): WatchProgressStatus {
-  const actual = typeof progress === 'string' ? getProgress(progress) : progress
+export async function getProgressStatus(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null): Promise<WatchProgressStatus> {
+  const actual = typeof progress === 'string' ? await getProgress(progress) : progress
   const ratio = getProgressRatio(actual)
   if (ratio >= COMPLETED_PROGRESS_THRESHOLD) return 'completed'
   if (ratio > 0) return 'in_progress'
   return 'unstarted'
 }
 
-export function getContinueWatching(): WatchProgress[] {
-  const all = getAllProgress()
+export async function getContinueWatching(): Promise<WatchProgress[]> {
+  const all = await getAllProgress()
   const seen = new Set<string>()
   const result: WatchProgress[] = []
   for (const p of all) {
@@ -79,14 +114,14 @@ export function getContinueWatching(): WatchProgress[] {
   return result
 }
 
-export function getEpisodeProgress(episodeSlug: string): number {
-  return getProgressRatio(getProgress(episodeSlug))
+export async function getEpisodeProgress(episodeSlug: string): Promise<number> {
+  return getProgressRatio(await getProgress(episodeSlug))
 }
 
-export function getEpisodeStatus(episodeSlug: string): WatchProgressStatus {
-  return getProgressStatus(getProgress(episodeSlug))
+export async function getEpisodeStatus(episodeSlug: string): Promise<WatchProgressStatus> {
+  return getProgressStatus(await getProgress(episodeSlug))
 }
 
-export function isWatched(episodeSlug: string): boolean {
-  return getEpisodeStatus(episodeSlug) === 'completed'
+export async function isWatched(episodeSlug: string): Promise<boolean> {
+  return (await getEpisodeStatus(episodeSlug)) === 'completed'
 }

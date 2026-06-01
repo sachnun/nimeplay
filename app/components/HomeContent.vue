@@ -14,7 +14,7 @@ withDefaults(defineProps<{
   isLoading: false,
 })
 
-const selectedGenre = useState<Genre | null>('selected-genre')
+const selectedGenre = useState<Genre | null>('selected-genre', () => null)
 const searchOpen = ref(false)
 const initialContinueItems = ref<WatchProgress[]>([])
 const continueItems = ref<ContinueItem[]>([])

@@ -16,7 +16,8 @@ async function migrateFromLocalStorage() {
       Object.entries(map).map(([key, value]) => tx.store.put(value, key)),
     )
     await tx.done
-  } catch {
+  } catch (error) {
+    console.warn('jikanCache.migrateFromLocalStorage failed', error)
   }
 }
 

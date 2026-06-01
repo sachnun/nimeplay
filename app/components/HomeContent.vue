@@ -3,7 +3,6 @@ import type { AnimeCard, AnimeDetail, Genre, ContinueItem } from '~/utils/types'
 import type { WatchProgress } from '~/utils/watchHistory'
 
 type ContinueProgress = WatchProgress
-type ContinueEpisode = Pick<ContinueItem, 'episodeNum' | 'episodeSlug' | 'currentTime' | 'duration' | 'latestEpisode'>
 
 withDefaults(defineProps<{
   ongoingData: { anime: AnimeCard[]; totalPages: number }
@@ -27,30 +26,6 @@ function episodeNumberFromTitle(title: string, fallback: string | number) {
 
 function latestEpisodeNumber(detail: AnimeDetail, fallback: string) {
   return episodeNumberFromTitle(detail.episodes[0]?.title ?? '', detail.episodes.length || fallback)
-}
-
-function currentContinueEpisode(p: ContinueProgress, latestEpisode: string): ContinueEpisode {
-  return { episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode }
-}
-
-function nextEpisodeAfterCompleted(p: ContinueProgress, detail: AnimeDetail, latestEpisode: string): ContinueEpisode | null {
-  const ascending = [...detail.episodes].reverse()
-  const currentIdx = ascending.findIndex((ep) => ep.slug === p.episodeSlug)
-  const nextEp = currentIdx === -1 ? null : ascending[currentIdx + 1]
-  return nextEp ? {
-    episodeNum: episodeNumberFromTitle(nextEp.title, currentIdx + 2),
-    episodeSlug: nextEp.slug,
-    currentTime: 0,
-    duration: 1,
-    latestEpisode,
-  } : null
-}
-
-async function nextContinueEpisode(p: ContinueProgress, detail: AnimeDetail): Promise<ContinueEpisode | null> {
-  const latest = latestEpisodeNumber(detail, p.episodeNum)
-  return (await getProgressStatus(p)) !== 'completed'
-    ? currentContinueEpisode(p, latest)
-    : nextEpisodeAfterCompleted(p, detail, latest)
 }
 
 function toContinueItem(p: ContinueProgress, detail: AnimeDetail): ContinueItem | null {

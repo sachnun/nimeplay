@@ -380,18 +380,18 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         const { ScreenOrientation } = await import('@capacitor/screen-orientation')
         await ScreenOrientation.lock({ orientation })
         return
-      } catch {}
+      } catch (error) { console.warn('ScreenOrientation.lock failed', error) }
     }
 
     try {
       if (orientation === 'landscape') await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
       else (screen.orientation as unknown as { unlock: () => void }).unlock()
-    } catch {}
+    } catch (error) { console.warn('screen.orientation lock/unlock failed', error) }
   }
 
   async function exitPlayerFullscreen() {
     if (document.fullscreenElement) {
-      try { await document.exitFullscreen() } catch {}
+      try { await document.exitFullscreen() } catch (error) { console.warn('exitFullscreen failed', error) }
     }
     isFullscreen.value = false
     cancelAutoNext()
@@ -408,7 +408,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
     const nativeAndroid = isAndroidNative()
     if (nativeAndroid) await lockPlayerOrientation('landscape')
-    try { await el.requestFullscreen() } catch {}
+    try { await el.requestFullscreen() } catch (error) { console.warn('requestFullscreen failed', error) }
     if (!nativeAndroid) await lockPlayerOrientation('landscape')
 
     if (nativeAndroid || document.fullscreenElement) {
@@ -738,7 +738,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
     if ('mediaSession' in navigator) {
       const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
-        try { navigator.mediaSession.setActionHandler(action, handler) } catch {}
+        try { navigator.mediaSession.setActionHandler(action, handler) } catch (error) { console.warn('mediaSession.setActionHandler failed', error) }
       }
       setHandler('play', () => { if (videoRef.value) void videoRef.value.play() })
       setHandler('pause', () => videoRef.value?.pause())

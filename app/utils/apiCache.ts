@@ -33,13 +33,9 @@ async function setEntry<T>(store: StoreName, key: string, data: T): Promise<void
   try {
     const db = await getDb()
     await db.put(store, { storedAt: Date.now(), data } satisfies Stored<T>, key)
-  } catch {
+  } catch (error) {
+    console.warn('apiCache.setEntry failed', error)
   }
-}
-
-export {
-  TTL,
-  fresh,
 }
 
 // animeDetail
@@ -78,7 +74,7 @@ export async function getFreshJikanData(slug: string): Promise<JikanAnimeData | 
 
 // skipTimes
 
-export async function getSkipTimes(key: string): Promise<SkipTime[] | null> {
+async function getSkipTimes(key: string): Promise<SkipTime[] | null> {
   const entry = await getEntry<SkipTime[]>('skipTimes', key)
   return entry?.data ?? null
 }

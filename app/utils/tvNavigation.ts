@@ -23,11 +23,11 @@ export function hasHiddenOverflow(element: HTMLElement): boolean {
   return `${style.overflow} ${style.overflowX} ${style.overflowY}`.includes('hidden')
 }
 
-export function rectCenter(rect: DOMRect) {
+function rectCenter(rect: DOMRect) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
 
-export function scoreCandidate(direction: Direction, from: DOMRect, to: DOMRect) {
+function scoreCandidate(direction: Direction, from: DOMRect, to: DOMRect) {
   const fromCenter = rectCenter(from)
   const toCenter = rectCenter(to)
 

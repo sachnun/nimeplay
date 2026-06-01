@@ -16,8 +16,4 @@ export function apiCorsPreflightResponse() {
   return new Response(null, { status: 204, headers: API_CORS_HEADERS })
 }
 
-export function withApiCorsHeaders(response: Response) {
-  const headers = new Headers(response.headers)
-  for (const [name, value] of Object.entries(API_CORS_HEADERS)) headers.set(name, value)
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
-}
+

@@ -11,7 +11,8 @@ async function migrateFromLocalStorage() {
     if (oldValue !== null) {
       await db.put('prefs', oldValue, 'autoskip')
     }
-  } catch {
+  } catch (error) {
+    console.warn('prefs.migrateFromLocalStorage failed', error)
   }
 }
 

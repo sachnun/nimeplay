@@ -135,7 +135,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
 
   function capturePointer(event?: PointerEvent) {
     if (!(event?.currentTarget instanceof HTMLElement)) return
-    try { event.currentTarget.setPointerCapture(event.pointerId) } catch {}
+    try { event.currentTarget.setPointerCapture(event.pointerId) } catch (error) { console.warn('setPointerCapture failed', error) }
   }
 
   function canStartSpeedHold() {

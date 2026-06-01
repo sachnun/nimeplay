@@ -1,6 +1,6 @@
 import { getDb } from './db'
 
-export const COMPLETED_PROGRESS_THRESHOLD = 0.87
+const COMPLETED_PROGRESS_THRESHOLD = 0.87
 
 export type WatchProgressStatus = 'unstarted' | 'in_progress' | 'completed'
 
@@ -33,7 +33,8 @@ async function migrateFromLocalStorage() {
     localStorage.removeItem('nimeplay:progress')
     localStorage.removeItem('nimeplay:jikan')
     localStorage.removeItem('nimeplay:autoskip')
-  } catch {
+  } catch (error) {
+    console.warn('watchHistory.migrateFromLocalStorage failed', error)
   }
 }
 
@@ -114,7 +115,7 @@ export async function getContinueWatching(): Promise<WatchProgress[]> {
   return result
 }
 
-export async function getEpisodeProgress(episodeSlug: string): Promise<number> {
+async function getEpisodeProgress(episodeSlug: string): Promise<number> {
   return getProgressRatio(await getProgress(episodeSlug))
 }
 
@@ -122,6 +123,6 @@ export async function getEpisodeStatus(episodeSlug: string): Promise<WatchProgre
   return getProgressStatus(await getProgress(episodeSlug))
 }
 
-export async function isWatched(episodeSlug: string): Promise<boolean> {
+async function isWatched(episodeSlug: string): Promise<boolean> {
   return (await getEpisodeStatus(episodeSlug)) === 'completed'
 }

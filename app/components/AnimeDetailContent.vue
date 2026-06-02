@@ -63,7 +63,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen relative overflow-hidden">
     <div class="absolute inset-0 z-0">
-      <img :src="thumbnail" alt="" width="1200" height="1600" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-110 blur-3xl opacity-15">
+      <img :src="thumbnail" alt="" width="1200" height="1600" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-110 blur-3xl opacity-15 pointer-events-none">
     </div>
     <LazyTrailerBackground v-if="showTrailerBackground" :trailer-embed-url="data?.trailerEmbedUrl" />
     <div class="absolute inset-0 z-[1] bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.35)_15%,rgba(0,0,0,0.55)_30%,rgba(0,0,0,0.75)_45%,rgba(0,0,0,0.9)_60%,rgba(0,0,0,1)_75%)] lg:bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.3)_15%,rgba(0,0,0,0.45)_30%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.8)_60%,rgba(0,0,0,0.95)_75%,rgba(0,0,0,1)_85%)]" />

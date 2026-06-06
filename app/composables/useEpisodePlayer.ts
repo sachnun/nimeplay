@@ -53,6 +53,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showVolume = ref(false)
   const seekIndicator = ref<{ side: 'left' | 'right'; seconds: number } | null>(null)
   const seekIndicatorKey = ref(0)
+  const volumeIndicator = ref<{ volume: number; isMuted: boolean } | null>(null)
   const speedBoost = ref(false)
   const wasLongPress = ref(false)
 
@@ -68,6 +69,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   let countdownTimer: ReturnType<typeof setInterval> | null = null
   let volumeTimer: ReturnType<typeof setTimeout> | null = null
+  let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
+  let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let skipFetched = false
 
   function episodeAtOffset(offset: number) {
@@ -366,6 +369,15 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function toggleMute() {
     if (videoRef.value) videoRef.value.muted = !videoRef.value.muted
+    showVolumeIndicator()
+  }
+
+  function showVolumeIndicator() {
+    const video = videoRef.value
+    if (!video) return
+    clearTimeout(volumeIndicatorTimer)
+    volumeIndicator.value = { volume: video.volume, isMuted: video.muted }
+    volumeIndicatorTimer = setTimeout(() => { volumeIndicator.value = null }, 1000)
   }
 
   function changeVolume(v: number) {
@@ -373,6 +385,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!video) return
     video.volume = Math.max(0, Math.min(1, v))
     if (video.muted && v > 0) video.muted = false
+    showVolumeIndicator()
+  }
+
+  function showSeekFeedback(side: 'left' | 'right', seconds: number) {
+    clearTimeout(seekIndicatorTimer)
+    seekIndicator.value = { side, seconds }
+    seekIndicatorKey.value++
+    seekIndicatorTimer = setTimeout(() => { seekIndicator.value = null }, 600)
   }
 
   async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
@@ -446,8 +466,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const volume = videoRef.value?.volume ?? 1
     const shortcuts: Record<string, () => void> = {
       k: togglePlay,
-      ArrowLeft: () => seekRelative(-5),
-      ArrowRight: () => seekRelative(5),
+      ArrowLeft: () => { seekRelative(-5); showSeekFeedback('left', 5) },
+      ArrowRight: () => { seekRelative(5); showSeekFeedback('right', 5) },
       ArrowUp: () => changeVolume(volume + 0.1),
       ArrowDown: () => changeVolume(volume - 0.1),
       m: toggleMute,
@@ -754,6 +774,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       clearAnyTimer(countdownTimer)
       clearAnyTimer(idleTimer)
       clearAnyTimer(volumeTimer)
+      clearAnyTimer(volumeIndicatorTimer)
+      clearAnyTimer(seekIndicatorTimer)
       clearPlaybackTimers()
       clearGestureState()
       document.removeEventListener('fullscreenchange', onFullscreenChange)
@@ -822,6 +844,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     useIframe,
     videoRef,
     volume,
+    volumeIndicator,
     wasLongPress,
   }
 }

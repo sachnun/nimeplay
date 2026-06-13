@@ -29,7 +29,7 @@ function latestEpisodeNumber(detail: AnimeDetail, fallback: string) {
 }
 
 function toContinueItem(p: ContinueProgress, detail: AnimeDetail): ContinueItem | null {
-  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode: p.episodeNum }
+  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode: latestEpisodeNumber(detail, detail.totalEpisode) }
 }
 
 async function fetchContinueWatching() {

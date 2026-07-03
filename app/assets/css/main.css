@@ -4,20 +4,16 @@
   --background: #0a0a0a;
   --foreground: #e4e4e7;
   --card: #141416;
-  --card-hover: #1c1c21;
   --border: #27272a;
   --accent: #a1a1aa;
-  --muted: #71717a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
-  --color-card-hover: var(--card-hover);
   --color-border: var(--border);
   --color-accent: var(--accent);
-  --color-muted: var(--muted);
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }

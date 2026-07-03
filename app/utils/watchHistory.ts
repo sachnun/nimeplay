@@ -79,3 +79,7 @@ export async function getContinueWatching(): Promise<WatchProgress[]> {
   }
   return result
 }
+
+export async function getEpisodeStatus(episodeSlug: string): Promise<WatchProgressStatus> {
+  return getProgressStatus(await getProgress(episodeSlug))
+}

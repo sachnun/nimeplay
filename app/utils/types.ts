@@ -84,6 +84,11 @@ export interface JikanAnimeData {
   characters: JikanCharacter[]
 }
 
+interface SkipInterval {
+  startTime: number
+  endTime: number
+}
+
 export interface SkipTime {
   interval: SkipInterval
   skipType: 'op' | 'ed' | 'mixed-op' | 'mixed-ed' | 'recap'

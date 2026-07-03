@@ -38,13 +38,6 @@ async function setEntry<T>(store: StoreName, key: string, data: T): Promise<void
   }
 }
 
-// animeDetail
-
-export async function getAnimeDetail(slug: string): Promise<AnimeDetail | null> {
-  const entry = await getEntry<AnimeDetail>('animeDetail', slug)
-  return entry?.data ?? null
-}
-
 export async function setAnimeDetail(slug: string, data: AnimeDetail): Promise<void> {
   await setEntry('animeDetail', slug, data)
 }
@@ -55,13 +48,6 @@ export async function getFreshAnimeDetail(slug: string): Promise<AnimeDetail | n
   return null
 }
 
-// jikanData
-
-export async function getJikanData(slug: string): Promise<JikanAnimeData | null> {
-  const entry = await getEntry<JikanAnimeData>('jikanData', slug)
-  return entry?.data ?? null
-}
-
 export async function setJikanData(slug: string, data: JikanAnimeData): Promise<void> {
   await setEntry('jikanData', slug, data)
 }
@@ -70,13 +56,6 @@ export async function getFreshJikanData(slug: string): Promise<JikanAnimeData | 
   const entry = await getEntry<JikanAnimeData>('jikanData', slug)
   if (entry && fresh(entry, TTL.JIKAN)) return entry.data
   return null
-}
-
-// skipTimes
-
-async function getSkipTimes(key: string): Promise<SkipTime[] | null> {
-  const entry = await getEntry<SkipTime[]>('skipTimes', key)
-  return entry?.data ?? null
 }
 
 export async function setSkipTimes(key: string, data: SkipTime[]): Promise<void> {

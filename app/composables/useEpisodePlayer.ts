@@ -2,14 +2,6 @@ import { Capacitor } from '@capacitor/core'
 import { fetchMalId, fetchSkipTimes } from '~/utils/aniskip'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 
-export interface EpisodePlayerProps {
-  episode: EpisodeData
-  currentSlug: string
-  animeSlug: string
-  animeThumbnail: string
-  currentEpisodeNum: string
-}
-
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
   if (timer) clearTimeout(timer)
 }

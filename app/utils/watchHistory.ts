@@ -79,15 +79,3 @@ export async function getContinueWatching(): Promise<WatchProgress[]> {
   }
   return result
 }
-
-async function getEpisodeProgress(episodeSlug: string): Promise<number> {
-  return getProgressRatio(await getProgress(episodeSlug))
-}
-
-export async function getEpisodeStatus(episodeSlug: string): Promise<WatchProgressStatus> {
-  return getProgressStatus(await getProgress(episodeSlug))
-}
-
-async function isWatched(episodeSlug: string): Promise<boolean> {
-  return (await getEpisodeStatus(episodeSlug)) === 'completed'
-}

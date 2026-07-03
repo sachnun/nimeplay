@@ -1,6 +1,6 @@
 import type { MaybeRefOrGetter, Ref } from 'vue'
 
-export interface AnimeProgressEntry {
+interface AnimeProgressEntry {
   animeSlug: string
   episodeNum: string
   episodeSlug: string

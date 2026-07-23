@@ -8,7 +8,7 @@
 dist
 www
 
-# Node dependencies
+# Dependencies
 node_modules
 
 # Logs

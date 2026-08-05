@@ -375,7 +375,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function showVolumeIndicator() {
     const video = videoRef.value
     if (!video) return
-    clearTimeout(volumeIndicatorTimer)
+    if (volumeIndicatorTimer) clearTimeout(volumeIndicatorTimer)
     volumeIndicator.value = { volume: video.volume, isMuted: video.muted }
     volumeIndicatorTimer = setTimeout(() => { volumeIndicator.value = null }, 1000)
   }
@@ -389,7 +389,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function showSeekFeedback(side: 'left' | 'right', seconds: number) {
-    clearTimeout(seekIndicatorTimer)
+    if (seekIndicatorTimer) clearTimeout(seekIndicatorTimer)
     seekIndicator.value = { side, seconds }
     seekIndicatorKey.value++
     seekIndicatorTimer = setTimeout(() => { seekIndicator.value = null }, 600)

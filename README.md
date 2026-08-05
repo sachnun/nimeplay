@@ -6,16 +6,16 @@ Minimal anime streaming app built with Nuxt 4, Vue 3, Tailwind CSS, tRPC, and Ca
 
 ## Setup
 
-Requires Bun 1.3+.
+Requires Node.js 20+.
 
 ```bash
-bun install
+npm install
 ```
 
 Run locally:
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 Open `http://localhost:3000` in your browser.
@@ -23,14 +23,14 @@ Open `http://localhost:3000` in your browser.
 Production build and preview:
 
 ```bash
-bun run build
-bun run preview
+npm run build
+npm run preview
 ```
 
 Static build:
 
 ```bash
-bun run generate
+npm run generate
 ```
 
 ## Development
@@ -38,7 +38,7 @@ bun run generate
 The main app lives in `app/`, server APIs and tRPC live in `server/`, static files live in `public/`, and the Capacitor project lives in `android/`.
 
 ```bash
-bun run typecheck
+npm run typecheck
 ```
 
 ## Android
@@ -46,7 +46,7 @@ bun run typecheck
 Requires Android Studio and JDK.
 
 ```bash
-bun run android:sync
-bun run android:debug
-bun run android:open
+npm run android:sync
+npm run android:debug
+npm run android:open
 ```

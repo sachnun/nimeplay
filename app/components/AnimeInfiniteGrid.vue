@@ -85,7 +85,7 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
     isFromNext,
     progress,
     badge: episodeBadge(anime.episode),
-    to: `/${anime.slug}`,
+    to: progress ? `/${anime.slug}/${progress.episodeNum}` : `/${anime.slug}`,
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
@@ -148,7 +148,7 @@ function episodeBadge(episode: string) {
       <NuxtLink
         v-for="(item, i) in continueItems"
         :key="`continue-${item.animeSlug}`"
-        :to="`/${item.animeSlug}`"
+        :to="`/${item.animeSlug}/${item.episodeNum}`"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="onProgressCardPointerDown($event, item.animeSlug)"
         @pointermove="onProgressCardPointerMove"

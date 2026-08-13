@@ -31,7 +31,7 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
   return {
     anime,
     progress,
-    to: progress ? `/${anime.slug}/${progress.episodeNum}` : `/${anime.slug}`,
+    to: `/${anime.slug}`,
   }
 }))
 const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))
@@ -77,6 +77,10 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', onVisibility)
   })
 })
+
+function goToEpisode(animeSlug: string, episodeNum: string) {
+  void navigateTo(`/${animeSlug}/${episodeNum}`)
+}
 </script>
 
 <template>
@@ -102,10 +106,10 @@ onMounted(() => {
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
-            <p v-if="progress" class="text-xs text-zinc-400 mt-1">Lanjutkan EP {{ progress.episodeNum }}</p>
+            <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">Lanjutkan EP {{ progress.episodeNum }}</p>
             <p v-else class="text-xs text-zinc-400 mt-1">{{ anime.date }}</p>
           </div>
-          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden">
+          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">
             <div class="h-full bg-white rounded-full" :style="{ width: `${(progress.currentTime / progress.duration) * 100}%` }" />
           </div>
         </div>

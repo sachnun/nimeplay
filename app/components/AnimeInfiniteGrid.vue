@@ -85,7 +85,7 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
     isFromNext,
     progress,
     badge: episodeBadge(anime.episode),
-    to: progress ? `/${anime.slug}/${progress.episodeNum}` : `/${anime.slug}`,
+    to: `/${anime.slug}`,
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
@@ -131,6 +131,10 @@ function episodeBadge(episode: string) {
   const num = episode.match(/\d+/)?.[0]
   return num ? `${num} Eps` : ''
 }
+
+function goToEpisode(animeSlug: string, episodeNum: string) {
+  void navigateTo(`/${animeSlug}/${episodeNum}`)
+}
 </script>
 
 <template>
@@ -148,7 +152,7 @@ function episodeBadge(episode: string) {
       <NuxtLink
         v-for="(item, i) in continueItems"
         :key="`continue-${item.animeSlug}`"
-        :to="`/${item.animeSlug}/${item.episodeNum}`"
+        :to="`/${item.animeSlug}`"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="onProgressCardPointerDown($event, item.animeSlug)"
         @pointermove="onProgressCardPointerMove"
@@ -165,9 +169,9 @@ function episodeBadge(episode: string) {
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-12" :class="item.duration > 0 && item.currentTime > 0 ? 'pb-5' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ item.title }}</p>
-            <p class="text-xs text-zinc-400 mt-1">Lanjutkan EP {{ item.episodeNum }}</p>
+            <p class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(item.animeSlug, item.episodeNum)">Lanjutkan EP {{ item.episodeNum }}</p>
           </div>
-          <div v-if="item.duration > 0 && item.currentTime > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden">
+          <div v-if="item.duration > 0 && item.currentTime > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(item.animeSlug, item.episodeNum)">
             <div class="h-full bg-white rounded-full" :style="{ width: `${(item.currentTime / item.duration) * 100}%` }" />
           </div>
         </div>
@@ -193,12 +197,12 @@ function episodeBadge(episode: string) {
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
-            <p v-if="progress" class="text-xs text-zinc-400 mt-1">Lanjutkan EP {{ progress.episodeNum }}</p>
+            <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">Lanjutkan EP {{ progress.episodeNum }}</p>
             <p v-else-if="anime.day || anime.date" class="text-xs text-zinc-400 mt-1">
               {{ anime.day && (isFromNext ? nextShowDay : showDay) ? `${anime.day} · ${anime.date}` : anime.date }}
             </p>
           </div>
-          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden">
+          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">
             <div class="h-full bg-white rounded-full" :style="{ width: `${(progress.currentTime / progress.duration) * 100}%` }" />
           </div>
         </div>

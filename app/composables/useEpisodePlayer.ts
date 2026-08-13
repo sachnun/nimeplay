@@ -63,7 +63,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let hls: any | null = null
   let watchedMarked = false
   let iframeTimer: ReturnType<typeof setTimeout> | null = null
-  let autoPlayOnLoad = false
+  let autoPlayOnLoad = true
   let resumeTime = 0
   let lastSavedTime = 0
   let idleTimer: ReturnType<typeof setTimeout> | null = null

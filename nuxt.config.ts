@@ -1,7 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
 
-const isAndroidStatic = process.env.NUXT_ANDROID_STATIC === '1'
-
 function handleRollupWarning(warning: any, warn: (warning: any) => void) {
   if (
     warning.code === 'SOURCEMAP_BROKEN'
@@ -11,12 +9,11 @@ function handleRollupWarning(warning: any, warn: (warning: any) => void) {
 }
 
 export default defineNuxtConfig({
-  ssr: !isAndroidStatic,
+  ssr: true,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   nitro: {
     preset: 'cloudflare_module',
-    ...(isAndroidStatic ? { prerender: { crawlLinks: false, routes: ['/'] } } : {}),
     cloudflare: {
       deployConfig: true,
       wrangler: {

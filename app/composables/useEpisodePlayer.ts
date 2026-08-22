@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core'
 import { fetchMalId, fetchSkipTimes } from '~/utils/aniskip'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 
@@ -12,10 +11,6 @@ interface EpisodePlayerProps {
 
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
   if (timer) clearTimeout(timer)
-}
-
-function isAndroidNative() {
-  return import.meta.client && Capacitor.getPlatform() === 'android'
 }
 
 const CONTROLS_IDLE_MS = 3000
@@ -396,14 +391,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
-    if (isAndroidNative()) {
-      try {
-        const { ScreenOrientation } = await import('@capacitor/screen-orientation')
-        await ScreenOrientation.lock({ orientation })
-        return
-      } catch (error) { console.warn('ScreenOrientation.lock failed', error) }
-    }
-
     try {
       if (orientation === 'landscape') await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
       else (screen.orientation as unknown as { unlock: () => void }).unlock()
@@ -427,12 +414,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       return
     }
 
-    const nativeAndroid = isAndroidNative()
-    if (nativeAndroid) await lockPlayerOrientation('landscape')
+    await lockPlayerOrientation('landscape')
     try { await el.requestFullscreen() } catch (error) { console.warn('requestFullscreen failed', error) }
-    if (!nativeAndroid) await lockPlayerOrientation('landscape')
 
-    if (nativeAndroid || document.fullscreenElement) {
+    if (document.fullscreenElement || isFullscreen.value) {
       isFullscreen.value = true
       resetIdle()
     }

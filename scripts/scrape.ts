@@ -220,6 +220,8 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
           popularity: mal.popularity,
           season: mal.season && mal.year ? `${mal.season} ${mal.year}` : mal.season,
           trailerId: mal.trailerId,
+          studio: mal.studio,
+          source: mal.source,
           characters: mal.characters,
           metadataSyncedAt: new Date(),
         })

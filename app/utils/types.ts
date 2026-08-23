@@ -20,6 +20,7 @@ export interface AnimeDetail {
   duration: string
   releaseDate: string
   studio: string
+  source: string
   genres: { name: string; slug: string }[]
   thumbnail: string
   synopsis: string
@@ -117,8 +118,8 @@ export interface OtakudesuInfo {
   score: string
   status: string
   type: string
-  totalEpisode: string
   duration: string
   studio: string
+  source: string
   releaseDate: string
 }

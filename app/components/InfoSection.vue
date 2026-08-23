@@ -10,8 +10,8 @@ const props = defineProps<{
 const items = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Type', value: props.otakudesu.type },
-  { label: 'Episodes', value: props.otakudesu.totalEpisode },
   { label: 'Studio', value: props.otakudesu.studio },
+  { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
 </script>
 

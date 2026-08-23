@@ -117,9 +117,9 @@ watchEffect(() => {
       score: anime.score,
       status: anime.status,
       type: anime.type,
-      totalEpisode: anime.totalEpisode,
       duration: anime.duration,
       studio: anime.studio,
+      source: anime.source,
       releaseDate: anime.releaseDate,
     }"
     :episodes="anime.episodes.map(entry => entry.number)"

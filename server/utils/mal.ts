@@ -21,6 +21,8 @@ export interface MalAnime {
   season: string | null
   year: number | null
   trailerId: string | null
+  studio: string | null
+  source: string | null
   genres: string[]
   characters: MalCharacter[]
 }
@@ -145,16 +147,25 @@ function parseCharacters(html: string): MalCharacter[] {
   const sections = html.split('h3_characters_voice_actors').slice(1)
   const result: CharacterChunk[] = []
 
+  // Map character id -> image. On MAL the character's image anchor (class
+  // "fw-n") sits in the cell BEFORE the name heading, keyed by the same id.
+  const images = new Map<string, string>()
+  const imgPattern = /href="https:\/\/myanimelist\.net\/character\/(\d+)\/[^"]*" class="fw-n">\s*<img[^>]*data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/characters\/[^"]*)"/g
+  let imgMatch: RegExpExecArray | null
+  while ((imgMatch = imgPattern.exec(html)) !== null) {
+    if (imgMatch[1] && imgMatch[2]) images.set(imgMatch[1], fullSizeImage(imgMatch[2]))
+  }
+
   for (const section of sections) {
     // Cut at the next character entry so people links don't bleed across entries.
     const end = section.indexOf('h3_characters_voice_actors')
     const chunk = end === -1 ? section.slice(0, 3000) : section.slice(0, end)
 
-    const nameMatch = /<a href="https:\/\/myanimelist\.net\/character\/\d+\/[^"]*">([^<]+)<\/a>/.exec(chunk)?.[1]
-    if (!nameMatch) continue
+    const nameMatch = /<a href="https:\/\/myanimelist\.net\/character\/(\d+)\/[^"]*">([^<]+)<\/a>/.exec(chunk)
+    if (!nameMatch?.[1] || !nameMatch[2]) continue
 
-    const imgMatch = /data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/characters\/[^"]*)"/.exec(chunk)?.[1]
-    if (!imgMatch) continue
+    const imageUrl = images.get(nameMatch[1])
+    if (!imageUrl) continue
 
     const roleMatch = /<small>(Main|Supporting)<\/small>/.exec(chunk)?.[1]
     if (roleMatch !== 'Main' && roleMatch !== 'Supporting') continue
@@ -162,8 +173,8 @@ function parseCharacters(html: string): MalCharacter[] {
     const vaMatch = /<a href="https:\/\/myanimelist\.net\/people\/\d+\/[^"]*">([^<]+)<\/a><br>\s*<small>Japanese<\/small>[\s\S]*?data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/voiceactors\/[^"]*)"/.exec(chunk)
 
     result.push({
-      name: decodeEntities(nameMatch),
-      imageUrl: fullSizeImage(imgMatch),
+      name: decodeEntities(nameMatch[2]),
+      imageUrl,
       role: roleMatch,
       voiceActor: vaMatch?.[1] && vaMatch[2]
         ? { name: decodeEntities(vaMatch[1]), imageUrl: fullSizeImage(vaMatch[2]) }
@@ -172,6 +183,16 @@ function parseCharacters(html: string): MalCharacter[] {
   }
 
   return result
+}
+
+/** Extract a sidebar info field (e.g. "Source:", "Studios:") as plain text. */
+function parseInfoField(html: string, label: string): string {
+  const marker = `<span class="dark_text">${label}</span>`
+  const start = html.indexOf(marker)
+  if (start === -1) return ''
+  const chunk = html.slice(start + marker.length, html.indexOf('</div>', start))
+  const text = chunk.replace(/<a [^>]*>/g, '').replace(/<\/?[a-z][^>]*>/gi, '')
+  return decodeEntities(text).replace(/\s+/g, ' ').trim()
 }
 
 function parseGenres(html: string): string[] {
@@ -216,6 +237,8 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     season: premieredSeason?.[1]?.toLowerCase() ?? null,
     year: premieredSeason?.[2] ? Number(premieredSeason[2]) : null,
     trailerId: trailerId ?? null,
+    studio: parseInfoField(html, 'Studios:') ?? null,
+    source: parseInfoField(html, 'Source:'),
     genres: parseGenres(html),
     characters,
   }

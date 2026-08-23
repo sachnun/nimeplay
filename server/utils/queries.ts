@@ -51,6 +51,7 @@ export interface AnimeDetail {
   duration: string
   releaseDate: string
   studio: string
+  source: string
   genres: Genre[]
   thumbnail: string
   synopsis: string
@@ -164,6 +165,8 @@ interface AnimeRecord {
   season: string | null
   status: string | null
   type: string | null
+  studio: string | null
+  source: string | null
 }
 
 async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
@@ -178,6 +181,8 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
       season: anime.season,
       status: anime.status,
       type: anime.type,
+      studio: anime.studio,
+      source: anime.source,
     })
     .from(anime)
     .where(and(eq(anime.malId, malId), METADATA_READY))
@@ -207,7 +212,8 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     totalEpisode: String(episodeRows.length),
     duration: '',
     releaseDate: '',
-    studio: '',
+    studio: row.studio ?? '',
+    source: row.source ?? '',
     genres: await getGenresForAnime(row.slug),
     thumbnail: row.poster ?? '',
     synopsis: row.synopsis ?? '',

@@ -1,7 +1,31 @@
 
 
+defineRouteMeta({
+  openAPI: {
+    tags: ['Anime'],
+    summary: 'Get details for multiple anime',
+    description: 'Fetches anime details for a list of slugs. Failed lookups return `anime: null`.',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['slugs'],
+            properties: {
+              slugs: { type: 'array', items: { type: 'string' }, description: 'Anime slugs to fetch' },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      '200': { description: 'List of anime details keyed by slug' },
+    },
+  },
+})
+
 export default defineEventHandler(async (event) => {
-  setApiCorsHeaders(event)
   const body = await readBody<{ slugs: string[] }>(event)
   if (!body?.slugs?.length) return []
 

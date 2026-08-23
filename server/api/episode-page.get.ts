@@ -1,7 +1,33 @@
 
 
+defineRouteMeta({
+  openAPI: {
+    tags: ['Episode'],
+    summary: 'Get episode page data',
+    description: 'Resolves an episode number for an anime into a full episode page (player sources etc).',
+    parameters: [
+      {
+        name: 'animeSlug',
+        in: 'query',
+        required: true,
+        schema: { type: 'string' },
+        description: 'Slug of the anime',
+      },
+      {
+        name: 'episode',
+        in: 'query',
+        required: true,
+        schema: { type: 'string' },
+        description: 'Episode number',
+      },
+    ],
+    responses: {
+      '200': { description: 'Episode page payload' },
+    },
+  },
+})
+
 export default defineEventHandler(async (event) => {
-  setApiCorsHeaders(event)
   const query = getQuery(event)
   const animeSlug = String(query.animeSlug || '').trim()
   const episodeNumber = String(query.episode || '').trim()

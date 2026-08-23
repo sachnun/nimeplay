@@ -1,3 +1,30 @@
+defineRouteMeta({
+  openAPI: {
+    tags: ['Anime'],
+    summary: 'Get AniList metadata',
+    description: 'Fetches enriched metadata from AniList (description, score, characters, trailer, etc). Requires either `malId` or `title`.',
+    requestBody: {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              japaneseTitle: { type: 'string' },
+              malId: { type: 'integer', nullable: true },
+              idOnly: { type: 'boolean', description: 'Only resolve the AniList/MAL id' },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      '200': { description: 'AniList media or null when not found' },
+    },
+  },
+})
+
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co'
 const ANILIST_TIMEOUT_MS = 8000
 const METADATA_TTL = 24 * 60 * 60 * 1000
@@ -108,7 +135,6 @@ function mapCharacter(edge: NonNullable<NonNullable<AniListMedia['characters']>[
 }
 
 export default defineEventHandler(async (event) => {
-  setApiCorsHeaders(event)
   const body = await readBody<MetadataRequestBody>(event)
   const title = body?.title?.trim() || ''
   const japaneseTitle = body?.japaneseTitle?.trim() || undefined

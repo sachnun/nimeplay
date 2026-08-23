@@ -3,7 +3,9 @@ import type { EpisodeData } from '~/utils/types'
 
 const props = defineProps<{
   episode: EpisodeData
-  currentEpisodeNum: string
+  malId: number
+  episodeCount: number
+  currentEpisodeNum: number
   controlsVisible: boolean
   showIframe: boolean
   showEpisodes: boolean
@@ -22,7 +24,7 @@ function goBack() {
   if (window.history.length > 1) {
     router.back()
   } else {
-    router.push(props.episode.animeSlug ? `/${props.episode.animeSlug}` : '/')
+    router.push(`/anime/${props.malId}`)
   }
 }
 </script>
@@ -45,7 +47,7 @@ function goBack() {
       </button>
       <div class="flex-1" />
       <button
-        v-if="episode.episodeNav.length > 1"
+        v-if="episodeCount > 1"
         class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
         :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'"
         @click="$emit('toggleEpisodes')"

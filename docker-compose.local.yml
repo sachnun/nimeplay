@@ -1,0 +1,33 @@
+# Local test environment for the Neon serverless driver.
+#
+# Runs plain Postgres plus the Neon HTTP->TCP proxy, so the production
+# code path (drizzle-orm/neon-http) works unmodified against a local DB.
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml up -d
+#   DATABASE_URL=postgresql://postgres:postgres@localhost/neondb npm run db:migrate
+#   DATABASE_URL=postgresql://postgres:postgres@localhost/neondb npm run scrape
+#
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: neondb
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d neondb']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  proxy:
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    environment:
+      PG_CONNECTION_STRING: postgresql://postgres:postgres@db:5432/neondb
+    ports:
+      - '4444:4444'
+    depends_on:
+      db:
+        condition: service_healthy

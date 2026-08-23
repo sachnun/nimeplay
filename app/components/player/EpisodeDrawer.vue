@@ -1,23 +1,26 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
-import type { EpisodeData } from '~/utils/types'
 import type { WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
-  episode: EpisodeData
-  currentSlug: string
+  malId: number
+  episodes: number[]
+  currentEpisodeNumber: number
 }>()
 
 const currentEpRef = ref<HTMLButtonElement | null>(null)
 const statuses = ref<Record<string, WatchProgressStatus>>({})
 
-function setCurrentEpRef(el: Element | ComponentPublicInstance | null, slug: string) {
-  if (slug === props.currentSlug && el instanceof HTMLButtonElement) currentEpRef.value = el
+function setCurrentEpRef(el: Element | ComponentPublicInstance | null, number: number) {
+  if (number === props.currentEpisodeNumber && el instanceof HTMLButtonElement) currentEpRef.value = el
 }
 
 async function loadStatuses() {
   const entries = await Promise.all(
-    props.episode.episodeNav.map(async (ep) => [ep.slug, await getEpisodeStatus(ep.slug)] as const),
+    props.episodes.map(async (number) => {
+      const key = progressKey(props.malId, number)
+      return [key, await getEpisodeStatus(key)] as const
+    }),
   )
   statuses.value = Object.fromEntries(entries)
 }
@@ -29,13 +32,13 @@ onMounted(() => {
   })
 })
 
-function epStatus(slug: string): WatchProgressStatus {
-  return statuses.value[slug] ?? 'unstarted'
+function epStatus(number: number): WatchProgressStatus {
+  return statuses.value[progressKey(props.malId, number)] ?? 'unstarted'
 }
 
 defineEmits<{
   close: []
-  navigate: [slug: string, episodeNum: string]
+  navigate: [episodeNumber: number]
 }>()
 </script>
 
@@ -51,15 +54,15 @@ defineEmits<{
     <div class="flex-1 overflow-y-auto p-3 scrollbar-thin">
       <div class="grid grid-cols-4 md:grid-cols-5 gap-2">
         <button
-          v-for="(ep, i) in [...episode.episodeNav].reverse()"
-          :key="ep.slug"
-          :ref="(el) => setCurrentEpRef(el, ep.slug)"
+          v-for="number in [...episodes].reverse()"
+          :key="number"
+          :ref="(el) => setCurrentEpRef(el, number)"
           type="button"
           class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer"
-          :class="ep.slug === currentSlug ? 'bg-white/25 text-white font-semibold' : epStatus(ep.slug) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : epStatus(ep.slug) === 'in_progress' ? 'bg-white/5 text-zinc-400 opacity-75' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
-          @click="ep.slug !== currentSlug && $emit('navigate', ep.slug, episodeNumFor(ep, i))"
+          :class="number === currentEpisodeNumber ? 'bg-white/25 text-white font-semibold' : epStatus(number) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : epStatus(number) === 'in_progress' ? 'bg-white/5 text-zinc-400 opacity-75' : 'bg-white/5 text-zinc-300 hover:bg-white/15'"
+          @click="number !== currentEpisodeNumber && $emit('navigate', number)"
         >
-          {{ episodeNumFor(ep, i) }}
+          {{ number }}
         </button>
       </div>
     </div>

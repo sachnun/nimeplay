@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 
 const DB_NAME = 'nimeplay'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise: Promise<IDBPDatabase> | null = null
 
@@ -17,6 +17,12 @@ export function getDb(): Promise<IDBPDatabase> {
           for (const store of ['jikan', 'animeDetail', 'jikanData', 'skipTimes']) {
             if (db.objectStoreNames.contains(store)) db.deleteObjectStore(store)
           }
+        }
+        if (oldVersion < 3) {
+          // Progress keys moved from source slugs to malId:episodeNumber.
+          // Old entries cannot be remapped reliably, so start fresh.
+          if (db.objectStoreNames.contains('progress')) db.deleteObjectStore('progress')
+          db.createObjectStore('progress')
         }
       },
     })

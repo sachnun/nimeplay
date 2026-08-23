@@ -2,8 +2,8 @@
 import type { WatchProgressStatus } from '~/utils/watchHistory'
 
 const props = defineProps<{
-  episodes: { title: string; slug: string }[]
-  animeSlug: string
+  episodes: number[]
+  malId: number
   scrollable?: boolean
 }>()
 
@@ -11,7 +11,10 @@ const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
 
 async function refreshEpisodeStatuses() {
   const entries = await Promise.all(
-    props.episodes.map(async (ep) => [ep.slug, await getEpisodeStatus(ep.slug)] as const),
+    props.episodes.map(async (number) => {
+      const key = progressKey(props.malId, number)
+      return [key, await getEpisodeStatus(key)] as const
+    }),
   )
   episodeStatuses.value = Object.fromEntries(entries)
 }
@@ -26,8 +29,8 @@ onMounted(() => {
   onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
 })
 
-function episodeStatus(slug: string) {
-  return episodeStatuses.value[slug] ?? 'unstarted'
+function episodeStatus(number: number) {
+  return episodeStatuses.value[progressKey(props.malId, number)] ?? 'unstarted'
 }
 
 </script>
@@ -37,13 +40,13 @@ function episodeStatus(slug: string) {
   <div v-else :class="scrollable ? 'max-h-[320px] overflow-y-auto pr-1 scrollbar-thin' : ''">
     <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
       <NuxtLink
-        v-for="(ep, i) in [...episodes].reverse()"
-        :key="ep.slug"
-        :to="`/${animeSlug}/${episodeNumFor(ep, i)}`"
+        v-for="number in [...episodes].reverse()"
+        :key="number"
+        :to="`/anime/${malId}/${number}`"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
-        :class="episodeStatus(ep.slug) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(ep.slug) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
+        :class="episodeStatus(number) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(number) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >
-        {{ episodeNumFor(ep, i) }}
+        {{ number }}
       </NuxtLink>
     </div>
   </div>

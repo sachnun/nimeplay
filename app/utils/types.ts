@@ -1,6 +1,6 @@
 export interface AnimeCard {
+  malId: number
   title: string
-  slug: string
   thumbnail: string
   episode: string
   day: string
@@ -9,6 +9,7 @@ export interface AnimeCard {
 }
 
 export interface AnimeDetail {
+  malId: number
   title: string
   japanese: string
   score: string
@@ -22,25 +23,30 @@ export interface AnimeDetail {
   genres: { name: string; slug: string }[]
   thumbnail: string
   synopsis: string
-  episodes: { title: string; slug: string; date: string }[]
+  season?: string
+  episodes: { number: number; date: string }[]
 }
 
 export interface EpisodeData {
   title: string
-  animeSlug: string
-  animeTitle: string
   defaultIframeSrc: string
   mirrors: {
     quality: string
     sources: { name: string; dataContent: string }[]
   }[]
-  episodeNav: { title: string; slug: string }[]
   thumbnail: string
 }
 
+export interface EpisodePageData {
+  anime: { malId: number; title: string; thumbnail: string }
+  episodeNumber: number
+  episode: EpisodeData
+  episodes: number[]
+}
+
 export interface SearchResult {
+  malId: number
   title: string
-  slug: string
   thumbnail: string
   genres: string
   status: string
@@ -53,8 +59,8 @@ export interface Genre {
 }
 
 export interface GenreAnimeCard {
+  malId: number
   title: string
-  slug: string
   thumbnail: string
   studio: string
   episodes: string
@@ -97,9 +103,9 @@ export interface SkipTime {
 }
 
 export interface ContinueItem {
-  animeSlug: string
+  malId: number
   episodeNum: string
-  episodeSlug: string
+  episodeNumber: number
   currentTime: number
   duration: number
   title: string

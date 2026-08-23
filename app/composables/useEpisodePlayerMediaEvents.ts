@@ -1,7 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
 import type { SkipTime } from '~/utils/types'
 
-type EpisodeLink = { slug: string; num: string }
+type EpisodeLink = { num: number }
 
 interface EpisodePlayerMediaEventOptions {
   isPlaying: Ref<boolean>

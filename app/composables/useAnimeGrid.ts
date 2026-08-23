@@ -1,9 +1,8 @@
 import type { MaybeRefOrGetter, Ref } from 'vue'
 
 interface AnimeProgressEntry {
-  animeSlug: string
-  episodeNum: string
-  episodeSlug: string
+  malId: number
+  episodeNumber: number
   currentTime: number
   duration: number
 }
@@ -17,9 +16,9 @@ export function useAnimeProgressMap(continueItems: MaybeRefOrGetter<AnimeProgres
   }
 
   const progressMap = computed(() => {
-    const map = new Map<string, AnimeProgressEntry>()
-    for (const item of allProgress.value) map.set(item.animeSlug, item)
-    for (const item of toValue(continueItems)) map.set(item.animeSlug, item)
+    const map = new Map<number, AnimeProgressEntry>()
+    for (const item of allProgress.value) map.set(item.malId, item)
+    for (const item of toValue(continueItems)) map.set(item.malId, item)
     return map
   })
 

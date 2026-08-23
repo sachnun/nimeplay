@@ -1,21 +1,21 @@
-
+import { getGenreList, listAnimePage } from '../utils/queries'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Home'],
     summary: 'Get home page data',
-    description: 'Returns the first page of ongoing anime, completed anime and the genre list in parallel.',
+    description: 'Returns the first page of ongoing anime, completed anime and the genre list from the database.',
     responses: {
       '200': { description: 'Home page payload' },
     },
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async () => {
   const [ongoingData, completedData, genres] = await Promise.all([
-    scrapeOngoing(1).catch(() => ({ anime: [], totalPages: 1 })),
-    scrapeCompleted(1).catch(() => ({ anime: [], totalPages: 1 })),
-    scrapeGenreList().catch(() => []),
+    listAnimePage('ONGOING', 1),
+    listAnimePage('COMPLETED', 1),
+    getGenreList(),
   ])
 
   return { ongoingData, completedData, genres }

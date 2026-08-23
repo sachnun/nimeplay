@@ -2,17 +2,17 @@
 import type { OtakudesuInfo } from '~/utils/types'
 
 const props = defineProps<{
-  animeSlug: string
+  malId: number
   title: string
   japaneseTitle?: string
   thumbnail: string
   genres: { name: string; slug: string }[]
   synopsisId?: string
   otakudesu: OtakudesuInfo
-  episodes: { title: string; slug: string }[]
+  episodes: number[]
 }>()
 
-const { data, loading } = useAnimeMetadata(toRef(props, 'animeSlug'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
+const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
 const posterOpen = ref(false)
 const showTrailerBackground = ref(false)
 const router = useRouter()
@@ -108,7 +108,7 @@ onMounted(() => {
                 Episodes
                 <span v-if="episodes.length > 1" class="ml-2 text-zinc-600 font-normal">({{ episodes.length }})</span>
               </h2>
-              <EpisodeList :episodes="episodes" :anime-slug="animeSlug" />
+              <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
           </div>
 
@@ -118,7 +118,7 @@ onMounted(() => {
                 Episodes
                 <span v-if="episodes.length > 1" class="ml-2 text-zinc-600 font-normal">({{ episodes.length }})</span>
               </h2>
-              <EpisodeList :episodes="episodes" :anime-slug="animeSlug" scrollable />
+              <EpisodeList :episodes="episodes" :mal-id="malId" scrollable />
             </div>
           </div>
         </div>

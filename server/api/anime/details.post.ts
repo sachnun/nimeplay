@@ -1,45 +1,56 @@
-
+import { getLatestEpisodes } from '../../utils/queries'
+import { db } from '../../utils/db'
+import { anime } from '../../database/schema'
+import { inArray } from 'drizzle-orm'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'Get details for multiple anime',
-    description: 'Fetches anime details for a list of slugs. Failed lookups return `anime: null`.',
+    description: 'Fetches lightweight anime info for a list of MyAnimeList IDs. Unknown or unsynced IDs return `anime: null`.',
     requestBody: {
       required: true,
       content: {
         'application/json': {
           schema: {
             type: 'object',
-            required: ['slugs'],
+            required: ['malIds'],
             properties: {
-              slugs: { type: 'array', items: { type: 'string' }, description: 'Anime slugs to fetch' },
+              malIds: { type: 'array', items: { type: 'integer' }, description: 'MyAnimeList IDs' },
             },
           },
         },
       },
     },
     responses: {
-      '200': { description: 'List of anime details keyed by slug' },
+      '200': { description: 'List of anime info keyed by MAL id' },
     },
   },
 })
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ slugs: string[] }>(event)
-  if (!body?.slugs?.length) return []
+  const body = await readBody<{ malIds?: number[] }>(event)
+  if (!body?.malIds?.length) return []
 
-  const seen = new Set<string>()
-  const unique = body.slugs.map((s) => s.trim()).filter((s) => s && !seen.has(s) && seen.add(s))
+  const seen = new Set<number>()
+  const ids = body.malIds
+    .map(id => Number(id))
+    .filter(id => Number.isInteger(id) && id > 0 && !seen.has(id) && seen.add(id))
+    .slice(0, 50)
 
-  const results = await Promise.allSettled(unique.map(async (slug) => {
-    try {
-      const anime = await scrapeAnimeDetail(slug)
-      return { slug, anime }
-    } catch {
-      return { slug, anime: null }
-    }
+  if (ids.length === 0) return []
+
+  const rows = await db()
+    .select({ malId: anime.malId, title: anime.title, poster: anime.poster })
+    .from(anime)
+    .where(inArray(anime.malId, ids))
+  const latest = await getLatestEpisodes(ids)
+
+  return rows.map(row => ({
+    malId: row.malId!,
+    title: row.title,
+    thumbnail: row.poster ?? '',
+    latestEpisode: latest.get(row.malId!) ? String(latest.get(row.malId!)) : '',
+    totalEpisode: latest.get(row.malId!) ? String(latest.get(row.malId!)) : '',
   }))
-
-  return results.map((r) => r.status === 'fulfilled' ? r.value : { slug: '', anime: null })
 })

@@ -1,24 +1,4 @@
-import { searchMalId } from '~/utils/metadata'
 import type { SkipTime } from '~/utils/types'
-
-type TitleCleanupRule = RegExp | [RegExp, string]
-
-const ANIME_TITLE_CLEANUP: TitleCleanupRule[] = [
-  /\s*Subtitle\s+Indonesia\s*$/i,
-  /\s*Sub\s+Indo(nesia)?\s*$/i,
-  /\s*Episode\s+\d+.*$/i,
-  /\s*\(?(Season|S)\s*\d+\)?/gi,
-  /\s*\(?Musim\s+\d+\)?/gi,
-  /\s*\(?\d{4}\)?$/g,
-  [/\s+/g, ' '],
-]
-
-function cleanAnimeTitle(title: string): string {
-  return ANIME_TITLE_CLEANUP.reduce((value, rule) => {
-    if (Array.isArray(rule)) return value.replace(rule[0], rule[1])
-    return value.replace(rule, '')
-  }, title).trim()
-}
 
 interface AniskipResponse {
   found: boolean
@@ -46,12 +26,6 @@ async function fetchAniskipSkipTimes(malId: number, episode: number, episodeLeng
   } catch {
     return []
   }
-}
-
-export async function fetchMalId(animeTitle: string): Promise<number | null> {
-  const cleaned = cleanAnimeTitle(animeTitle)
-  if (!cleaned) return null
-  return searchMalId(cleaned)
 }
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {

@@ -12,6 +12,8 @@ export interface MalCharacter {
 
 export interface MalAnime {
   malId: number
+  title: string
+  poster: string | null
   synopsis: string
   score: number | null
   rank: number | null
@@ -19,6 +21,7 @@ export interface MalAnime {
   season: string | null
   year: number | null
   trailerId: string | null
+  genres: string[]
   characters: MalCharacter[]
 }
 
@@ -98,9 +101,25 @@ function parseCharacters(html: string): MalCharacter[] {
   return result
 }
 
+function parseGenres(html: string): string[] {
+  // MAL renders genre links with relative hrefs, e.g. <a href="/anime/genre/1/Action">Action</a>
+  const names = new Set<string>()
+  const pattern = /href="\/anime\/genre\/\d+\/[^"]*"[^>]*>([^<]+)</g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(html)) !== null) {
+    names.add(decodeEntities(match[1] ?? '').trim())
+  }
+  return [...names]
+}
+
 export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
   const html = await fetchPage(`${MAL_BASE}/anime/${malId}`)
   if (!html) return null
+
+  // Canonical URL slug, e.g. /anime/40028/Shingeki_no_Kyojin:_The_Final_Season
+  const canonicalMatch = /<link rel="canonical" href="https:\/\/myanimelist\.net\/anime\/\d+\/([^"]+)"/.exec(html)?.[1]
+  const title = canonicalMatch ? decodeURIComponent(canonicalMatch.replace(/_/g, ' ')) : ''
+  const posterMatch = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1] ?? null
 
   const synopsisMatch = /<meta property="og:description" content="([^"]*)"/.exec(html)?.[1]
   const scoreMatch = /itemprop="ratingValue"[^>]*>([0-9.]+)</.exec(html)?.[1]
@@ -115,6 +134,8 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
 
   return {
     malId,
+    title,
+    poster: posterMatch && posterMatch.includes('/images/anime/') ? fullSizeImage(posterMatch) : null,
     synopsis: synopsisMatch ? decodeEntities(synopsisMatch.replaceAll('\\n', '\n')) : '',
     score: scoreMatch ? Number(scoreMatch) : null,
     rank: rankMatch ? Number(rankMatch) : null,
@@ -122,6 +143,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     season: premieredSeason?.[1]?.toLowerCase() ?? null,
     year: premieredSeason?.[2] ? Number(premieredSeason[2]) : null,
     trailerId: trailerId ?? null,
+    genres: parseGenres(html),
     characters,
   }
 }

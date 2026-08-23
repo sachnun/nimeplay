@@ -9,15 +9,22 @@
     "generate": "nuxt generate",
     "typecheck": "nuxt typecheck",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "scrape": "tsx scripts/scrape.ts"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
     "cheerio": "^1.2.0",
+    "drizzle-orm": "^0.45.2",
     "effect": "^3.22.1",
     "hls.js": "^1.6.17",
     "idb": "^8.0.3",
     "nuxt": "^4.5.2",
+    "pg": "^8.23.0",
     "vue": "^3.5.41"
   },
   "overrides": {
@@ -26,6 +33,8 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^26.1.2",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.3.9"
   }

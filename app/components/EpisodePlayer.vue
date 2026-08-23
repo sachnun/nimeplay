@@ -2,11 +2,12 @@
 import type { EpisodeData } from '~/utils/types'
 
 const props = defineProps<{
+  malId: number
+  episodeNumber: number
   episode: EpisodeData
-  currentSlug: string
-  animeSlug: string
+  episodes: number[]
+  animeTitle: string
   animeThumbnail: string
-  currentEpisodeNum: string
 }>()
 
 const {
@@ -19,7 +20,6 @@ const {
   containerRef,
   controlsVisible,
   currentEpisodeNum,
-  currentSlug,
   currentTime,
   duration,
   episode,
@@ -78,7 +78,7 @@ const {
     <iframe v-if="showIframe && !showEmbedAlert" :src="iframeSrc || undefined" class="absolute inset-0 w-full h-full" allowfullscreen allow="fullscreen" />
     <PlayerEmbedPrompt
       v-if="showIframe && showEmbedAlert"
-      :back-to="episode.animeSlug ? `/${episode.animeSlug}` : `/${animeSlug}`"
+      :back-to="`/anime/${malId}`"
       @continue="showEmbedAlert = false"
     />
 
@@ -109,6 +109,8 @@ const {
 
     <PlayerTopBar
       :episode="episode"
+      :mal-id="malId"
+      :episode-count="episodes.length"
       :current-episode-num="currentEpisodeNum"
       :controls-visible="controlsVisible"
       :show-iframe="showIframe"
@@ -135,7 +137,7 @@ const {
       :current-episode-num="currentEpisodeNum"
       :current-time="currentTime"
       :duration="duration"
-      :episode-count="episode.episodeNav.length"
+      :episode-count="episodes.length"
       :is-fullscreen="isFullscreen"
       :is-muted="isMuted"
       :is-playing="isPlaying"
@@ -162,9 +164,10 @@ const {
     />
 
     <PlayerEpisodeDrawer
-      v-if="showEpisodes && episode.episodeNav.length > 1"
-      :episode="episode"
-      :current-slug="currentSlug"
+      v-if="showEpisodes && episodes.length > 1"
+      :mal-id="malId"
+      :episodes="episodes"
+      :current-episode-number="currentEpisodeNum"
       @close="toggleEpisodesPanel"
       @navigate="navigateEpisode"
     />

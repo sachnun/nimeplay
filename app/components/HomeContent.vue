@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeCard, AnimeDetail, Genre, ContinueItem } from '~/utils/types'
+import type { AnimeCard, Genre, ContinueItem } from '~/utils/types'
 import type { WatchProgress } from '~/utils/watchHistory'
 
 type ContinueProgress = WatchProgress
@@ -20,16 +20,15 @@ const continueItems = ref<ContinueItem[]>([])
 const continueLoading = ref(false)
 const continueCount = ref(0)
 
-function episodeNumberFromTitle(title: string, fallback: string | number) {
-  return title.match(/episode\s*(\d+)/i)?.[1] ?? `${fallback}`
+interface ContinueDetail {
+  malId: number
+  title: string
+  thumbnail: string
+  latestEpisode: string
 }
 
-function latestEpisodeNumber(detail: AnimeDetail, fallback: string) {
-  return episodeNumberFromTitle(detail.episodes[0]?.title ?? '', detail.episodes.length || fallback)
-}
-
-function toContinueItem(p: ContinueProgress, detail: AnimeDetail): ContinueItem | null {
-  return { animeSlug: p.animeSlug, title: detail.title, thumbnail: detail.thumbnail, episodeNum: p.episodeNum, episodeSlug: p.episodeSlug, currentTime: p.currentTime, duration: p.duration, latestEpisode: latestEpisodeNumber(detail, detail.totalEpisode) }
+function toContinueItem(p: ContinueProgress, detail: ContinueDetail): ContinueItem | null {
+  return { malId: p.malId, title: detail.title, thumbnail: detail.thumbnail, episodeNum: String(p.episodeNumber), episodeNumber: p.episodeNumber, currentTime: p.currentTime, duration: p.duration, latestEpisode: detail.latestEpisode }
 }
 
 async function fetchContinueWatching() {
@@ -45,14 +44,14 @@ async function fetchContinueWatching() {
 
   continueLoading.value = true
   try {
-    const slugs = items.map((item) => item.animeSlug)
-    const fetched = await $fetch<{ slug: string; anime: AnimeDetail | null }[]>('/api/anime/details', {
+    const malIds = items.map((item) => item.malId)
+    const fetched = await $fetch<ContinueDetail[]>('/api/anime/details', {
       method: 'POST',
-      body: { slugs },
+      body: { malIds },
     })
-    const details = new Map(fetched.map((item) => [item.slug, item.anime] as const))
+    const details = new Map(fetched.map((item) => [item.malId, item] as const))
     continueItems.value = items.map((p) => {
-      const detail = details.get(p.animeSlug)
+      const detail = details.get(p.malId)
       if (!detail) return null
       return toContinueItem(p, detail)
     }).filter((item): item is ContinueItem => item !== null)

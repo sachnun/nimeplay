@@ -8,36 +8,41 @@ export interface WatchProgress {
   currentTime: number
   duration: number
   updatedAt: number
-  animeSlug: string
-  episodeNum: string
-  episodeSlug: string
+  malId: number
+  episodeNumber: number
 }
 
-export async function markWatched(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
+/** Progress store key: "malId:episodeNumber" (URL scheme /anime/{malId}/{episode}). */
+export function progressKey(malId: number, episodeNumber: number): string {
+  return `${malId}:${episodeNumber}`
+}
+
+function entryKey(data: Omit<WatchProgress, 'updatedAt'>): string {
+  return progressKey(data.malId, data.episodeNumber)
+}
+
+export async function markWatched(key: string, data: Omit<WatchProgress, 'updatedAt'>) {
   if (!import.meta.client) return
-  const entry: WatchProgress = {
+  const db = await getDb()
+  await db.put('progress', {
     ...data,
-    episodeSlug,
     currentTime: Math.max(data.currentTime, data.duration),
     duration: Math.max(data.duration, 1),
     updatedAt: Date.now(),
-  }
-  const db = await getDb()
-  await db.put('progress', entry, episodeSlug)
+  }, key)
 }
 
-export async function saveProgress(episodeSlug: string, data: Omit<WatchProgress, 'updatedAt' | 'episodeSlug'>) {
+export async function saveProgress(key: string, data: Omit<WatchProgress, 'updatedAt'>) {
   if (!import.meta.client) return
-  const entry: WatchProgress = { ...data, episodeSlug, updatedAt: Date.now() }
   const db = await getDb()
-  await db.put('progress', entry, episodeSlug)
+  await db.put('progress', { ...data, updatedAt: Date.now() }, key)
 }
 
-export async function getProgress(episodeSlug: string): Promise<WatchProgress | null> {
+export async function getProgress(key: string): Promise<WatchProgress | null> {
   if (!import.meta.client) return null
   try {
     const db = await getDb()
-    return (await db.get('progress', episodeSlug)) ?? null
+    return (await db.get('progress', key)) ?? null
   } catch {
     return null
   }
@@ -69,17 +74,17 @@ export async function getProgressStatus(progress: Pick<WatchProgress, 'currentTi
 
 export async function getContinueWatching(): Promise<WatchProgress[]> {
   const all = await getAllProgress()
-  const seen = new Set<string>()
+  const seen = new Set<number>()
   const result: WatchProgress[] = []
   for (const p of all) {
     if (!p.duration || p.duration <= 0) continue
-    if (seen.has(p.animeSlug)) continue
-    seen.add(p.animeSlug)
+    if (seen.has(p.malId)) continue
+    seen.add(p.malId)
     result.push(p)
   }
   return result
 }
 
-export async function getEpisodeStatus(episodeSlug: string): Promise<WatchProgressStatus> {
-  return getProgressStatus(await getProgress(episodeSlug))
+export async function getEpisodeStatus(key: string): Promise<WatchProgressStatus> {
+  return getProgressStatus(await getProgress(key))
 }

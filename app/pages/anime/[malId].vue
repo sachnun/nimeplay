@@ -2,13 +2,13 @@
 import type { AnimeDetail } from '~/utils/types'
 
 const route = useRoute()
-const slug = computed(() => String(route.params.slug || ''))
+const malId = computed(() => Number(route.params.malId) || 0)
 const isEpisodeRoute = computed(() => Boolean(route.params.episode))
 
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
-  () => `anime-detail-${slug.value}`,
-  () => $fetch(`/api/anime/${slug.value}`),
-  { watch: [slug, isEpisodeRoute] },
+  () => `anime-detail-${malId.value}`,
+  () => $fetch(`/api/anime/${malId.value}`),
+  { watch: [malId, isEpisodeRoute] },
 )
 
 if (!isEpisodeRoute.value && !anime.value) {
@@ -37,7 +37,7 @@ watchEffect(() => {
             <div class="lg:hidden flex-1 min-w-0 space-y-3">
               <div class="h-6 w-3/4 bg-zinc-800 rounded animate-pulse" />
               <div class="flex gap-1.5">
-                <div v-for="i in 3" :key="i" class="h-5 w-14 bg-zinc-800 rounded-full animate-pulse" />
+                <div v-for="i in 3" :key="i" class="h-5 w-14 bg-zinc-700 rounded-full" />
               </div>
               <div class="h-3 w-1/3 bg-zinc-800 rounded animate-pulse" />
             </div>
@@ -46,7 +46,7 @@ watchEffect(() => {
             <div class="hidden lg:block space-y-3">
               <div class="h-8 w-2/3 bg-zinc-800 rounded animate-pulse" />
               <div class="flex gap-2">
-                <div v-for="i in 4" :key="i" class="h-5 w-16 bg-zinc-800 rounded-full animate-pulse" />
+                <div v-for="i in 4" :key="i" class="h-5 w-16 bg-zinc-800 rounded-full" />
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">
@@ -107,7 +107,7 @@ watchEffect(() => {
   </div>
   <AnimeDetailContent
     v-else
-    :anime-slug="slug"
+    :mal-id="anime.malId"
     :title="anime.title"
     :japanese-title="anime.japanese || undefined"
     :thumbnail="anime.thumbnail"
@@ -122,6 +122,6 @@ watchEffect(() => {
       studio: anime.studio,
       releaseDate: anime.releaseDate,
     }"
-    :episodes="anime.episodes"
+    :episodes="anime.episodes.map(entry => entry.number)"
   />
 </template>

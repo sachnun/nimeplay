@@ -13,15 +13,15 @@ export function useProgressCardLongPress() {
     timer = null
   }
 
-  function onProgressCardPointerDown(event: PointerEvent, animeSlug: string | null) {
-    if (!animeSlug || event.button !== 0) return
+  function onProgressCardPointerDown(event: PointerEvent, malId: number | null) {
+    if (!malId || event.button !== 0) return
     clearLongPress()
     startX = event.clientX
     startY = event.clientY
     timer = window.setTimeout(() => {
       timer = null
       suppressClick = true
-      void navigateTo(`/${animeSlug}`)
+      void navigateTo(`/anime/${malId}`)
     }, LONG_PRESS_DELAY_MS)
   }
 

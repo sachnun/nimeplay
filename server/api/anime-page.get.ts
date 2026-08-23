@@ -1,10 +1,11 @@
-
+import { getQuery } from 'h3'
+import { listAnimePage } from '../utils/queries'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'List anime by type',
-    description: 'Paginated list of ongoing or completed anime.',
+    description: 'Paginated list of ongoing or completed anime from the database.',
     parameters: [
       {
         name: 'type',
@@ -30,6 +31,5 @@ export default defineEventHandler(async (event) => {
   const type = String(query.type || 'ONGOING')
   const page = Math.max(1, Number(query.page) || 1)
 
-  if (type === 'COMPLETED') return scrapeCompleted(page)
-  return scrapeOngoing(page)
+  return type === 'COMPLETED' ? listAnimePage('COMPLETED', page) : listAnimePage('ONGOING', page)
 })

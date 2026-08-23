@@ -95,8 +95,8 @@ onMounted(() => {
         <div v-else class="flex flex-col divide-y divide-zinc-800">
           <NuxtLink
             v-for="result in results"
-            :key="result.slug"
-            :to="`/${result.slug}`"
+            :key="result.malId"
+            :to="`/anime/${result.malId}`"
             class="flex items-center gap-3 px-2 py-2.5 hover:bg-zinc-800/50 rounded-lg transition-colors"
             @click="emit('close')"
           >

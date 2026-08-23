@@ -6,7 +6,7 @@ defineProps<{
   autoSkip: boolean
   bufferedPct: number
   controlsVisible: boolean
-  currentEpisodeNum: string
+  currentEpisodeNum: number
   currentTime: number
   duration: number
   episodeCount: number
@@ -14,8 +14,8 @@ defineProps<{
   isMuted: boolean
   isPlaying: boolean
   isSeeking: boolean
-  nextEpisode: { slug: string; num: string } | null
-  prevEpisode: { slug: string; num: string } | null
+  nextEpisode: { num: number } | null
+  prevEpisode: { num: number } | null
   progress: number
   qualityCount: number
   showEpisodes: boolean
@@ -27,7 +27,7 @@ defineProps<{
 defineEmits<{
   changeVolume: [value: number]
   hideVolume: []
-  navigate: [slug: string, episodeNum: string]
+  navigate: [episodeNumber: number]
   progressDown: [event: MouseEvent | TouchEvent]
   showVolume: []
   toggleAutoSkip: []
@@ -61,10 +61,10 @@ defineEmits<{
           <svg v-if="isPlaying" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
           <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
         </button>
-        <button v-if="prevEpisode" class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" @click="$emit('navigate', prevEpisode.slug, prevEpisode.num)">
+        <button v-if="prevEpisode" class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" @click="$emit('navigate', prevEpisode.num)">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" /></svg>
         </button>
-        <button v-if="nextEpisode" class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" @click="$emit('navigate', nextEpisode.slug, nextEpisode.num)">
+        <button v-if="nextEpisode" class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" @click="$emit('navigate', nextEpisode.num)">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16 18h2V6h-2v12zM4 18l8.5-6L4 6v12z" /></svg>
         </button>
         <span class="text-xs text-white/70 font-mono tabular-nums select-none whitespace-nowrap">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>

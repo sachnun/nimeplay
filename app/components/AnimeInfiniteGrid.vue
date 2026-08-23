@@ -69,23 +69,23 @@ const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?
 const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
-const continueSlugs = computed(() => new Set(props.continueItems.map((item) => item.animeSlug)))
+const continueIds = computed(() => new Set(props.continueItems.map((item) => item.malId)))
 const displayAnime = computed(() => {
   const marked = [
     ...primaryAnime.value.map((anime) => ({ anime, isFromNext: false })),
     ...nextAnime.value.map((anime) => ({ anime, isFromNext: true })),
   ]
-  if (continueSlugs.value.size === 0) return marked
-  return marked.filter(({ anime }) => !continueSlugs.value.has(anime.slug))
+  if (continueIds.value.size === 0) return marked
+  return marked.filter(({ anime }) => !continueIds.value.has(anime.malId))
 })
 const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext }) => {
-  const progress = progressMap.value.get(anime.slug)
+  const progress = progressMap.value.get(anime.malId)
   return {
     anime,
     isFromNext,
     progress,
     badge: episodeBadge(anime.episode),
-    to: `/${anime.slug}`,
+    to: `/anime/${anime.malId}`,
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
@@ -132,8 +132,8 @@ function episodeBadge(episode: string) {
   return num ? `${num} Eps` : ''
 }
 
-function goToEpisode(animeSlug: string, episodeNum: string) {
-  void navigateTo(`/${animeSlug}/${episodeNum}`)
+function goToEpisode(malId: number, episodeNum: string | number) {
+  void navigateTo(`/anime/${malId}/${episodeNum}`)
 }
 </script>
 
@@ -151,10 +151,10 @@ function goToEpisode(animeSlug: string, episodeNum: string) {
 
       <NuxtLink
         v-for="(item, i) in continueItems"
-        :key="`continue-${item.animeSlug}`"
-        :to="`/${item.animeSlug}`"
+        :key="`continue-${item.malId}`"
+        :to="`/anime/${item.malId}`"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="onProgressCardPointerDown($event, item.animeSlug)"
+        @pointerdown="onProgressCardPointerDown($event, item.malId)"
         @pointermove="onProgressCardPointerMove"
         @pointerup="onProgressCardPointerEnd"
         @pointerleave="onProgressCardPointerEnd"
@@ -169,9 +169,9 @@ function goToEpisode(animeSlug: string, episodeNum: string) {
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-12" :class="item.duration > 0 && item.currentTime > 0 ? 'pb-5' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ item.title }}</p>
-            <p class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(item.animeSlug, item.episodeNum)">Lanjutkan EP {{ item.episodeNum }}</p>
+            <p class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNum)">Lanjutkan EP {{ item.episodeNum }}</p>
           </div>
-          <div v-if="item.duration > 0 && item.currentTime > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(item.animeSlug, item.episodeNum)">
+          <div v-if="item.duration > 0 && item.currentTime > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNum)">
             <div class="h-full bg-white rounded-full" :style="{ width: `${(item.currentTime / item.duration) * 100}%` }" />
           </div>
         </div>
@@ -179,10 +179,10 @@ function goToEpisode(animeSlug: string, episodeNum: string) {
 
       <NuxtLink
         v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
-        :key="`${anime.slug}-${i}`"
+        :key="`${anime.malId}-${i}`"
         :to="to"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="onProgressCardPointerDown($event, progress ? anime.slug : null)"
+        @pointerdown="onProgressCardPointerDown($event, progress ? anime.malId : null)"
         @pointermove="onProgressCardPointerMove"
         @pointerup="onProgressCardPointerEnd"
         @pointerleave="onProgressCardPointerEnd"
@@ -197,12 +197,12 @@ function goToEpisode(animeSlug: string, episodeNum: string) {
           </div>
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
-            <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">Lanjutkan EP {{ progress.episodeNum }}</p>
+            <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">Lanjutkan EP {{ progress.episodeNumber }}</p>
             <p v-else-if="anime.day || anime.date" class="text-xs text-zinc-400 mt-1">
               {{ anime.day && (isFromNext ? nextShowDay : showDay) ? `${anime.day} · ${anime.date}` : anime.date }}
             </p>
           </div>
-          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.slug, progress.episodeNum)">
+          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">
             <div class="h-full bg-white rounded-full" :style="{ width: `${(progress.currentTime / progress.duration) * 100}%` }" />
           </div>
         </div>

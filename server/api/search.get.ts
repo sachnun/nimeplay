@@ -1,10 +1,10 @@
-
+import { searchAnime } from '../utils/queries'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Search'],
     summary: 'Search anime',
-    description: 'Searches anime by title. Returns an empty array when the query is empty.',
+    description: 'Searches anime by title in the database. Returns an empty array when the query is empty.',
     parameters: [
       {
         name: 'query',
@@ -23,5 +23,5 @@ defineRouteMeta({
 export default defineEventHandler(async (event) => {
   const query = String(getQuery(event).query || '').trim()
   if (!query) return []
-  return scrapeSearch(query)
+  return searchAnime(query)
 })

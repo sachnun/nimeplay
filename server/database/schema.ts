@@ -31,6 +31,7 @@ export const anime = pgTable('anime', {
   season: text('season'),
   status: text('status'),
   type: text('type'),
+  day: text('day'),
   trailerId: text('trailer_id'),
   characters: jsonb('characters').$type<MalCharacter[]>().notNull().default([]),
   sourceUrl: text('source_url'),

@@ -64,13 +64,20 @@ function normalizeStatus(raw: string): string {
   return 'ONGOING'
 }
 
-async function registerAnimeRow(slug: string, title: string) {
+const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
+
+async function registerAnimeRow(slug: string, title: string, day?: string) {
   // List pages only introduce candidates; never bump updatedAt here so the
-  // detail pass can pick them up as pending work.
+  // detail pass can pick them up as pending work. Airing day is refreshed
+  // on every run for ongoing anime.
+  const airingDay = day && VALID_DAYS.has(day) ? day : null
   await db()
     .insert(anime)
-    .values({ slug, title, sourceUrl: `${OTAKUDESU_BASE}/anime/${slug}/` })
-    .onConflictDoNothing()
+    .values({ slug, title, day: airingDay, sourceUrl: `${OTAKUDESU_BASE}/anime/${slug}/` })
+    .onConflictDoUpdate({
+      target: anime.slug,
+      set: { day: airingDay },
+    })
 }
 
 async function upsertEpisodes(
@@ -105,19 +112,19 @@ interface Candidate {
 async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
 
-  const cards: { slug: string, title: string }[] = []
+  const cards: { slug: string, title: string, day?: string }[] = []
   for (let page = 1; page <= ONGOING_PAGES; page++) {
     const result = await scrapeOngoing(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title })))
+    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day })))
   }
   for (let page = 1; page <= COMPLETED_PAGES; page++) {
     const result = await scrapeCompleted(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title })))
+    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day })))
   }
 
   const seen = new Set<string>()
   const unique = cards.filter(card => !seen.has(card.slug) && seen.add(card.slug))
-  await pool(unique, card => registerAnimeRow(card.slug, card.title))
+  await pool(unique, card => registerAnimeRow(card.slug, card.title, card.day))
 
   // Only scrape details for new or stale anime — the core of the incremental sync.
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
@@ -136,9 +143,16 @@ async function structurePass() {
     try {
       const detail = await scrapeAnimeDetail(slug)
       if (!detail) return
+      const status = normalizeStatus(detail.status)
       await db()
         .update(anime)
-        .set({ title: detail.title || title, status: normalizeStatus(detail.status), updatedAt: new Date() })
+        .set({
+          title: detail.title || title,
+          status,
+          // A completed anime no longer has an airing day.
+          ...(status === 'COMPLETED' ? { day: null } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(anime.slug, slug))
       await upsertEpisodes(slug, detail.episodes)
     }

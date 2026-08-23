@@ -71,6 +71,12 @@ function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
 }
 
+/** "summer 2026" -> "Summer 2026" (MAL premiered format). */
+function formatSeason(season: string | null): string {
+  if (!season) return ''
+  return season.replace(/(^|\s)\S/g, part => part.toUpperCase())
+}
+
 export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
@@ -89,6 +95,8 @@ export async function listAnimePage(
       title: anime.title,
       poster: anime.poster,
       rating: anime.rating,
+      day: anime.day,
+      season: anime.season,
       updatedAt: anime.updatedAt,
       latestEpisode: sql<number | null>`(select max(e.number) from episodes e where e.anime_slug = "anime"."slug")`,
     })
@@ -104,8 +112,8 @@ export async function listAnimePage(
       title: row.title,
       thumbnail: row.poster ?? '',
       episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
-      day: '',
-      date: formatDate(row.updatedAt),
+      day: row.day ?? '',
+      date: formatSeason(row.season) || formatDate(row.updatedAt),
       rating: row.rating ?? undefined,
     })),
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -260,6 +268,7 @@ export async function getGenreAnimePage(
       title: anime.title,
       poster: anime.poster,
       rating: anime.rating,
+      season: anime.season,
       updatedAt: anime.updatedAt,
     })
     .from(animeGenres)
@@ -279,7 +288,7 @@ export async function getGenreAnimePage(
       episodes: '',
       rating: row.rating ?? '',
       genres: (await getGenresForAnime(row.slug)).map(genreEntry => genreEntry.name).join(', '),
-      date: formatDate(row.updatedAt),
+      date: formatSeason(row.season) || formatDate(row.updatedAt),
     })
   }
 

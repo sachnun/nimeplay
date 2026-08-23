@@ -21,7 +21,7 @@
 import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../server/utils/db'
 import { anime, animeGenres, episodes, genres } from '../server/database/schema'
-import { fetchMalAnime, searchMalAnimeCandidates, titlesMatch } from '../server/utils/mal'
+import { fetchMalAnime, searchMalAnimeEntries, titlesMatch } from '../server/utils/mal'
 import { scrapeAnimeDetail, scrapeCompleted, scrapeOngoing } from '../server/utils/scraper'
 
 const OTAKUDESU_BASE = 'https://otakudesu.blog'
@@ -191,21 +191,16 @@ async function syncGenres(animeSlug: string, names: string[]) {
 
 async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   try {
-    const candidates = await searchMalAnimeCandidates(title)
-    if (candidates.length === 0) return false
-
-    // Try candidates in result order until one passes the strict title match.
-    let mal: Awaited<ReturnType<typeof fetchMalAnime>> = null
-    for (const candidateId of candidates) {
-      const fetched = await fetchMalAnime(candidateId)
-      if (!fetched) continue
-      if (titlesMatch(title, fetched.title)) {
-        mal = fetched
-        break
-      }
-      console.warn(`[metadata] rejected "${title}" -> "${fetched.title}" (id ${candidateId})`)
-      await sleep(MAL_DELAY_MS)
+    // Match against display titles straight from the search results, so only
+    // ONE detail fetch per anime is needed.
+    const entries = await searchMalAnimeEntries(title)
+    const entry = entries.find(candidate => titlesMatch(title, candidate.title))
+    if (!entry) {
+      console.warn(`[metadata] no MAL title matches "${title}" (top: "${entries[0]?.title ?? '-'}")`)
+      return false
     }
+
+    const mal = await fetchMalAnime(entry.id)
     if (!mal) return false
 
     try {
@@ -264,14 +259,25 @@ async function metadataPass() {
   console.log(`[metadata] ${pending.length} anime need MAL metadata (${MODE})`)
 
   let resolved = 0
+  let failed = 0
   await pool(pending, async ({ slug, title }) => {
-    if (await resolveMetadata(slug, title)) {
-      resolved++
-      if (resolved % 10 === 0) console.log(`[metadata] ${resolved}/${pending.length}`)
+    try {
+      if (await resolveMetadata(slug, title)) {
+        resolved++
+        if (resolved % 10 === 0) console.log(`[metadata] ${resolved}/${pending.length}`)
+      }
     }
-    await sleep(MAL_DELAY_MS)
+    catch (error) {
+      // Search unavailable (throttled): keep the row pending for the next run.
+      failed++
+      console.warn(`[metadata] deferred ${slug}:`, error instanceof Error ? error.message : error)
+      await sleep(5000)
+    }
+    // Pacing is global: scale per-worker delay by concurrency so MAL sees
+    // roughly one request every MAL_DELAY_MS across all workers.
+    await sleep(MAL_DELAY_MS * CONCURRENCY)
   })
-  console.log(`[metadata] resolved ${resolved}/${pending.length}`)
+  console.log(`[metadata] resolved ${resolved}/${pending.length}${failed ? `, deferred ${failed}` : ''}`)
 }
 
 async function main() {

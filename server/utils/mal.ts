@@ -79,24 +79,38 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   return true
 }
 
-export async function searchMalAnime(title: string): Promise<number | null> {
-  const candidates = await searchMalAnimeCandidates(title)
-  return candidates[0] ?? null
+export interface MalSearchEntry {
+  id: number
+  title: string
 }
 
-/** All distinct MAL ids from the search results, in result order. */
-export async function searchMalAnimeCandidates(title: string): Promise<number[]> {
-  const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(title)}`)
-  if (!html) return []
-  const ids: number[] = []
-  const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\//g
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(html)) !== null) {
-    const id = Number(match[1])
-    if (!ids.includes(id)) ids.push(id)
-    if (ids.length >= 8) break
+/** Search results as (id, display title) pairs, in result order. */
+export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
+  // MAL throttles aggressively under load; retry with backoff instead of
+  // treating a failed request as "no results".
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(query)}`)
+    if (html) {
+      const entries = new Map<number, string>()
+      // Result rows wrap their title in <strong>; other anchors on the page
+      // (sidebar "Top Anime", images) don't.
+      const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\/[^"]*"[^>]*>\s*<strong>([^<]+)<\/strong>/g
+      let match: RegExpExecArray | null
+      while ((match = pattern.exec(html)) !== null) {
+        const id = Number(match[1])
+        if (!entries.has(id)) entries.set(id, decodeEntities(match[2] ?? '').trim())
+        if (entries.size >= 8) break
+      }
+      return [...entries].map(([id, entryTitle]) => ({ id, title: entryTitle }))
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)))
   }
-  return ids
+  throw new Error(`MAL search unavailable for "${query}"`)
+}
+
+export async function searchMalAnime(title: string): Promise<number | null> {
+  const entries = await searchMalAnimeEntries(title)
+  return entries[0]?.id ?? null
 }
 
 const ROMAN_SEASONS: Record<string, number> = {

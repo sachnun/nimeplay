@@ -1,9 +1,9 @@
 import { getDb } from './db'
-import type { AnimeDetail, JikanAnimeData, SkipTime } from '~/utils/types'
+import type { AnimeDetail, AnimeMetadata, SkipTime } from '~/utils/types'
 
 const TTL = {
   ANIME_DETAIL: 60 * 60 * 1000,
-  JIKAN: 12 * 60 * 60 * 1000,
+  METADATA: 12 * 60 * 60 * 1000,
   SKIP_TIMES: 24 * 60 * 60 * 1000,
 } as const
 
@@ -17,6 +17,7 @@ function fresh<T>(entry: Stored<T>, ttl: number): boolean {
 }
 
 type StoreName = 'animeDetail' | 'jikanData' | 'skipTimes'
+// Note: 'jikanData' store name is kept for IndexedDB schema compatibility.
 
 async function getEntry<T>(store: StoreName, key: string): Promise<Stored<T> | null> {
   if (!import.meta.client) return null
@@ -48,13 +49,13 @@ export async function getFreshAnimeDetail(slug: string): Promise<AnimeDetail | n
   return null
 }
 
-export async function setJikanData(slug: string, data: JikanAnimeData): Promise<void> {
+export async function setAnimeMetadata(slug: string, data: AnimeMetadata): Promise<void> {
   await setEntry('jikanData', slug, data)
 }
 
-export async function getFreshJikanData(slug: string): Promise<JikanAnimeData | null> {
-  const entry = await getEntry<JikanAnimeData>('jikanData', slug)
-  if (entry && fresh(entry, TTL.JIKAN)) return entry.data
+export async function getFreshAnimeMetadata(slug: string): Promise<AnimeMetadata | null> {
+  const entry = await getEntry<AnimeMetadata>('jikanData', slug)
+  if (entry && fresh(entry, TTL.METADATA)) return entry.data
   return null
 }
 

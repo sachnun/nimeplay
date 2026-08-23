@@ -1,8 +1,8 @@
-import { fetchJikanData } from '~/utils/jikan'
-import type { JikanAnimeData } from '~/utils/types'
+import { fetchAnimeMetadata } from '~/utils/anilist'
+import type { AnimeMetadata } from '~/utils/types'
 
-export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
-  const data = ref<JikanAnimeData | null>(null)
+export function useAnimeMetadata(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
+  const data = ref<AnimeMetadata | null>(null)
   const loading = ref(true)
 
   const slugRef = toRef(animeSlug)
@@ -11,17 +11,17 @@ export function useJikanData(animeSlug: Ref<string> | string, title: Ref<string>
 
   const load = async () => {
     loading.value = true
-    const cached = await getFreshJikanData(slugRef.value)
+    const cached = await getFreshAnimeMetadata(slugRef.value)
     if (cached) {
       data.value = cached
       loading.value = false
       return
     }
     const cachedMalId = await getMalId(slugRef.value)
-    const result = await fetchJikanData(titleRef.value, japaneseRef.value, cachedMalId)
+    const result = await fetchAnimeMetadata(titleRef.value, japaneseRef.value, cachedMalId)
     if (result) {
-      await saveMalId(slugRef.value, result.malId)
-      await setJikanData(slugRef.value, result)
+      if (result.malId) await saveMalId(slugRef.value, result.malId)
+      await setAnimeMetadata(slugRef.value, result)
       data.value = result
     }
     loading.value = false

@@ -24,6 +24,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const currentSlug = ref(props.currentSlug)
   const currentEpisodeNum = ref(props.currentEpisodeNum)
   const directUrl = ref<string | null>(null)
+  const directKind = ref<'hls' | 'file' | null>(null)
   const iframeSrc = ref<string | null>(null)
   const useIframe = ref(false)
   const activeQuality = ref('720p')
@@ -259,6 +260,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   } = useEpisodePlayerResolution({
     activeQuality,
     directUrl,
+    directKind,
     episode,
     iframeSrc,
     loadingMessage,
@@ -290,6 +292,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
+    directKind.value = null
     useIframe.value = false
     iframeSrc.value = null
     autoPlayOnLoad = shouldAutoPlay
@@ -636,10 +639,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   watch([() => episode.value.title, () => currentEpisodeNum.value], updateMediaMetadata, { immediate: true })
 
-  function proxyLoaderFor(url: string) {
-    return url.includes('vidhide') || url.includes('odvidhide') ? { pLoader: ProxyPlaylistLoader as any } : {}
-  }
-
   function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
     video.src = url
     video.addEventListener('error', onVideoError, { once: true })
@@ -651,7 +650,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       hls = new Hls({
         maxBufferLength: 60,
         maxMaxBufferLength: 120,
-        ...proxyLoaderFor(url),
       })
       hls.loadSource(url)
       hls.attachMedia(video)
@@ -674,8 +672,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (video.paused) void video.play().catch(() => {})
   }
 
-  async function attachVideoSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    if (url.includes('.m3u8')) return attachHlsSource(video, url, onVideoError)
+  async function attachVideoSource(video: HTMLVideoElement, url: string, kind: 'hls' | 'file' | null, onVideoError: () => void) {
+    if (kind === 'hls') return attachHlsSource(video, url, onVideoError)
     attachNativeSource(video, url, onVideoError)
   }
 
@@ -689,7 +687,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const onVideoError = () => triggerFallback()
     video.addEventListener('canplay', onCanPlay, { once: true })
 
-    await attachVideoSource(video, url, onVideoError)
+    await attachVideoSource(video, url, directKind.value, onVideoError)
 
     const onReady = () => resumeAndAutoplay(video)
     video.addEventListener('canplay', onReady, { once: true })

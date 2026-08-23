@@ -1,4 +1,4 @@
-import { searchAnime } from '~/utils/jikan'
+import { searchMalId } from '~/utils/anilist'
 import type { SkipTime } from '~/utils/types'
 
 type TitleCleanupRule = RegExp | [RegExp, string]
@@ -51,7 +51,7 @@ async function fetchAniskipSkipTimes(malId: number, episode: number, episodeLeng
 export async function fetchMalId(animeTitle: string): Promise<number | null> {
   const cleaned = cleanAnimeTitle(animeTitle)
   if (!cleaned) return null
-  return searchAnime(cleaned)
+  return searchMalId(cleaned)
 }
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {

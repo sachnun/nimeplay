@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { JikanAnimeData, OtakudesuInfo } from '~/utils/types'
+import type { AnimeMetadata, OtakudesuInfo } from '~/utils/types'
 
 const props = defineProps<{
   otakudesu: OtakudesuInfo
-  jikan: JikanAnimeData | null
+  metadata: AnimeMetadata | null
   loading: boolean
 }>()
 

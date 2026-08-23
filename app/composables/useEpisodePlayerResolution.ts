@@ -5,6 +5,7 @@ import type { MirrorCandidate } from '~/utils/player'
 interface EpisodePlayerResolutionOptions {
   activeQuality: Ref<string>
   directUrl: Ref<string | null>
+  directKind: Ref<'hls' | 'file' | null>
   episode: Ref<EpisodeData>
   iframeSrc: Ref<string | null>
   loadingMessage: Ref<string>
@@ -14,6 +15,12 @@ interface EpisodePlayerResolutionOptions {
 
 export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
   let fallbackFn: (() => void) | null = null
+type PrepareResult = {
+  iframeUrl: string | null
+  playUrl: string | null
+  kind: 'hls' | 'file' | null
+  ok: boolean
+}
   let playbackSession = 0
   let fallbackRunning = false
 
@@ -35,14 +42,16 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     if (!url) return false
     options.iframeSrc.value = url
     options.directUrl.value = null
+    options.directKind.value = null
     options.useIframe.value = true
     return true
   }
 
-  function activateDirectUrl(url: string | null | undefined) {
+  function activateDirectUrl(url: string | null | undefined, kind: 'hls' | 'file' | null) {
     if (!url) return false
     options.useIframe.value = false
     options.directUrl.value = url
+    options.directKind.value = kind
     return true
   }
 
@@ -62,21 +71,21 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     return { resolved, nextIndex: index + 1 }
   }
 
-  function activateExtractedMirror(iframeUrl: string, proxiedUrl: string | null | undefined) {
-    if (activateDirectUrl(proxiedUrl)) return true
+  function activateExtractedMirror(iframeUrl: string, prepared: { ok?: boolean; playUrl?: string | null; kind?: 'hls' | 'file' | null }) {
+    if (activateDirectUrl(prepared.playUrl, prepared.kind ?? null)) return true
     return canUseIframeFallback(iframeUrl) && activateIframe(iframeUrl)
   }
 
-  function activatePreparedMirror(iframeUrl: string, prepared: { ok?: boolean; proxiedUrl?: string | null }, shouldExtract: boolean) {
+  function activatePreparedMirror(iframeUrl: string, prepared: PrepareResult, shouldExtract: boolean) {
     options.iframeSrc.value = iframeUrl
     if (!shouldExtract) return prepared.ok === true && activateIframe(iframeUrl)
-    return activateExtractedMirror(iframeUrl, prepared.proxiedUrl)
+    return activateExtractedMirror(iframeUrl, prepared)
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {
     try {
       const shouldExtract = isExtractable(candidate.name)
-      const prepared = await $fetch<{ iframeUrl: string | null; proxiedUrl: string | null; ok: boolean }>('/api/mirror/prepare', {
+      const prepared = await $fetch<PrepareResult>('/api/mirror/prepare', {
         method: 'POST',
         body: { dataContent: candidate.dataContent, extract: shouldExtract },
       })
@@ -116,6 +125,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     options.loadingMessage.value = 'Mencoba sumber video lain...'
     options.useIframe.value = false
     options.directUrl.value = null
+    options.directKind.value = null
   }
 
   function fallbackCandidates(startCandidate: MirrorCandidate, manual: boolean) {
@@ -134,6 +144,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
       options.resolving.value = true
       options.useIframe.value = false
       options.directUrl.value = null
+      options.directKind.value = null
     }
     return sessionId
   }

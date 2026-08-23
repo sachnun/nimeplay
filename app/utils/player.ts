@@ -1,5 +1,4 @@
 import type { EpisodeData } from './types'
-import { STREAM_API_URL } from './api'
 
 export type MirrorCandidate = {
   dataContent: string
@@ -65,57 +64,6 @@ function reorderMirrors(mirrors: EpisodeData['mirrors'], startQuality: string) {
 
 function addCandidate(groups: { extractable: MirrorCandidate[]; fallback: MirrorCandidate[] }, candidate: MirrorCandidate) {
   ;(isExtractableName(normalizeSourceName(candidate.name)) ? groups.extractable : groups.fallback).push(candidate)
-}
-
-export class ProxyPlaylistLoader {
-  private controller: AbortController | null = null
-
-  destroy() { this.abort() }
-
-  abort() {
-    this.controller?.abort()
-    this.controller = null
-  }
-
-  load(context: { url: string }, _config: unknown, callbacks: { onSuccess: (...args: unknown[]) => void; onError: (...args: unknown[]) => void }) {
-    this.controller = new AbortController()
-    const start = performance.now()
-    fetch(`${STREAM_API_URL}?url=${encodeURIComponent(context.url)}`, { signal: this.controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Stream proxy failed: ${res.status}`)
-        return res.text()
-      })
-      .then((body) => {
-        const end = performance.now()
-        const stats = {
-          aborted: false,
-          loaded: body.length,
-          retry: 0,
-          total: body.length,
-          chunkCount: 1,
-          bwEstimate: 0,
-          loading: { start, first: end, end },
-          parsing: { start: end, end },
-          buffering: { start: end, first: end, end },
-        }
-        callbacks.onSuccess({ url: context.url, data: body }, stats, context, null)
-      })
-      .catch((err: Error) => {
-        if (err.name === 'AbortError') return
-        const stats = {
-          aborted: false,
-          loaded: 0,
-          retry: 0,
-          total: 0,
-          chunkCount: 0,
-          bwEstimate: 0,
-          loading: { start, first: 0, end: 0 },
-          parsing: { start: 0, end: 0 },
-          buffering: { start: 0, first: 0, end: 0 },
-        }
-        callbacks.onError({ code: 0, text: err.message }, context, null, stats)
-      })
-  }
 }
 
 export function sourcePriority(name: string): number {

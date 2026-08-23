@@ -34,6 +34,7 @@ const genreList = table<string>()
 const genrePage = table<string>()
 const mirror = table<string>()
 const prepare = table<string>()
+const metadata = table<string>()
 
 export const cache = {
   ongoing: {
@@ -62,5 +63,8 @@ export const cache = {
     get(extract: boolean, content: string, ttl: number, load: () => Promise<unknown>) {
       return prepare.get(`${extract}:${content}`, ttl, load)
     },
+  },
+  metadata: {
+    get(key: string, ttl: number, load: () => Promise<unknown>) { return metadata.get(key, ttl, load) },
   },
 }

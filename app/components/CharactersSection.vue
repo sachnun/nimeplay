@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { JikanCharacter } from '~/utils/types'
+import type { AnimeCharacter } from '~/utils/types'
 
 defineProps<{
-  characters?: JikanCharacter[]
+  characters?: AnimeCharacter[]
   loading: boolean
 }>()
 </script>

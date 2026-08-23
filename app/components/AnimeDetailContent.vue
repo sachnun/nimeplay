@@ -12,7 +12,7 @@ const props = defineProps<{
   episodes: { title: string; slug: string }[]
 }>()
 
-const { data, loading } = useJikanData(toRef(props, 'animeSlug'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
+const { data, loading } = useAnimeMetadata(toRef(props, 'animeSlug'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
 const posterOpen = ref(false)
 const showTrailerBackground = ref(false)
 const router = useRouter()
@@ -101,7 +101,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">
-              <InfoSection :otakudesu="otakudesu" :jikan="data" :loading="loading" />
+              <InfoSection :otakudesu="otakudesu" :metadata="data" :loading="loading" />
             </div>
             <div class="lg:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">

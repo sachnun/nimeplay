@@ -265,7 +265,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     animeSlug: parseEpisodeAnimeSlug($),
     animeTitle: $('.cukder .infozingle p span').first().text().replace('Credit:', '').trim(),
     defaultIframeSrc: $('.responsive-embed-stream iframe').attr('src') || '',
-    mirrors: parseEpisodeMirrors($),
+    mirrors: await parseEpisodeMirrors($),
     episodeNav: parseEpisodeNav($),
     thumbnail: $('.cukder img').attr('src') || '',
   }
@@ -287,20 +287,26 @@ function parseMirrorQuality($ul: ReturnType<cheerio.CheerioAPI>): string {
   return classMatch?.[1] ?? textMatch?.[1] ?? qualityText
 }
 
-function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio.CheerioAPI>) {
-  return $ul.find('a[data-content]').map((_, a) => ({
+async function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio.CheerioAPI>) {
+  const sources = $ul.find('a[data-content]').map((_, a) => ({
     name: $(a).text().trim(),
     dataContent: $(a).attr('data-content') || '',
   })).get()
+  return Promise.all(sources.map(async (source) => ({
+    ...source,
+    dataContent: source.dataContent ? await sealStreamToken(source.dataContent) : '',
+  })))
 }
 
-function parseEpisodeMirrors($: cheerio.CheerioAPI): EpisodeData['mirrors'] {
-  return $('.mirrorstream ul').map((_, ul) => {
+async function parseEpisodeMirrors($: cheerio.CheerioAPI): Promise<EpisodeData['mirrors']> {
+  const uls = $('.mirrorstream ul').toArray()
+  const mirrors = await Promise.all(uls.map(async (ul) => {
     const $ul = $(ul)
     const quality = parseMirrorQuality($ul)
-    const sources = parseMirrorSources($, $ul)
+    const sources = await parseMirrorSources($, $ul)
     return sources.length > 0 && quality !== '360p' ? { quality, sources } : null
-  }).get()
+  }))
+  return mirrors.filter((mirror): mirror is EpisodeData['mirrors'][number] => mirror !== null)
 }
 
 function parseEpisodeNav($: cheerio.CheerioAPI): EpisodeData['episodeNav'] {

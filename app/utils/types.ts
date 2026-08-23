@@ -63,14 +63,14 @@ export interface GenreAnimeCard {
   date: string
 }
 
-export interface JikanCharacter {
+export interface AnimeCharacter {
   name: string
   imageUrl: string
   role: 'Main' | 'Supporting'
   voiceActor?: { name: string; imageUrl: string }
 }
 
-export interface JikanAnimeData {
+export interface AnimeMetadata {
   malId: number
   synopsisEn: string
   background: string
@@ -81,7 +81,7 @@ export interface JikanAnimeData {
   season: string | null
   year: number | null
   trailerEmbedUrl: string | null
-  characters: JikanCharacter[]
+  characters: AnimeCharacter[]
 }
 
 interface SkipInterval {

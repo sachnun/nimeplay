@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { JikanCharacter } from '~/utils/types'
+import type { AnimeCharacter } from '~/utils/types'
 
-const props = defineProps<{ characters: JikanCharacter[] }>()
+const props = defineProps<{ characters: AnimeCharacter[] }>()
 
 const showAll = ref(false)
-const preview = ref<JikanCharacter | null>(null)
+const preview = ref<AnimeCharacter | null>(null)
 const mainChars = computed(() => props.characters.filter((c) => c.role === 'Main'))
 const hasSupporting = computed(() => props.characters.length > mainChars.value.length)
 const displayed = computed(() => showAll.value ? props.characters : mainChars.value.length > 0 ? mainChars.value : props.characters.slice(0, 10))

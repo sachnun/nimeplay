@@ -1,8 +1,8 @@
 defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
-    summary: 'Get AniList metadata',
-    description: 'Fetches enriched metadata from AniList (description, score, characters, trailer, etc). Requires either `malId` or `title`.',
+    summary: 'Get anime metadata (MyAnimeList)',
+    description: 'Fetches enriched metadata from MyAnimeList (description, score, characters, trailer, etc). Requires either `malId` or `title`.',
     requestBody: {
       required: true,
       content: {
@@ -13,47 +13,19 @@ defineRouteMeta({
               title: { type: 'string' },
               japaneseTitle: { type: 'string' },
               malId: { type: 'integer', nullable: true },
-              idOnly: { type: 'boolean', description: 'Only resolve the AniList/MAL id' },
+              idOnly: { type: 'boolean', description: 'Only resolve the MAL id' },
             },
           },
         },
       },
     },
     responses: {
-      '200': { description: 'AniList media or null when not found' },
+      '200': { description: 'MAL metadata or null when not found' },
     },
   },
 })
 
-const ANILIST_ENDPOINT = 'https://graphql.anilist.co'
-const ANILIST_TIMEOUT_MS = 8000
 const METADATA_TTL = 24 * 60 * 60 * 1000
-
-const FULL_QUERY = `
-query ($idMal: Int, $search: String) {
-  Media(idMal: $idMal, search: $search, type: ANIME) {
-    idMal
-    description(asHtml: false)
-    averageScore
-    popularity
-    season
-    seasonYear
-    trailer { id site }
-    rankings { rank type allTime }
-    characters(perPage: 25, sort: [ROLE, FAVOURITES_DESC]) {
-      edges {
-        role
-        node { name { full } image { large } }
-        voiceActors(language: JAPANESE) { name { full } image { large } }
-      }
-    }
-  }
-}`
-
-const ID_QUERY = `
-query ($idMal: Int, $search: String) {
-  Media(idMal: $idMal, search: $search, type: ANIME) { idMal }
-}`
 
 interface MetadataRequestBody {
   title?: string
@@ -62,76 +34,12 @@ interface MetadataRequestBody {
   idOnly?: boolean
 }
 
-interface AniListMedia {
-  idMal: number | null
-  description?: string | null
-  averageScore?: number | null
-  popularity?: number | null
-  season?: string | null
-  seasonYear?: number | null
-  trailer?: { id?: string | null; site?: string | null } | null
-  rankings?: { rank: number; type: string; allTime: boolean }[] | null
-  characters?: {
-    edges: {
-      role: string
-      node: { name: { full: string }; image: { large: string | null } }
-      voiceActors?: { name: { full: string }; image: { large: string | null } }[]
-    }[]
-  } | null
-}
-
 function stripHtml(value: string): string {
   return value
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
-    .replace(/&#039;|&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&mdash;/g, '—')
-    .replace(/&amp;/g, '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-}
-
-async function anilistQuery<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
-  try {
-    const res = await fetch(ANILIST_ENDPOINT, {
-      method: 'POST',
-      headers: { ...getSpoofHeaders(), 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ query, variables }),
-      signal: AbortSignal.timeout(ANILIST_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    const json = await res.json() as { data?: { Media?: T | null } }
-    return json.data?.Media ?? null
-  } catch {
-    return null
-  }
-}
-
-async function resolveMedia(
-  malId: number | null,
-  japaneseTitle: string | undefined,
-  title: string,
-  idOnly: boolean,
-): Promise<AniListMedia | null> {
-  const query = idOnly ? ID_QUERY : FULL_QUERY
-  if (malId) return anilistQuery<AniListMedia>(query, { idMal: malId })
-  for (const search of [japaneseTitle, title]) {
-    if (!search) continue
-    const media = await anilistQuery<AniListMedia>(query, { search })
-    if (media) return media
-  }
-  return null
-}
-
-function mapCharacter(edge: NonNullable<NonNullable<AniListMedia['characters']>['edges']>[number]) {
-  const jpVA = edge.voiceActors?.[0]
-  return {
-    name: edge.node.name.full,
-    imageUrl: edge.node.image.large || '',
-    role: edge.role === 'MAIN' ? ('Main' as const) : ('Supporting' as const),
-    voiceActor: jpVA ? { name: jpVA.name.full, imageUrl: jpVA.image.large || '' } : undefined,
-  }
 }
 
 export default defineEventHandler(async (event) => {
@@ -144,27 +52,31 @@ export default defineEventHandler(async (event) => {
 
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
   return cache.metadata.get(cacheKey, METADATA_TTL, async () => {
-    const media = await resolveMedia(malId, japaneseTitle, title, body?.idOnly === true)
-    if (!media) return null
-    if (body?.idOnly === true) return { malId: media.idMal }
+    let resolvedMalId = malId
+    if (!resolvedMalId) {
+      resolvedMalId = await searchMalAnime(japaneseTitle || title)
+        ?? (japaneseTitle && title ? await searchMalAnime(title) : null)
+    }
+    if (!resolvedMalId) return null
 
-    const edges = media.characters?.edges ?? []
-    const mapped = edges.map(mapCharacter)
-    const main = mapped.filter((c) => c.role === 'Main')
-    const supporting = mapped.filter((c) => c.role !== 'Main')
+    const anime = await fetchMalAnime(resolvedMalId)
+    if (!anime) return null
+
+    if (body?.idOnly === true) return { malId: anime.malId }
+
+    const main = anime.characters.filter(c => c.role === 'Main')
+    const supporting = anime.characters.filter(c => c.role !== 'Main')
     return {
-      malId: media.idMal,
-      synopsisEn: stripHtml(media.description ?? ''),
+      malId: anime.malId,
+      synopsisEn: stripHtml(anime.synopsis),
       background: '',
-      malScore: media.averageScore != null ? media.averageScore / 10 : null,
-      malRank: media.rankings?.find((r) => r.type === 'RATED' && r.allTime)?.rank ?? null,
-      popularity: media.popularity ?? null,
+      malScore: anime.score,
+      malRank: anime.rank,
+      popularity: anime.popularity,
       rating: '',
-      season: media.season ? media.season.toLowerCase() : null,
-      year: media.seasonYear ?? null,
-      trailerEmbedUrl: media.trailer?.site === 'youtube' && media.trailer.id
-        ? `https://www.youtube.com/embed/${media.trailer.id}`
-        : null,
+      season: anime.season,
+      year: anime.year,
+      trailerEmbedUrl: anime.trailerId ? `https://www.youtube.com/embed/${anime.trailerId}` : null,
       characters: [...main, ...supporting.slice(0, 10)],
     }
   }) as Promise<unknown>

@@ -46,23 +46,11 @@ async function fetchContinueWatching() {
   continueLoading.value = true
   try {
     const slugs = items.map((item) => item.animeSlug)
-    const cachedEntries = await Promise.all(slugs.map(async (s) => [s, await getFreshAnimeDetail(s)] as const))
-    const missing = cachedEntries.filter(([, v]) => !v).map(([s]) => s)
-    let details: Map<string, typeof cachedEntries[number][1]>
-    if (missing.length === 0) {
-      details = new Map(cachedEntries)
-    } else {
-      const fetched = await $fetch<{ slug: string; anime: AnimeDetail | null }[]>('/api/anime/details', {
-        method: 'POST',
-        body: { slugs: missing },
-      })
-      if (import.meta.client) {
-        await Promise.all(fetched.map(async (item) => {
-          if (item.anime) await setAnimeDetail(item.slug, item.anime)
-        }))
-      }
-      details = new Map([...cachedEntries, ...fetched.map((item) => [item.slug, item.anime] as const)])
-    }
+    const fetched = await $fetch<{ slug: string; anime: AnimeDetail | null }[]>('/api/anime/details', {
+      method: 'POST',
+      body: { slugs },
+    })
+    const details = new Map(fetched.map((item) => [item.slug, item.anime] as const))
     continueItems.value = items.map((p) => {
       const detail = details.get(p.animeSlug)
       if (!detail) return null

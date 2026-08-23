@@ -1,4 +1,4 @@
-import { searchMalId } from '~/utils/anilist'
+import { searchMalId } from '~/utils/metadata'
 import type { SkipTime } from '~/utils/types'
 
 type TitleCleanupRule = RegExp | [RegExp, string]

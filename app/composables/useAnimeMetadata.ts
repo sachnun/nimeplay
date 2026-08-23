@@ -1,4 +1,4 @@
-import { fetchAnimeMetadata } from '~/utils/anilist'
+import { fetchAnimeMetadata } from '~/utils/metadata'
 import type { AnimeMetadata } from '~/utils/types'
 
 export function useAnimeMetadata(animeSlug: Ref<string> | string, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
@@ -11,19 +11,8 @@ export function useAnimeMetadata(animeSlug: Ref<string> | string, title: Ref<str
 
   const load = async () => {
     loading.value = true
-    const cached = await getFreshAnimeMetadata(slugRef.value)
-    if (cached) {
-      data.value = cached
-      loading.value = false
-      return
-    }
-    const cachedMalId = await getMalId(slugRef.value)
-    const result = await fetchAnimeMetadata(titleRef.value, japaneseRef.value, cachedMalId)
-    if (result) {
-      if (result.malId) await saveMalId(slugRef.value, result.malId)
-      await setAnimeMetadata(slugRef.value, result)
-      data.value = result
-    }
+    const result = await fetchAnimeMetadata(titleRef.value, japaneseRef.value)
+    if (result) data.value = result
     loading.value = false
   }
 

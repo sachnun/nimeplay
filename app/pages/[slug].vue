@@ -7,20 +7,9 @@ const isEpisodeRoute = computed(() => Boolean(route.params.episode))
 
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${slug.value}`,
-  async () => {
-    if (isEpisodeRoute.value) return null
-    const cached = await getFreshAnimeDetail(slug.value)
-    if (cached) return cached
-    return $fetch(`/api/anime/${slug.value}`)
-  },
+  () => $fetch(`/api/anime/${slug.value}`),
   { watch: [slug, isEpisodeRoute] },
 )
-
-if (import.meta.client) {
-  watch(anime, async (val) => {
-    if (val) await setAnimeDetail(slug.value, val)
-  }, { immediate: true })
-}
 
 if (!isEpisodeRoute.value && !anime.value) {
   await navigateTo('/')

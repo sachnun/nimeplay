@@ -472,31 +472,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return event.key.length === 1 ? event.key.toLowerCase() : event.key
   }
 
-  async function lookupAndSaveSkipTimes(epNum: number, episodeLength: number) {
-    const key = `lookup:${episode.value.title}:${epNum}`
-    const cached = await getFreshSkipTimes(key)
-    if (cached) {
-      skipTimes.value = cached
-      return
-    }
+  async function lookupSkipTimes(epNum: number, episodeLength: number) {
     const malId = await fetchMalId(episode.value.title)
-    const skipTimeData = malId ? await fetchSkipTimes(malId, epNum, episodeLength) : []
-    if (malId) await saveMalId(episode.value.animeSlug || props.animeSlug, malId)
-    if (import.meta.client) await setSkipTimes(key, skipTimeData)
-    skipTimes.value = skipTimeData
-  }
-
-  async function loadSkipTimes(epNum: number, episodeLength: number, malId: number | null) {
-    if (!malId) return lookupAndSaveSkipTimes(epNum, episodeLength)
-    const key = `${malId}:${epNum}`
-    const cached = await getFreshSkipTimes(key)
-    if (cached) {
-      skipTimes.value = cached
+    if (malId) {
+      skipTimes.value = await fetchSkipTimes(malId, epNum, episodeLength)
       return
     }
-    const data = await fetchSkipTimes(malId, epNum, episodeLength)
-    if (import.meta.client) await setSkipTimes(key, data)
-    skipTimes.value = data
+    skipTimes.value = []
   }
 
   function shouldSkipSegment(skipTime: SkipTime, time: number) {
@@ -516,11 +498,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     skipFetched = true
     const epNum = extractEpisodeNumber(currentSlug.value)
     if (!epNum) return
-    await loadSkipTimes(epNum, episodeLength, await getMalId(currentAnimeSlug()))
-  }
-
-  function currentAnimeSlug() {
-    return episode.value.animeSlug || props.animeSlug
+    await lookupSkipTimes(epNum, episodeLength)
   }
 
   function currentVideoDuration() {

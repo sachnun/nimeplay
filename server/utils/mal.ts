@@ -49,11 +49,84 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * Strict site-title vs MAL-title match. Requires:
+ * 1. At least one significant shared word.
+ * 2. Season markers to agree: an explicit season on one side must match the
+ *    other side's marker; a missing marker counts as season 1.
+ */
+const TITLE_STOPWORDS = new Set(['the', 'and', 'for', 'episode', 'movie', 'special', 'ova', 'end'])
+
+function titleWords(value: string): Set<string> {
+  return new Set(
+    value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+      .filter(word => word.length >= 3 && !TITLE_STOPWORDS.has(word)),
+  )
+}
+
+export function titlesMatch(siteTitle: string, malTitle: string): boolean {
+  const siteWords = titleWords(siteTitle)
+  const malWords = titleWords(malTitle)
+  const hasOverlap = [...siteWords].some(word => malWords.has(word))
+  if (!hasOverlap && siteWords.size > 0) return false
+
+  const siteSeason = seasonNumber(siteTitle)
+  const malSeason = seasonNumber(malTitle)
+  if (siteSeason !== null && siteSeason !== malSeason) return false
+  if (siteSeason === null && malSeason !== null && malSeason > 1) return false
+  return true
+}
+
 export async function searchMalAnime(title: string): Promise<number | null> {
+  const candidates = await searchMalAnimeCandidates(title)
+  return candidates[0] ?? null
+}
+
+/** All distinct MAL ids from the search results, in result order. */
+export async function searchMalAnimeCandidates(title: string): Promise<number[]> {
   const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(title)}`)
-  if (!html) return null
-  const match = html.match(/href="https:\/\/myanimelist\.net\/anime\/(\d+)\//)
-  return match ? Number(match[1]) : null
+  if (!html) return []
+  const ids: number[] = []
+  const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\//g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(html)) !== null) {
+    const id = Number(match[1])
+    if (!ids.includes(id)) ids.push(id)
+    if (ids.length >= 8) break
+  }
+  return ids
+}
+
+const ROMAN_SEASONS: Record<string, number> = {
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12,
+}
+const WORD_SEASONS: Record<string, number> = {
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
+  sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+}
+
+/**
+ * Extract an explicit season/part marker from a title, e.g.
+ * "5th Season", "Season 2", "S3", "Part 2", "III", "Third".
+ */
+export function seasonNumber(title: string): number | null {
+  const lower = title.toLowerCase()
+  const digit = /(?:(\d+)\s*(?:st|nd|rd|th)?\s*season)|(?:season\s*(\d+))|(?:\bpart\s*(\d+))|(?:\bs\s*(\d+)\b)/.exec(lower)
+  if (digit) {
+    for (const group of digit.slice(1)) {
+      if (group !== undefined) return Number(group)
+    }
+  }
+  const ordinal = /\b(\d+)(?:st|nd|rd|th)\b/.exec(lower)
+  if (ordinal) return Number(ordinal[1])
+  // Sequel titles on MAL often end with a bare number: "... Slave 2", "... Nouka 2".
+  const trailingNumber = /\s(\d{1,2})$/.exec(lower.trim())
+  if (trailingNumber) return Number(trailingNumber[1])
+  const roman = /\b(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)\b/.exec(lower)
+  if (roman?.[1] !== undefined && roman[1] in ROMAN_SEASONS) return ROMAN_SEASONS[roman[1]]!
+  const word = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b/.exec(lower)
+  if (word?.[1] !== undefined && word[1] in WORD_SEASONS) return WORD_SEASONS[word[1]]!
+  return null
 }
 
 function fullSizeImage(dataSrc: string): string {

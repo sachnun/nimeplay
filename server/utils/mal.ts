@@ -86,10 +86,19 @@ export interface MalSearchEntry {
 
 /** Search results as (id, display title) pairs, in result order. */
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
+  // MAL's search breaks on punctuation like "!" and falls back to a generic
+  // popular-anime list, so strip it and drop season/sequel noise — the strict
+  // title matcher filters the candidates afterwards.
+  const cleaned = query
+    .replace(/[!?:,.'"“”‘’]/g, ' ')
+    .replace(/\s+(season|part|ova|movie|ond)\s*\d+\b/gi, '')
+    .replace(/\s+\d+(st|nd|rd|th)\s+season/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
   // MAL throttles aggressively under load; retry with backoff instead of
   // treating a failed request as "no results".
   for (let attempt = 0; attempt < 3; attempt++) {
-    const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(query)}`)
+    const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(cleaned)}`)
     if (html) {
       const entries = new Map<number, string>()
       // Result rows wrap their title in <strong>; other anchors on the page

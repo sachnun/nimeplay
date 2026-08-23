@@ -10,6 +10,11 @@ export interface MalCharacter {
   voiceActor?: { name: string, imageUrl: string }
 }
 
+export interface MalSearchEntry {
+  id: number
+  title: string
+}
+
 export interface MalAnime {
   malId: number
   title: string
@@ -66,25 +71,80 @@ function titleWords(value: string): Set<string> {
   )
 }
 
+function normalizeTitle(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function levenshtein(a: string, b: string): number {
+  const dp = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0]!
+    dp[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j]!
+      dp[j] = Math.min(dp[j]! + 1, dp[j - 1]! + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1))
+      prev = tmp
+    }
+  }
+  return dp[b.length]!
+}
+
+function similarity(a: string, b: string): number {
+  const longest = Math.max(a.length, b.length)
+  if (longest === 0) return 1
+  return 1 - levenshtein(a, b) / longest
+}
+
+/**
+ * Detect romaji-style abbreviations: the site title must split into
+ * consecutive word-start prefixes of the MAL title, e.g.
+ * "watamote" -> "wa"(Watashi) + "mote"(Motenai).
+ */
+function isAbbreviation(siteTitle: string, malTitle: string): boolean {
+  const site = normalizeTitle(siteTitle)
+  if (site.length < 4 || site.length > 20) return false
+  const words = titleWords(malTitle)
+  if (words.size < 2) return false
+
+  function walk(pos: number, used: number): boolean {
+    if (pos === site.length) return used >= 2
+    for (const word of words) {
+      for (let take = Math.min(word.length, site.length - pos); take >= 2; take--) {
+        if (word.startsWith(site.slice(pos, pos + take))) {
+          if (walk(pos + take, used + 1)) return true
+        }
+      }
+    }
+    return false
+  }
+  return walk(0, 0)
+}
+
 export function titlesMatch(siteTitle: string, malTitle: string): boolean {
+  const siteNorm = normalizeTitle(siteTitle)
+  const malNorm = normalizeTitle(malTitle)
+  if (siteNorm === malNorm) return true
+
   const siteWords = titleWords(siteTitle)
   const malWords = titleWords(malTitle)
   const hasOverlap = [...siteWords].some(word => malWords.has(word))
-  if (!hasOverlap && siteWords.size > 0) return false
 
   const siteSeason = seasonNumber(siteTitle)
   const malSeason = seasonNumber(malTitle)
-  if (siteSeason !== null && siteSeason !== malSeason) return false
+  // Explicit, conflicting season markers are always disqualifying —
+  // even high edit-distance similarity must not override this.
+  if (siteSeason !== null && malSeason !== null && siteSeason !== malSeason) return false
+
+  if (similarity(siteNorm, malNorm) >= 0.9) return true
+
+  if (!hasOverlap) return isAbbreviation(siteTitle, malTitle)
+
+  if (siteSeason !== null && malSeason !== null) return true // same explicit season
+  if (malSeason === null && siteSeason !== null && siteSeason > 1 && similarity(siteNorm, malNorm) < 0.9) return false
   if (siteSeason === null && malSeason !== null && malSeason > 1) return false
   return true
 }
 
-export interface MalSearchEntry {
-  id: number
-  title: string
-}
-
-/** Search results as (id, display title) pairs, in result order. */
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
   // MAL's search breaks on punctuation like "!" and falls back to a generic
   // popular-anime list, so strip it and drop season/sequel noise — the strict

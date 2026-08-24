@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import type { AnimeCard, Genre, ContinueItem } from '~/utils/types'
-import type { WatchProgress } from '~/utils/watchHistory'
-
-type ContinueProgress = WatchProgress
+import type { AnimeCard, Genre } from '~/utils/types'
 
 withDefaults(defineProps<{
   ongoingData: { anime: AnimeCard[]; totalPages: number }
@@ -15,68 +12,6 @@ withDefaults(defineProps<{
 
 const selectedGenre = useState<Genre | null>('selected-genre', () => null)
 const searchOpen = ref(false)
-const initialContinueItems = ref<WatchProgress[]>([])
-const continueItems = ref<ContinueItem[]>([])
-const continueLoading = ref(false)
-const continueCount = ref(0)
-
-interface ContinueDetail {
-  malId: number
-  title: string
-  thumbnail: string
-  latestEpisode: string
-}
-
-function toContinueItem(p: ContinueProgress, detail: ContinueDetail): ContinueItem | null {
-  return { malId: p.malId, title: detail.title, thumbnail: detail.thumbnail, episodeNum: String(p.episodeNumber), episodeNumber: p.episodeNumber, currentTime: p.currentTime, duration: p.duration, latestEpisode: detail.latestEpisode }
-}
-
-async function fetchContinueWatching() {
-  const all = await getContinueWatching()
-  const items = initialContinueItems.value.length > 0 && continueItems.value.length === 0
-    ? initialContinueItems.value
-    : all.slice(0, 3)
-  continueCount.value = items.length
-  if (items.length === 0) {
-    continueItems.value = []
-    return
-  }
-
-  continueLoading.value = true
-  try {
-    const malIds = items.map((item) => item.malId)
-    const fetched = await $fetch<ContinueDetail[]>('/api/anime/details', {
-      method: 'POST',
-      body: { malIds },
-    })
-    const details = new Map(fetched.map((item) => [item.malId, item] as const))
-    continueItems.value = items.map((p) => {
-      const detail = details.get(p.malId)
-      if (!detail) return null
-      return toContinueItem(p, detail)
-    }).filter((item): item is ContinueItem => item !== null)
-  } catch {
-    continueItems.value = []
-  } finally {
-    continueLoading.value = false
-  }
-}
-
-onMounted(() => {
-  if (import.meta.client) {
-    getContinueWatching().then((all) => {
-      initialContinueItems.value = all.slice(0, 3)
-      continueCount.value = initialContinueItems.value.length
-    })
-  }
-  void fetchContinueWatching()
-  const onVisibility = () => {
-    if (document.visibilityState !== 'visible') return
-    void fetchContinueWatching()
-  }
-  document.addEventListener('visibilitychange', onVisibility)
-  onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
-})
 </script>
 
 <template>
@@ -95,7 +30,7 @@ onMounted(() => {
     </div>
   </section>
   <section v-else-if="selectedGenre">
-    <GenreAnimeGrid :key="selectedGenre.slug" :genre-slug="selectedGenre.slug" :continue-items="continueItems" />
+    <GenreAnimeGrid :key="selectedGenre.slug" :genre-slug="selectedGenre.slug" />
   </section>
   <section v-else>
     <AnimeInfiniteGrid
@@ -104,8 +39,6 @@ onMounted(() => {
       next-page-type="COMPLETED"
       :next-initial-data="completedData"
       :next-show-day="false"
-      :continue-items="continueItems"
-      :continue-count="continueLoading ? continueCount : 0"
     />
   </section>
 

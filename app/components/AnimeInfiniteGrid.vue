@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeCard, ContinueItem } from '~/utils/types'
+import type { AnimeCard } from '~/utils/types'
 
 interface PageData {
   anime: AnimeCard[]
@@ -13,15 +13,11 @@ const props = withDefaults(defineProps<{
   nextPageType?: 'ONGOING' | 'COMPLETED'
   nextInitialData?: PageData
   nextShowDay?: boolean
-  continueItems?: ContinueItem[]
-  continueCount?: number
 }>(), {
   showDay: true,
   nextPageType: undefined,
   nextInitialData: undefined,
   nextShowDay: false,
-  continueItems: () => [],
-  continueCount: 0,
 })
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
@@ -40,7 +36,7 @@ const gridState = useState<{
 }))
 const loading = ref(false)
 const loadError = ref(false)
-const { progressMap, syncProgress } = useAnimeProgressMap(() => props.continueItems)
+const { progressMap, syncProgress } = useAnimeProgressMap(() => [])
 const {
   onProgressCardPointerDown,
   onProgressCardPointerMove,
@@ -69,15 +65,10 @@ const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?
 const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
-const continueIds = computed(() => new Set(props.continueItems.map((item) => item.malId)))
-const displayAnime = computed(() => {
-  const marked = [
-    ...primaryAnime.value.map((anime) => ({ anime, isFromNext: false })),
-    ...nextAnime.value.map((anime) => ({ anime, isFromNext: true })),
-  ]
-  if (continueIds.value.size === 0) return marked
-  return marked.filter(({ anime }) => !continueIds.value.has(anime.malId))
-})
+const displayAnime = computed(() => [
+  ...primaryAnime.value.map((anime) => ({ anime, isFromNext: false })),
+  ...nextAnime.value.map((anime) => ({ anime, isFromNext: true })),
+])
 const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext }) => {
   const progress = progressMap.value.get(anime.malId)
   return {
@@ -88,8 +79,8 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
     to: `/anime/${anime.malId}`,
   }
 }))
-const hasAnyCard = computed(() => displayAnime.value.length > 0 || props.continueItems.length > 0)
-const skeletonCount = computed(() => cols.value > 0 ? (cols.value - (props.continueItems.length + displayAnime.value.length) % cols.value) % cols.value + cols.value * 3 : 0)
+const hasAnyCard = computed(() => displayAnime.value.length > 0)
+const skeletonCount = computed(() => cols.value > 0 ? (cols.value - displayAnime.value.length % cols.value) % cols.value + cols.value * 3 : 0)
 const visibleSkeletonCount = computed(() => {
   if (!loading.value && !loadError.value && !hasAnyCard.value) return Math.max(skeletonCount.value, 18)
   return loading.value ? skeletonCount.value : 0
@@ -144,43 +135,6 @@ function goToEpisode(malId: number, episodeNum: string | number) {
 <template>
   <div>
     <div ref="gridRef" class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">
-      <div v-for="i in continueItems.length === 0 ? continueCount : 0" :key="`cw-skeleton-${i}`" class="rounded-lg overflow-hidden bg-card animate-pulse">
-        <div class="relative aspect-[3/4] bg-zinc-900">
-          <div class="absolute bottom-0 left-0 right-0 p-3">
-            <div class="h-4 w-3/4 bg-white/10 rounded mb-2" />
-            <div class="h-3 w-1/2 bg-white/10 rounded" />
-          </div>
-        </div>
-      </div>
-
-      <NuxtLink
-        v-for="(item, i) in continueItems"
-        :key="`continue-${item.malId}`"
-        :to="`/anime/${item.malId}`"
-        class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="onProgressCardPointerDown($event, item.malId)"
-        @pointermove="onProgressCardPointerMove"
-        @pointerup="onProgressCardPointerEnd"
-        @pointerleave="onProgressCardPointerEnd"
-        @pointercancel="onProgressCardPointerEnd"
-        @click.capture="onProgressCardClick"
-        @contextmenu="onProgressCardContextMenu($event, true)"
-      >
-        <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="item.thumbnail" :alt="item.title" width="300" height="400" :loading="i < 2 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
-          <div v-if="item.latestEpisode || item.episodeNum" class="absolute top-2 right-2 bg-white text-black text-xs px-2 py-0.5 rounded font-medium">
-            {{ item.latestEpisode ? `${item.latestEpisode} Eps` : `EP ${item.episodeNum}` }}
-          </div>
-          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-12" :class="item.duration > 0 && item.currentTime > 0 ? 'pb-5' : ''">
-            <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ item.title }}</p>
-            <p class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNum)">Lanjutkan EP {{ item.episodeNum }}</p>
-          </div>
-          <div v-if="item.duration > 0 && item.currentTime > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNum)">
-            <div class="h-full bg-white rounded-full" :style="{ width: `${(item.currentTime / item.duration) * 100}%` }" />
-          </div>
-        </div>
-      </NuxtLink>
-
       <NuxtLink
         v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
         :key="`${anime.malId}-${i}`"
@@ -195,7 +149,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="continueItems.length + i < 4 ? 'eager' : 'lazy'" :fetchpriority="continueItems.length + i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
+          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
           <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ badge }}
           </div>

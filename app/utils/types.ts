@@ -103,17 +103,6 @@ export interface SkipTime {
   episodeLength: number
 }
 
-export interface ContinueItem {
-  malId: number
-  episodeNum: string
-  episodeNumber: number
-  currentTime: number
-  duration: number
-  title: string
-  thumbnail: string
-  latestEpisode: string
-}
-
 export interface OtakudesuInfo {
   score: string
   status: string

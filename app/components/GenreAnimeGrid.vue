@@ -1,17 +1,14 @@
 <script setup lang="ts">
-import type { GenreAnimeCard, ContinueItem } from '~/utils/types'
+import type { GenreAnimeCard } from '~/utils/types'
 
 interface PageData {
   anime: GenreAnimeCard[]
   totalPages: number
 }
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   genreSlug: string
-  continueItems?: ContinueItem[]
-}>(), {
-  continueItems: () => [],
-})
+}>()
 
 const sentinelRef = ref<HTMLDivElement | null>(null)
 const gridRef = ref<HTMLDivElement | null>(null)
@@ -20,8 +17,20 @@ const pages = ref<PageData[]>([])
 const size = ref(0)
 const loading = ref(false)
 const loadError = ref(false)
-const { progressMap, syncProgress } = useAnimeProgressMap(() => props.continueItems)
+const { progressMap, syncProgress } = useAnimeProgressMap(() => [])
 const progressCard = useProgressCardLongPress()
+
+onMounted(() => {
+  void syncProgress()
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') void syncProgress()
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+
+  onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', onVisibility)
+  })
+})
 
 const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
 const totalPages = computed(() => pages.value[0]?.totalPages ?? 1)
@@ -65,18 +74,6 @@ async function reset() {
 watch(() => props.genreSlug, () => { void reset() }, { immediate: true })
 
 const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
-
-onMounted(() => {
-  void syncProgress()
-  const onVisibility = () => {
-    if (document.visibilityState === 'visible') void syncProgress()
-  }
-  document.addEventListener('visibilitychange', onVisibility)
-
-  onBeforeUnmount(() => {
-    document.removeEventListener('visibilitychange', onVisibility)
-  })
-})
 
 function goToEpisode(malId: number, episodeNum: string | number) {
   void navigateTo(`/anime/${malId}/${episodeNum}`)

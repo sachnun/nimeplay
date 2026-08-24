@@ -192,17 +192,42 @@ function matchScore(siteTitle: string, malTitle: string): number {
   return score
 }
 
+/** Words that only carry a season/sequel marker, not franchise identity. */
+const MARKER_WORDS = new Set([
+  'season', 'part', 'first', 'second', 'third', 'fourth', 'fifth',
+  'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
+  'iii', 'iv', 'vi', 'vii', 'viii', 'ix', 'xi', 'xii',
+])
+
+function isMarkerWord(word: string): boolean {
+  return MARKER_WORDS.has(word) || /^\d+(?:st|nd|rd|th)?$/.test(word)
+}
+
+/** Number of shared words that are not season/sequel markers. */
+function contentOverlap(siteTitle: string, malTitle: string): number {
+  const siteWords = [...titleWords(siteTitle)].filter(word => !isMarkerWord(word))
+  const malWords = new Set([...titleWords(malTitle)].filter(word => !isMarkerWord(word)))
+  return siteWords.filter(word => malWords.has(word)).length
+}
+
 /**
  * Pick the best matching entry from MAL search results. `titlesMatch` is
  * only a pass/fail filter; MAL often lists movies and spinoffs before the
  * actual series (e.g. "One Piece Film: Z" before "One Piece"), so first
  * match wins is wrong — score every passing candidate instead.
+ *
+ * Candidates that share a real (non-marker) word with the site title are
+ * preferred: marker-only overlaps ("Season 3" matching "Shingeki no
+ * Kyojin Season 3") are how wrong franchises get picked.
  */
 export function bestMalAnimeMatch(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry | null {
-  let best: MalSearchEntry | null = null
+  const passing = entries.filter(entry => titlesMatch(siteTitle, entry.title))
+  if (passing.length === 0) return null
+  const content = passing.filter(entry => contentOverlap(siteTitle, entry.title) > 0)
+  const pool = content.length > 0 ? content : passing
+  let best = pool[0]!
   let bestScore = -Infinity
-  for (const entry of entries) {
-    if (!titlesMatch(siteTitle, entry.title)) continue
+  for (const entry of pool) {
     const score = matchScore(siteTitle, entry.title)
     if (score > bestScore) {
       best = entry

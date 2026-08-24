@@ -13,6 +13,47 @@ const SEARCH_TTL = 2 * 60 * 1000
 const MIRROR_TTL = 10 * 60 * 1000
 const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
+const ID_MONTHS: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  mei: 4,
+  jun: 5,
+  jul: 6,
+  agu: 7,
+  sep: 8,
+  okt: 9,
+  nov: 10,
+  des: 11,
+}
+
+/**
+ * Parse an Otakudesu date into a UTC midnight Date. Accepts the detail-page
+ * format ("7 Agustus,2026") and the list-page format ("24 Agu", year
+ * implied). "Hari ini"/"Kemarin" map to today/yesterday. Returns null for
+ * anything unparseable.
+ */
+export function parseEpisodeDate(raw: string): Date | null {
+  const value = raw.trim()
+  if (!value) return null
+  const lower = value.toLowerCase()
+  if (lower === 'hari ini') return new Date()
+  if (lower === 'kemarin') return new Date(Date.now() - 86_400_000)
+  const match = value.match(/^(\d{1,2})\s+([A-Za-z]+),?\s*(\d{4})?$/)
+  if (!match) return null
+  const day = Number(match[1])
+  const month = ID_MONTHS[match[2]!.toLowerCase().slice(0, 3)]
+  if (month === undefined || day < 1 || day > 31) return null
+  // A missing year (list format) is the current year, unless the month is
+  // clearly from the previous December.
+  let year = match[3] ? Number(match[3]) : new Date().getUTCFullYear()
+  if (!match[3] && month > new Date().getUTCMonth() + 1) year -= 1
+  const date = new Date(Date.UTC(year, month, day))
+  // Reject impossible days like 31 Februari.
+  return date.getUTCDate() === day ? date : null
+}
+
 const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [
   /\s*\+\s*OVA\b/gi,
   /\s*\+\s*Special\b/gi,

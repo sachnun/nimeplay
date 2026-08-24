@@ -37,11 +37,14 @@ export const anime = pgTable('anime', {
   trailerId: text('trailer_id'),
   characters: jsonb('characters').$type<MalCharacter[]>().notNull().default([]),
   sourceUrl: text('source_url'),
+  /** Parsed date of the newest episode, derived from the Otakudesu detail page. */
+  latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
 }, table => [
   unique('anime_mal_id_key').on(table.malId),
   index('anime_updated_at_idx').on(table.updatedAt),
+  index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
 ])
 

@@ -22,7 +22,7 @@ import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../server/utils/db'
 import { anime, animeGenres, episodes, genres } from '../server/database/schema'
 import { fetchMalAnime, searchMalAnimeEntries, titlesMatch } from '../server/utils/mal'
-import { scrapeAnimeDetail, scrapeCompleted, scrapeOngoing } from '../server/utils/scraper'
+import { scrapeAnimeDetail, scrapeCompleted, scrapeOngoing, parseEpisodeDate } from '../server/utils/scraper'
 
 const OTAKUDESU_BASE = 'https://otakudesu.blog'
 const ONGOING_PAGES = Number(process.env.SCRAPE_PAGES || 3)
@@ -66,17 +66,23 @@ function normalizeStatus(raw: string): string {
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
-async function registerAnimeRow(slug: string, title: string, day?: string) {
+async function registerAnimeRow(slug: string, title: string, day?: string, date?: string) {
   // List pages only introduce candidates; never bump updatedAt here so the
   // detail pass can pick them up as pending work. Airing day is refreshed
-  // on every run for ongoing anime.
+  // on every run for ongoing anime, and the list-page card carries the
+  // newest episode's upload date, keeping the home-list ordering fresh
+  // between detail syncs.
   const airingDay = day && VALID_DAYS.has(day) ? day : null
+  const latestEpisodeAt = date ? parseEpisodeDate(date) : null
   await db()
     .insert(anime)
-    .values({ slug, title, day: airingDay, sourceUrl: `${OTAKUDESU_BASE}/anime/${slug}/` })
+    .values({ slug, title, day: airingDay, latestEpisodeAt, sourceUrl: `${OTAKUDESU_BASE}/anime/${slug}/` })
     .onConflictDoUpdate({
       target: anime.slug,
-      set: { day: airingDay },
+      set: {
+        day: airingDay,
+        ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+      },
     })
 }
 
@@ -112,19 +118,19 @@ interface Candidate {
 async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
 
-  const cards: { slug: string, title: string, day?: string }[] = []
+  const cards: { slug: string, title: string, day?: string, date?: string }[] = []
   for (let page = 1; page <= ONGOING_PAGES; page++) {
     const result = await scrapeOngoing(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day })))
+    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date })))
   }
   for (let page = 1; page <= COMPLETED_PAGES; page++) {
     const result = await scrapeCompleted(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day })))
+    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date })))
   }
 
   const seen = new Set<string>()
   const unique = cards.filter(card => !seen.has(card.slug) && seen.add(card.slug))
-  await pool(unique, card => registerAnimeRow(card.slug, card.title, card.day))
+  await pool(unique, card => registerAnimeRow(card.slug, card.title, card.day, card.date))
 
   // Only scrape details for new or stale anime — the core of the incremental sync.
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
@@ -144,6 +150,10 @@ async function structurePass() {
       const detail = await scrapeAnimeDetail(slug)
       if (!detail) return
       const status = normalizeStatus(detail.status)
+      const latestEpisodeAt = detail.episodes
+        .map(entry => parseEpisodeDate(entry.date))
+        .filter((date): date is Date => date !== null)
+        .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
       await db()
         .update(anime)
         .set({
@@ -151,6 +161,9 @@ async function structurePass() {
           status,
           // A completed anime no longer has an airing day.
           ...(status === 'COMPLETED' ? { day: null } : {}),
+          // Only overwrite when a date is known, so a transient empty
+          // episode list can't wipe the stored value.
+          ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
           updatedAt: new Date(),
         })
         .where(eq(anime.slug, slug))

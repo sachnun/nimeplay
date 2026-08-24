@@ -78,6 +78,19 @@ function formatSeason(season: string | null): string {
   return season.replace(/(^|\s)\S/g, part => part.toUpperCase())
 }
 
+/** Season rank within a year: winter < spring < summer < fall. */
+const SEASON_RANK = sql`case split_part(${anime.season}, ' ', 1)
+  when 'winter' then 1
+  when 'spring' then 2
+  when 'summer' then 3
+  when 'fall' then 4
+  else 0 end`
+
+/** Numeric year parsed from the tail of "summer 2026"-style season strings. */
+const SEASON_YEAR = sql`case when ${anime.season} ~ '\\d+$'
+  then substring(${anime.season} from '\\d+$')::int
+  else 0 end`
+
 export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
@@ -90,6 +103,12 @@ export async function listAnimePage(
     .where(filter)
   const total = countRow?.count ?? 0
 
+  // Ongoing follows Otakudesu: ordered by the newest episode upload, newest
+  // first. Completed is grouped by season instead, newest season first.
+  const orderBy = status === 'ONGOING'
+    ? [sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
+
   const rows = await db()
     .select({
       malId: anime.malId,
@@ -99,11 +118,12 @@ export async function listAnimePage(
       day: anime.day,
       season: anime.season,
       updatedAt: anime.updatedAt,
+      latestEpisodeAt: anime.latestEpisodeAt,
       latestEpisode: sql<number | null>`(select max(e.number) from episodes e where e.anime_slug = "anime"."slug")`,
     })
     .from(anime)
     .where(filter)
-    .orderBy(desc(anime.updatedAt))
+    .orderBy(...orderBy)
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 

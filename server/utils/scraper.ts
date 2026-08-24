@@ -227,14 +227,20 @@ async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime
   return { anime: parseAnimeCards($), totalPages: getTotalPages($) }
 }
 
+/**
+ * Otakudesu blocks many datacenter/hosting egress IPs, so every page fetch
+ * goes through this passthrough service (returns {status, body} JSON).
+ */
+const CORS_PROXY = 'https://cors.io/?url='
+
 async function fetchHTML(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: getSpoofHeaders(BASE_URL + '/'),
-    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
-  })
-  const html = await res.text()
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-  return html
+  const res = await fetch(`${CORS_PROXY}${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(HTML_TIMEOUT_MS * 4) })
+  if (!res.ok) throw new Error(`CORS proxy failed for ${url}: ${res.status}`)
+  const data = await res.json() as { status?: number, body?: string }
+  if (data.status !== 200 || typeof data.body !== 'string') {
+    throw new Error(`CORS proxy returned status ${data.status} for ${url}`)
+  }
+  return data.body
 }
 
 async function corsPost(url: string, body: string): Promise<Record<string, unknown>> {

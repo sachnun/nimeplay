@@ -27,7 +27,7 @@ watchEffect(() => {
     <div class="absolute inset-0 z-0 bg-zinc-900/50" />
     <div class="relative z-10">
       <section class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10">
-        <div class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-zinc-800 animate-pulse mb-4 w-fit">
+        <div class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-white/15 animate-pulse mb-4 w-fit">
           <div class="w-4 h-4 bg-zinc-700 rounded-full" />
           <div class="w-8 h-3 bg-zinc-700 rounded" />
         </div>
@@ -37,7 +37,7 @@ watchEffect(() => {
             <div class="lg:hidden flex-1 min-w-0 space-y-3">
               <div class="h-6 w-3/4 bg-zinc-800 rounded animate-pulse" />
               <div class="flex gap-1.5">
-                <div v-for="i in 3" :key="i" class="h-5 w-14 bg-zinc-700 rounded-full" />
+                <div v-for="i in 3" :key="i" class="h-5 w-14 bg-white/15 rounded-full animate-pulse" />
               </div>
               <div class="h-3 w-1/3 bg-zinc-800 rounded animate-pulse" />
             </div>
@@ -46,7 +46,7 @@ watchEffect(() => {
             <div class="hidden lg:block space-y-3">
               <div class="h-8 w-2/3 bg-zinc-800 rounded animate-pulse" />
               <div class="flex gap-2">
-                <div v-for="i in 4" :key="i" class="h-5 w-16 bg-zinc-800 rounded-full" />
+                <div v-for="i in 4" :key="i" class="h-5 w-16 bg-white/15 rounded-full animate-pulse" />
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">

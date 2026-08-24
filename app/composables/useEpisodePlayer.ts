@@ -417,8 +417,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       return
     }
 
-    await lockPlayerOrientation('landscape')
     try { await el.requestFullscreen() } catch (error) { console.warn('requestFullscreen failed', error) }
+    await lockPlayerOrientation('landscape')
 
     if (document.fullscreenElement || isFullscreen.value) {
       isFullscreen.value = true

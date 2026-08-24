@@ -85,8 +85,8 @@ onMounted(() => {
                 <GenreLink v-for="genre in genres" :key="genre.slug" :name="genre.name" :slug="genre.slug" />
               </div>
               <div class="flex items-center gap-1.5 mt-2 text-xs text-zinc-400">
-                <template v-for="(text, i) in [otakudesu.status, otakudesu.studio].filter(Boolean)" :key="text">
-                  <span v-if="i > 0" class="text-zinc-500">.</span>
+                <template v-for="(text, i) in [otakudesu.studio].filter(Boolean)" :key="text">
+                  <span v-if="i > 0" class="w-1 h-1 rounded-full bg-zinc-500 shrink-0" />
                   <span>{{ text }}</span>
                 </template>
               </div>

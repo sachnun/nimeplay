@@ -68,10 +68,6 @@ const PAGE_SIZE = 24
  */
 const METADATA_READY = sql`${anime.malId} is not null`
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
-}
-
 /** "summer 2026" -> "Summer 2026" (MAL premiered format). */
 function formatSeason(season: string | null): string {
   if (!season) return ''
@@ -134,7 +130,7 @@ export async function listAnimePage(
       thumbnail: row.poster ?? '',
       episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
       day: row.day ?? '',
-      date: formatSeason(row.season) || formatDate(row.updatedAt),
+      date: formatSeason(row.season),
       rating: row.rating ?? undefined,
     })),
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -314,7 +310,7 @@ export async function getGenreAnimePage(
       episodes: '',
       rating: row.rating ?? '',
       genres: (await getGenresForAnime(row.slug)).map(genreEntry => genreEntry.name).join(', '),
-      date: formatSeason(row.season) || formatDate(row.updatedAt),
+      date: formatSeason(row.season),
     })
   }
 

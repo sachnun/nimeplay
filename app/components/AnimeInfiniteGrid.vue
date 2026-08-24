@@ -157,7 +157,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
             <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">Lanjutkan EP {{ progress.episodeNumber }}</p>
             <p v-else-if="anime.day || anime.date" class="text-xs text-zinc-400 mt-1">
-              {{ anime.day && (isFromNext ? nextShowDay : showDay) ? `${anime.day} · ${anime.date}` : anime.date }}
+              {{ anime.day && (isFromNext ? nextShowDay : showDay) ? (anime.date ? `${anime.day} · ${anime.date}` : anime.day) : anime.date }}
             </p>
           </div>
           <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">

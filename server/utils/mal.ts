@@ -177,6 +177,41 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
   throw new Error(`MAL search unavailable for "${query}"`)
 }
 
+/**
+ * Rank a MAL candidate against the site title: normalized edit-distance
+ * similarity, plus a bonus for an exact normalized match and a small
+ * penalty for titles much longer than the site title (movies and spinoffs
+ * sharing a base name, e.g. "One Piece" vs "One Piece Film: Z").
+ */
+function matchScore(siteTitle: string, malTitle: string): number {
+  const siteNorm = normalizeTitle(siteTitle)
+  const malNorm = normalizeTitle(malTitle)
+  let score = similarity(siteNorm, malNorm)
+  if (siteNorm === malNorm) score += 1
+  score -= Math.max(0, malNorm.length - siteNorm.length) / 100
+  return score
+}
+
+/**
+ * Pick the best matching entry from MAL search results. `titlesMatch` is
+ * only a pass/fail filter; MAL often lists movies and spinoffs before the
+ * actual series (e.g. "One Piece Film: Z" before "One Piece"), so first
+ * match wins is wrong — score every passing candidate instead.
+ */
+export function bestMalAnimeMatch(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry | null {
+  let best: MalSearchEntry | null = null
+  let bestScore = -Infinity
+  for (const entry of entries) {
+    if (!titlesMatch(siteTitle, entry.title)) continue
+    const score = matchScore(siteTitle, entry.title)
+    if (score > bestScore) {
+      best = entry
+      bestScore = score
+    }
+  }
+  return best
+}
+
 export async function searchMalAnime(title: string): Promise<number | null> {
   const entries = await searchMalAnimeEntries(title)
   return entries[0]?.id ?? null

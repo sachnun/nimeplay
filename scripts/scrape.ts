@@ -21,7 +21,7 @@
 import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../server/utils/db'
 import { anime, animeGenres, episodes, genres } from '../server/database/schema'
-import { fetchMalAnime, searchMalAnimeEntries, titlesMatch } from '../server/utils/mal'
+import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from '../server/utils/mal'
 import { scrapeAnimeDetail, scrapeCompleted, scrapeOngoing, parseEpisodeDate } from '../server/utils/scraper'
 
 const OTAKUDESU_BASE = 'https://otakudesu.blog'
@@ -205,9 +205,11 @@ async function syncGenres(animeSlug: string, names: string[]) {
 async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   try {
     // Match against display titles straight from the search results, so only
-    // ONE detail fetch per anime is needed.
+    // ONE detail fetch per anime is needed. Score all candidates instead of
+    // taking the first loose match — MAL lists movies/spinoffs before the
+    // series itself (e.g. "One Piece Film: Z" before "One Piece").
     const entries = await searchMalAnimeEntries(title)
-    const entry = entries.find(candidate => titlesMatch(title, candidate.title))
+    const entry = bestMalAnimeMatch(title, entries)
     if (!entry) {
       console.warn(`[metadata] no MAL title matches "${title}" (top: "${entries[0]?.title ?? '-'}")`)
       return false

@@ -11,13 +11,17 @@ const METADATA_STALE_DAYS = Number(process.env.SCRAPE_STALE_DAYS || 7)
 const SITE_DELAY_MS = Number(process.env.SCRAPE_SITE_DELAY_MS || 400)
 const MAL_DELAY_MS = Number(process.env.SCRAPE_MAL_DELAY_MS || 600)
 const CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY || 4)
+const DETAIL_BUDGET = Number(process.env.SCRAPE_DETAIL_BUDGET || 6)
+const META_BUDGET = Number(process.env.SCRAPE_META_BUDGET || 3)
+const WALL_BUDGET_MS = Number(process.env.SCRAPE_WALL_BUDGET_MS || 15000)
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-async function pool<T>(items: T[], worker: (item: T) => Promise<void>) {
+async function pool<T>(items: T[], worker: (item: T) => Promise<void>, deadlineMs: number) {
   let index = 0
   const runners = Array.from({ length: Math.max(1, Math.min(CONCURRENCY, items.length)) }, async () => {
     while (index < items.length) {
+      if (Date.now() > deadlineMs) break
       const item = items[index++]!
       await worker(item)
       if (index < items.length) await sleep(SITE_DELAY_MS)
@@ -96,6 +100,7 @@ interface Candidate {
 
 async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
+  const startedAt = Date.now()
 
   const cards: { slug: string, title: string, day?: string, date?: string }[] = []
   for (let page = 1; page <= ONGOING_PAGES; page++) {
@@ -120,10 +125,11 @@ async function structurePass() {
       or not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
     )`)
 
-  console.log(`[structure] ${candidates.length} anime need detail sync`)
+  const targets = candidates.slice(0, DETAIL_BUDGET)
+  console.log(`[structure] ${candidates.length} anime need detail sync, processing ${targets.length}`)
 
   let done = 0
-  await pool(candidates, async ({ slug, title }) => {
+  await pool(targets, async ({ slug, title }) => {
     try {
       const detail = await scrapeAnimeDetailFresh(slug)
       if (!detail) return
@@ -149,11 +155,11 @@ async function structurePass() {
     }
     finally {
       done++
-      if (done % 25 === 0) console.log(`[structure] ${done}/${candidates.length}`)
+      if (done % 25 === 0) console.log(`[structure] ${done}/${targets.length}`)
     }
-  })
-  console.log(`[structure] done (${done}/${candidates.length} anime)`)
-  return { candidates: candidates.length, done }
+  }, startedAt + WALL_BUDGET_MS)
+  console.log(`[structure] done (${done}/${targets.length} anime)`)
+  return { candidates: candidates.length, done, remaining: candidates.length - done }
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -228,6 +234,7 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
 
 async function metadataPass(mode: 'cron' | 'full') {
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
+  const startedAt = Date.now()
 
   const pending: Candidate[] = await db()
     .select({ slug: anime.slug, title: anime.title })
@@ -236,15 +243,16 @@ async function metadataPass(mode: 'cron' | 'full') {
       ? or(isNull(anime.malId), isNull(anime.metadataSyncedAt))
       : or(isNull(anime.malId), lt(anime.metadataSyncedAt, staleCutoff)))
 
-  console.log(`[metadata] ${pending.length} anime need MAL metadata (${mode})`)
+  const targets = pending.slice(0, META_BUDGET)
+  console.log(`[metadata] ${pending.length} anime need MAL metadata (${mode}), processing ${targets.length}`)
 
   let resolved = 0
   let failed = 0
-  await pool(pending, async ({ slug, title }) => {
+  await pool(targets, async ({ slug, title }) => {
     try {
       if (await resolveMetadata(slug, title)) {
         resolved++
-        if (resolved % 10 === 0) console.log(`[metadata] ${resolved}/${pending.length}`)
+        if (resolved % 10 === 0) console.log(`[metadata] ${resolved}/${targets.length}`)
       }
     }
     catch (error) {
@@ -253,9 +261,9 @@ async function metadataPass(mode: 'cron' | 'full') {
       await sleep(5000)
     }
     await sleep(MAL_DELAY_MS * CONCURRENCY)
-  })
-  console.log(`[metadata] resolved ${resolved}/${pending.length}${failed ? `, deferred ${failed}` : ''}`)
-  return { pending: pending.length, resolved, deferred: failed }
+  }, startedAt + WALL_BUDGET_MS)
+  console.log(`[metadata] resolved ${resolved}/${targets.length}${failed ? `, deferred ${failed}` : ''}`)
+  return { pending: pending.length, resolved, deferred: failed, remaining: pending.length - resolved }
 }
 
 export interface ScrapeStats {
@@ -263,8 +271,9 @@ export interface ScrapeStats {
   startedAt: string
   finishedAt: string
   durationMs: number
-  structure: { candidates: number, done: number }
-  metadata: { pending: number, resolved: number, deferred: number }
+  completed: boolean
+  structure: { candidates: number, done: number, remaining: number }
+  metadata: { pending: number, resolved: number, deferred: number, remaining: number }
 }
 
 export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promise<ScrapeStats> {
@@ -277,6 +286,7 @@ export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promi
     startedAt: startedAt.toISOString(),
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
+    completed: structure.remaining === 0 && metadata.remaining === 0,
     structure,
     metadata,
   }

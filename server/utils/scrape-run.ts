@@ -100,14 +100,20 @@ interface Candidate {
 
 async function countPendingStructure(): Promise<number> {
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
-  const [row] = await db()
-    .select({ count: sql<number>`count(*)::int` })
+  const rows = await db()
+    .select({
+      slug: anime.slug,
+      updatedAt: anime.updatedAt,
+      episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
+    })
     .from(anime)
     .where(sql`(
       ${anime.updatedAt} < ${staleCutoff.toISOString()}
       or not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
     )`)
-  return row?.count ?? 0
+    .limit(8)
+  console.warn('[structure] pending rows:', JSON.stringify(rows))
+  return rows.length
 }
 
 async function countPendingMetadata(mode: 'cron' | 'full'): Promise<number> {

@@ -255,7 +255,7 @@ async function corsPost(url: string, body: string): Promise<Record<string, unkno
   return res.json()
 }
 
-async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+export async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   return scrapeAnimeListFresh('ongoing-anime', page)
 }
 
@@ -263,7 +263,7 @@ export function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPage
   return cache.ongoing.get(page, LIST_TTL, () => scrapeOngoingFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
 }
 
-async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+export async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   return scrapeAnimeListFresh('complete-anime', page)
 }
 
@@ -271,7 +271,7 @@ export function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPa
   return cache.completed.get(page, LIST_TTL, () => scrapeCompletedFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
+export async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
   const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
   const $ = cheerio.load(html)
   const h1Title = cleanTitle($('.jdlrx h1').text().trim())

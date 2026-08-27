@@ -242,6 +242,7 @@ async function metadataPass(mode: 'cron' | 'full') {
     .where(mode === 'cron'
       ? or(isNull(anime.malId), isNull(anime.metadataSyncedAt))
       : or(isNull(anime.malId), lt(anime.metadataSyncedAt, staleCutoff)))
+    .orderBy(sql`random()`)
 
   const targets = pending.slice(0, META_BUDGET)
   console.log(`[metadata] ${pending.length} anime need MAL metadata (${mode}), processing ${targets.length}`)

@@ -33,7 +33,23 @@ export default defineEventHandler(async (event) => {
   try {
     return await runScrape({ mode })
   }
+  catch (error) {
+    console.error('[scrape] detail:', JSON.stringify(errorToJson(error)))
+    throw error
+  }
   finally {
     running = false
   }
 })
+
+function errorToJson(error: unknown): unknown {
+  if (!(error instanceof Error)) return error
+  const own: Record<string, unknown> = {}
+  for (const key of Object.getOwnPropertyNames(error)) {
+    if (key !== 'stack') {
+      const value = (error as unknown as Record<string, unknown>)[key]
+      own[key] = value instanceof Error ? errorToJson(value) : value
+    }
+  }
+  return { name: error.name, message: error.message, ...own }
+}

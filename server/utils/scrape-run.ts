@@ -98,6 +98,29 @@ interface Candidate {
   title: string
 }
 
+async function countPendingStructure(): Promise<number> {
+  const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
+  const [row] = await db()
+    .select({ count: sql<number>`count(*)::int` })
+    .from(anime)
+    .where(sql`(
+      ${anime.updatedAt} < ${staleCutoff.toISOString()}
+      or not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
+    )`)
+  return row?.count ?? 0
+}
+
+async function countPendingMetadata(mode: 'cron' | 'full'): Promise<number> {
+  const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
+  const [row] = await db()
+    .select({ count: sql<number>`count(*)::int` })
+    .from(anime)
+    .where(mode === 'cron'
+      ? or(isNull(anime.malId), isNull(anime.metadataSyncedAt))
+      : or(isNull(anime.malId), lt(anime.metadataSyncedAt, staleCutoff)))
+  return row?.count ?? 0
+}
+
 async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
   const startedAt = Date.now()
@@ -132,7 +155,10 @@ async function structurePass() {
   await pool(targets, async ({ slug, title }) => {
     try {
       const detail = await scrapeAnimeDetailFresh(slug)
-      if (!detail) return
+      if (!detail) {
+        console.warn(`[structure] empty detail ${slug}`)
+        return
+      }
       const status = normalizeStatus(detail.status)
       const latestEpisodeAt = detail.episodes
         .map(entry => parseEpisodeDate(entry.date))
@@ -158,8 +184,9 @@ async function structurePass() {
       if (done % 25 === 0) console.log(`[structure] ${done}/${targets.length}`)
     }
   }, startedAt + WALL_BUDGET_MS)
+  const totalRemaining = await countPendingStructure()
   console.log(`[structure] done (${done}/${targets.length} anime)`)
-  return { candidates: candidates.length, done, remaining: candidates.length - done }
+  return { candidates: candidates.length, done, remaining: totalRemaining }
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -263,8 +290,9 @@ async function metadataPass(mode: 'cron' | 'full') {
     }
     await sleep(MAL_DELAY_MS * CONCURRENCY)
   }, startedAt + WALL_BUDGET_MS)
+  const totalRemaining = await countPendingMetadata(mode)
   console.log(`[metadata] resolved ${resolved}/${targets.length}${failed ? `, deferred ${failed}` : ''}`)
-  return { pending: pending.length, resolved, deferred: failed, remaining: pending.length - resolved }
+  return { pending: pending.length, resolved, deferred: failed, remaining: totalRemaining }
 }
 
 export interface ScrapeStats {

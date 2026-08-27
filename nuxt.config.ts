@@ -19,9 +19,6 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
-        limits: {
-          subrequests: 1000,
-        } as unknown as { cpu_ms?: number },
       },
     },
     experimental: { openAPI: true },

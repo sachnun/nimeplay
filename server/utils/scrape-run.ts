@@ -14,6 +14,7 @@ const CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY || 4)
 const DETAIL_BUDGET = Number(process.env.SCRAPE_DETAIL_BUDGET || 6)
 const META_BUDGET = Number(process.env.SCRAPE_META_BUDGET || 3)
 const WALL_BUDGET_MS = Number(process.env.SCRAPE_WALL_BUDGET_MS || 15000)
+const DETAIL_GRACE_MS = Number(process.env.SCRAPE_DETAIL_GRACE_MS || 6 * 60 * 60 * 1000)
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -98,22 +99,24 @@ interface Candidate {
   title: string
 }
 
+function pendingStructureWhere(staleCutoff: Date, detailGrace: Date) {
+  return sql`(
+    ${anime.updatedAt} < ${staleCutoff.toISOString()}
+    or (
+      not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
+      and ${anime.updatedAt} < ${detailGrace.toISOString()}
+    )
+  )`
+}
+
 async function countPendingStructure(): Promise<number> {
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
-  const rows = await db()
-    .select({
-      slug: anime.slug,
-      updatedAt: anime.updatedAt,
-      episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
-    })
+  const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
+  const [row] = await db()
+    .select({ count: sql<number>`count(*)::int` })
     .from(anime)
-    .where(sql`(
-      ${anime.updatedAt} < ${staleCutoff.toISOString()}
-      or not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
-    )`)
-    .limit(8)
-  console.warn('[structure] pending rows:', JSON.stringify(rows))
-  return rows.length
+    .where(pendingStructureWhere(staleCutoff, detailGrace))
+  return row?.count ?? 0
 }
 
 async function countPendingMetadata(mode: 'cron' | 'full'): Promise<number> {
@@ -146,13 +149,11 @@ async function structurePass() {
   await registerAnimeRows(unique)
 
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
+  const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
   const candidates: Candidate[] = await db()
     .select({ slug: anime.slug, title: anime.title })
     .from(anime)
-    .where(sql`(
-      ${anime.updatedAt} < ${staleCutoff.toISOString()}
-      or not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
-    )`)
+    .where(pendingStructureWhere(staleCutoff, detailGrace))
 
   const targets = candidates.slice(0, DETAIL_BUDGET)
   console.log(`[structure] ${candidates.length} anime need detail sync, processing ${targets.length}`)

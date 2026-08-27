@@ -43,19 +43,27 @@ function normalizeStatus(raw: string): string {
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
-async function registerAnimeRow(slug: string, title: string, day?: string, date?: string) {
-  const airingDay = day && VALID_DAYS.has(day) ? day : null
-  const latestEpisodeAt = date ? parseEpisodeDate(date) : null
-  await db()
-    .insert(anime)
-    .values({ slug, title, day: airingDay, latestEpisodeAt, sourceUrl: `${OTAKUDESU_BASE}/anime/${slug}/` })
-    .onConflictDoUpdate({
-      target: anime.slug,
-      set: {
-        day: airingDay,
-        ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-      },
-    })
+async function registerAnimeRows(cards: { slug: string, title: string, day?: string, date?: string }[]) {
+  const rows = cards.map(card => ({
+    slug: card.slug,
+    title: card.title,
+    day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
+    latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
+    sourceUrl: `${OTAKUDESU_BASE}/anime/${card.slug}/`,
+  }))
+  const chunkSize = 100
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    await db()
+      .insert(anime)
+      .values(rows.slice(i, i + chunkSize))
+      .onConflictDoUpdate({
+        target: anime.slug,
+        set: {
+          day: sql`excluded.day`,
+          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${anime.latestEpisodeAt})`,
+        },
+      })
+  }
 }
 
 async function upsertEpisodes(
@@ -101,7 +109,7 @@ async function structurePass() {
 
   const seen = new Set<string>()
   const unique = cards.filter(card => !seen.has(card.slug) && seen.add(card.slug))
-  await pool(unique, card => registerAnimeRow(card.slug, card.title, card.day, card.date))
+  await registerAnimeRows(unique)
 
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
   const candidates: Candidate[] = await db()

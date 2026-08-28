@@ -15,6 +15,7 @@ const DETAIL_BUDGET = Number(process.env.SCRAPE_DETAIL_BUDGET || 6)
 const META_BUDGET = Number(process.env.SCRAPE_META_BUDGET || 3)
 const WALL_BUDGET_MS = Number(process.env.SCRAPE_WALL_BUDGET_MS || 15000)
 const DETAIL_GRACE_MS = Number(process.env.SCRAPE_DETAIL_GRACE_MS || 6 * 60 * 60 * 1000)
+const ACTIVE_REFRESH_MS = Number(process.env.SCRAPE_ACTIVE_REFRESH_HOURS || 24) * 60 * 60 * 1000
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -99,9 +100,16 @@ interface Candidate {
   title: string
 }
 
-function pendingStructureWhere(staleCutoff: Date, detailGrace: Date) {
+function pendingStructureWhere(staleCutoff: Date, detailGrace: Date, activeRefresh: Date) {
   return sql`(
-    ${anime.updatedAt} < ${staleCutoff.toISOString()}
+    (
+      (${anime.status} is null or ${anime.status} = 'ONGOING')
+      and ${anime.updatedAt} < ${activeRefresh.toISOString()}
+    )
+    or (
+      ${anime.status} = 'COMPLETED'
+      and ${anime.updatedAt} < ${staleCutoff.toISOString()}
+    )
     or (
       not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
       and ${anime.updatedAt} < ${detailGrace.toISOString()}
@@ -112,10 +120,11 @@ function pendingStructureWhere(staleCutoff: Date, detailGrace: Date) {
 async function countPendingStructure(): Promise<number> {
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
   const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
+  const activeRefresh = new Date(Date.now() - ACTIVE_REFRESH_MS)
   const [row] = await db()
     .select({ count: sql<number>`count(*)::int` })
     .from(anime)
-    .where(pendingStructureWhere(staleCutoff, detailGrace))
+    .where(pendingStructureWhere(staleCutoff, detailGrace, activeRefresh))
   return row?.count ?? 0
 }
 
@@ -150,10 +159,11 @@ async function structurePass() {
 
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
   const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
+  const activeRefresh = new Date(Date.now() - ACTIVE_REFRESH_MS)
   const candidates: Candidate[] = await db()
     .select({ slug: anime.slug, title: anime.title })
     .from(anime)
-    .where(pendingStructureWhere(staleCutoff, detailGrace))
+    .where(pendingStructureWhere(staleCutoff, detailGrace, activeRefresh))
 
   const targets = candidates.slice(0, DETAIL_BUDGET)
   console.log(`[structure] ${candidates.length} anime need detail sync, processing ${targets.length}`)

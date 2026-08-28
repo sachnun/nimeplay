@@ -343,8 +343,20 @@ export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promi
   activeRun = true
   try {
     const startedAt = new Date()
-    const structure = await structurePass()
-    const metadata = await metadataPass(mode)
+    let structure = { candidates: 0, done: 0, remaining: 0 }
+    let metadata = { pending: 0, resolved: 0, deferred: 0, remaining: 0 }
+    try {
+      structure = await structurePass()
+    }
+    catch (error) {
+      console.error(`[scrape] structure pass failed:`, error instanceof Error ? error.message : error)
+    }
+    try {
+      metadata = await metadataPass(mode)
+    }
+    catch (error) {
+      console.error(`[scrape] metadata pass failed:`, error instanceof Error ? error.message : error)
+    }
     return {
       mode,
       startedAt: startedAt.toISOString(),

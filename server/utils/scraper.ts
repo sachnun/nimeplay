@@ -228,12 +228,16 @@ async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime
 }
 
 async function fetchHTML(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: getSpoofHeaders(url, 'navigate'),
-    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
-  })
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-  return res.text()
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(url, {
+      headers: getSpoofHeaders(url, 'navigate'),
+      signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
+    })
+    if (res.ok) return await res.text()
+    lastError = new Error(`Failed to fetch ${url}: ${res.status}`)
+  }
+  throw lastError!
 }
 
 async function corsPost(url: string, body: string): Promise<Record<string, unknown>> {

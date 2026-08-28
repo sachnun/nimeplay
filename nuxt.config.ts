@@ -14,25 +14,14 @@ export default defineNuxtConfig({
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   nitro: {
     preset: 'cloudflare_module',
-    scheduledTasks: {
-      '*/10 * * * *': ['scrape'],
-    },
     experimental: {
       openAPI: true,
-      tasks: true,
     },
     cloudflare: {
       deployConfig: true,
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
-        triggers: {
-          crons: ['*/10 * * * *'],
-        },
-      } as unknown as {
-        name: string
-        compatibility_date: string
-        triggers: { crons: string[] }
       },
     },
     openAPI: {

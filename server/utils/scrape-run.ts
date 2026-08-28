@@ -318,22 +318,44 @@ export interface ScrapeStats {
   finishedAt: string
   durationMs: number
   completed: boolean
+  skipped?: boolean
   structure: { candidates: number, done: number, remaining: number }
   metadata: { pending: number, resolved: number, deferred: number, remaining: number }
 }
 
+let activeRun = false
+
 export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promise<ScrapeStats> {
   const mode = options.mode === 'full' ? 'full' : 'cron'
-  const startedAt = new Date()
-  const structure = await structurePass()
-  const metadata = await metadataPass(mode)
-  return {
-    mode,
-    startedAt: startedAt.toISOString(),
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt.getTime(),
-    completed: structure.remaining === 0 && metadata.remaining === 0,
-    structure,
-    metadata,
+  if (activeRun) {
+    console.warn('[scrape] skipped: another run is in progress')
+    return {
+      mode,
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: 0,
+      completed: false,
+      skipped: true,
+      structure: { candidates: 0, done: 0, remaining: 0 },
+      metadata: { pending: 0, resolved: 0, deferred: 0, remaining: 0 },
+    }
+  }
+  activeRun = true
+  try {
+    const startedAt = new Date()
+    const structure = await structurePass()
+    const metadata = await metadataPass(mode)
+    return {
+      mode,
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      completed: structure.remaining === 0 && metadata.remaining === 0,
+      structure,
+      metadata,
+    }
+  }
+  finally {
+    activeRun = false
   }
 }

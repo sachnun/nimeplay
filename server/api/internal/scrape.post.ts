@@ -1,8 +1,6 @@
 import { createError, getHeader, getQuery } from 'h3'
 import { runScrape } from '../../utils/scrape-run'
 
-let running = false
-
 defineRouteMeta({
   openAPI: {
     tags: ['Internal'],
@@ -13,9 +11,8 @@ defineRouteMeta({
       { name: 'mode', in: 'query', required: false, schema: { type: 'string', enum: ['cron', 'full'], default: 'cron' } },
     ],
     responses: {
-      '200': { description: 'Scrape completed' },
+      '200': { description: 'Scrape completed; skipped=true when another run was in progress' },
       '401': { description: 'Missing or invalid x-cron-secret' },
-      '409': { description: 'A scrape is already running' },
     },
   },
 })
@@ -25,31 +22,6 @@ export default defineEventHandler(async (event) => {
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid or missing cron secret' })
   }
-  if (running) {
-    throw createError({ statusCode: 409, statusMessage: 'A scrape is already running' })
-  }
   const mode = getQuery(event).mode === 'full' ? 'full' : 'cron'
-  running = true
-  try {
-    return await runScrape({ mode })
-  }
-  catch (error) {
-    console.error('[scrape] detail:', JSON.stringify(errorToJson(error)))
-    throw error
-  }
-  finally {
-    running = false
-  }
+  return runScrape({ mode })
 })
-
-function errorToJson(error: unknown): unknown {
-  if (!(error instanceof Error)) return error
-  const own: Record<string, unknown> = {}
-  for (const key of Object.getOwnPropertyNames(error)) {
-    if (key !== 'stack') {
-      const value = (error as unknown as Record<string, unknown>)[key]
-      own[key] = value instanceof Error ? errorToJson(value) : value
-    }
-  }
-  return { name: error.name, message: error.message, ...own }
-}

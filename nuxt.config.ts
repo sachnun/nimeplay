@@ -24,7 +24,7 @@ export default defineNuxtConfig({
         compatibility_date: '2025-07-15',
         placement: {
           mode: 'smart',
-          hint: 'gcp:asia-southeast2',
+          hint: 'apac',
         },
       },
     },

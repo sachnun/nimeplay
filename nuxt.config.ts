@@ -23,7 +23,8 @@ export default defineNuxtConfig({
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
         placement: {
-          region: 'gcp:asia-southeast2',
+          mode: 'smart',
+          hint: 'gcp:asia-southeast2',
         },
       },
     },

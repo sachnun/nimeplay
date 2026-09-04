@@ -33,6 +33,23 @@ Static build:
 npm run generate
 ```
 
+## Database (Cloudflare D1)
+
+All data lives in a Cloudflare D1 database bound as `DB`. The schema is defined in `server/database/schema.ts` (Drizzle, SQLite dialect); the D1 binding is declared in `nuxt.config.ts` and mirrored in `wrangler.jsonc` for local tooling.
+
+- Apply schema migrations to the local emulated database: `npm run db:migrate:local`
+- Apply schema migrations to the remote database: `npm run db:migrate`
+- Regenerate a migration from the schema: `npm run db:generate`
+
+Local development (`npm run dev`) emulates D1 through `wrangler` (see the nitro Cloudflare dev plugin), reusing the same persisted state as `db:migrate:local`. Remote queries against the API hit the production D1 database.
+
+Scraping runs against the same D1 database and therefore cannot execute in plain Node. Run a local dev server, then trigger a scrape through the HTTP endpoint (both processes need the same `CRON_SECRET`):
+
+```bash
+CRON_SECRET=change-me npm run dev
+CRON_SECRET=change-me npm run scrape
+```
+
 ## Development
 
 The main app lives in `app/`, server APIs live in `server/`, and static files live in `public/`.
@@ -40,4 +57,3 @@ The main app lives in `app/`, server APIs live in `server/`, and static files li
 ```bash
 npm run typecheck
 ```
-

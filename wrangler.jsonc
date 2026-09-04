@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nimeplay",
+  "compatibility_date": "2025-07-15",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nimeplay",
+      "database_id": "aa1c7419-d7e1-4b32-94db-400b48573073",
+      "migrations_dir": "server/database/migrations"
+    }
+  ]
+}

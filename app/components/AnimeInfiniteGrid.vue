@@ -80,11 +80,6 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0)
-const skeletonCount = computed(() => cols.value > 0 ? (cols.value - displayAnime.value.length % cols.value) % cols.value + cols.value * 3 : 0)
-const visibleSkeletonCount = computed(() => {
-  if (!loading.value && !loadError.value && !hasAnyCard.value) return Math.max(skeletonCount.value, 18)
-  return loading.value ? skeletonCount.value : 0
-})
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
   return $fetch('/api/anime-page', { params: { type, page } })
@@ -165,15 +160,6 @@ function goToEpisode(malId: number, episodeNum: string | number) {
           </div>
         </div>
       </NuxtLink>
-
-      <div v-for="i in visibleSkeletonCount" :key="`skeleton-${i}`" class="rounded-lg overflow-hidden bg-card animate-pulse">
-        <div class="relative aspect-[3/4] bg-zinc-900">
-          <div class="absolute bottom-0 left-0 right-0 p-3">
-            <div class="h-4 w-3/4 bg-white/10 rounded mb-2" />
-            <div class="h-3 w-1/2 bg-white/10 rounded" />
-          </div>
-        </div>
-      </div>
     </div>
 
     <div ref="sentinelRef" class="py-4">

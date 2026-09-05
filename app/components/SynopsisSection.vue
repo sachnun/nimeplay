@@ -53,13 +53,7 @@ watch([text, expanded, () => props.loading], () => {
         </button>
       </div>
     </div>
-    <div v-if="loading" class="animate-pulse space-y-2">
-      <div class="h-3 bg-zinc-800 rounded w-full" />
-      <div class="h-3 bg-zinc-800 rounded w-5/6" />
-      <div class="h-3 bg-zinc-800 rounded w-4/6 hidden lg:block" />
-      <div class="h-3 bg-zinc-800 rounded w-5/6 hidden lg:block" />
-    </div>
-    <div v-else-if="hasId || hasEn">
+    <div v-if="hasId || hasEn">
       <p
         ref="textRef"
         class="text-sm text-zinc-300 leading-relaxed [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"

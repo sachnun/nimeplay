@@ -9,7 +9,7 @@ interface HomeData {
 
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
-const { data, pending } = await useAsyncData<HomeData>('home', async () => {
+const { data } = await useAsyncData<HomeData>('home', async () => {
   return $fetch('/api/home')
 }, {
   default: () => ({
@@ -26,7 +26,6 @@ const { data, pending } = await useAsyncData<HomeData>('home', async () => {
       :ongoing-data="data.ongoingData"
       :completed-data="data.completedData"
       :genres="data.genres"
-      :is-loading="pending"
     />
   </div>
 </template>

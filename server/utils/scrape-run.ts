@@ -141,6 +141,41 @@ async function countPendingMetadata(mode: 'cron' | 'full'): Promise<number> {
   return row?.count ?? 0
 }
 
+export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {
+  try {
+    const detail = await scrapeAnimeDetailFresh(slug)
+    if (detail) {
+      const status = normalizeStatus(detail.status)
+      const latestEpisodeAt = detail.episodes
+        .map(entry => parseEpisodeDate(entry.date))
+        .filter((date): date is Date => date !== null)
+        .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
+      await db()
+        .update(anime)
+        .set({
+          title: detail.title || title,
+          status,
+          ...(status === 'COMPLETED' ? { day: null } : {}),
+          ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(anime.slug, slug))
+      await upsertEpisodes(slug, detail.episodes)
+    }
+  }
+  catch (error) {
+    console.warn(`[refresh] detail failed ${slug}:`, error instanceof Error ? error.message : error)
+  }
+  if (refreshMetadata) {
+    try {
+      await resolveMetadata(slug, title)
+    }
+    catch (error) {
+      console.warn(`[refresh] metadata failed ${slug}:`, error instanceof Error ? error.message : error)
+    }
+  }
+}
+
 async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
   const startedAt = Date.now()
@@ -229,7 +264,7 @@ async function syncGenres(animeSlug: string, names: string[]) {
   if (links.length > 0) await db().insert(animeGenres).values(links).onConflictDoNothing()
 }
 
-async function resolveMetadata(slug: string, title: string): Promise<boolean> {
+export async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   try {
     const entries = await searchMalAnimeEntries(title)
     const entry = bestMalAnimeMatch(title, entries)

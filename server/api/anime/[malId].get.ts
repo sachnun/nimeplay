@@ -1,5 +1,6 @@
 import { createError, getRouterParam } from 'h3'
 import { getAnimeDetail } from '../../utils/queries'
+import { scheduleAnimeRefresh } from '../../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
@@ -30,5 +31,6 @@ export default defineEventHandler(async (event) => {
 
   const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
+  scheduleAnimeRefresh(event, malId)
   return detail
 })

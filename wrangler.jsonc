@@ -2,9 +2,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nimeplay",
   "compatibility_date": "2025-07-15",
-  "triggers": {
-    "crons": ["*/10 * * * *"]
-  },
   "r2_buckets": [
     {
       "binding": "R2",

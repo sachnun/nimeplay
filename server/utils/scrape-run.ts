@@ -1,4 +1,4 @@
-import { eq, isNull, lt, or, sql } from 'drizzle-orm'
+import { eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
@@ -51,15 +51,24 @@ function normalizeStatus(raw: string): string {
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
-async function registerAnimeRows(cards: { slug: string, title: string, day?: string, date?: string }[]) {
+interface RegisterCard {
+  slug: string
+  title: string
+  day?: string
+  date?: string
+  ongoingRank?: number | null
+}
+
+async function registerAnimeRows(cards: RegisterCard[]) {
   const rows = cards.map(card => ({
     slug: card.slug,
     title: card.title,
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
+    ongoingRank: card.ongoingRank ?? null,
     sourceUrl: `${OTAKUDESU_BASE}/anime/${card.slug}/`,
   }))
-  const chunkSize = 100
+  const chunkSize = 15
   for (let i = 0; i < rows.length; i += chunkSize) {
     await db()
       .insert(anime)
@@ -69,6 +78,7 @@ async function registerAnimeRows(cards: { slug: string, title: string, day?: str
         set: {
           day: sql`excluded.day`,
           latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
+          ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
         },
       })
   }
@@ -84,7 +94,7 @@ async function upsertEpisodes(
 
   if (rows.length === 0) return
 
-  const chunkSize = 100
+  const chunkSize = 15
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize).map(({ entry, number }) => ({
       animeSlug,
@@ -155,7 +165,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         .set({
           title: detail.title || title,
           status,
-          ...(status === 'COMPLETED' ? { day: null } : {}),
+          ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
           ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
           updatedAt: new Date(),
         })
@@ -180,19 +190,39 @@ async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
   const startedAt = Date.now()
 
-  const cards: { slug: string, title: string, day?: string, date?: string }[] = []
+  const cards: { slug: string, title: string, day?: string, date?: string, ongoingRank?: number | null, episodeNumber?: number | null }[] = []
+  let ongoingRank = 0
   for (let page = 1; page <= ONGOING_PAGES; page++) {
     const result = await scrapeOngoingFresh(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date })))
+    for (const card of result.anime) {
+      ongoingRank++
+      cards.push({ slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank, episodeNumber: episodeNumber(card.episode) })
+    }
   }
   for (let page = 1; page <= COMPLETED_PAGES; page++) {
     const result = await scrapeCompletedFresh(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date })))
+    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank: null, episodeNumber: null })))
   }
 
   const seen = new Set<string>()
   const unique = cards.filter(card => !seen.has(card.slug) && seen.add(card.slug))
   await registerAnimeRows(unique)
+
+  const ongoingSlugs = unique.filter(card => card.episodeNumber != null).map(card => card.slug)
+  const freshSet = new Set<string>()
+  if (ongoingSlugs.length > 0) {
+    const episodeRows = await db()
+      .select({ slug: episodes.animeSlug, max: sql<number>`max(${episodes.number})` })
+      .from(episodes)
+      .where(inArray(episodes.animeSlug, ongoingSlugs))
+      .groupBy(episodes.animeSlug)
+    const dbMax = new Map(episodeRows.map(row => [row.slug, row.max]))
+    for (const card of unique) {
+      if (card.episodeNumber != null && card.episodeNumber > (dbMax.get(card.slug) ?? 0)) {
+        freshSet.add(card.slug)
+      }
+    }
+  }
 
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
   const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
@@ -202,8 +232,22 @@ async function structurePass() {
     .from(anime)
     .where(pendingStructureWhere(staleCutoff.getTime(), detailGrace.getTime(), activeRefresh.getTime()))
 
-  const targets = candidates.slice(0, DETAIL_BUDGET)
-  console.log(`[structure] ${candidates.length} anime need detail sync, processing ${targets.length}`)
+  const targetSet = new Set<string>()
+  const targets: Candidate[] = []
+  for (const card of unique) {
+    if (freshSet.has(card.slug) && !targetSet.has(card.slug)) {
+      targets.push({ slug: card.slug, title: card.title })
+      targetSet.add(card.slug)
+    }
+  }
+  for (const candidate of candidates) {
+    if (targets.length >= DETAIL_BUDGET) break
+    if (!targetSet.has(candidate.slug)) {
+      targets.push(candidate)
+      targetSet.add(candidate.slug)
+    }
+  }
+  console.log(`[structure] ${candidates.length + freshSet.size} anime need detail sync (${freshSet.size} with new episodes), processing ${targets.length}`)
 
   let done = 0
   await pool(targets, async ({ slug, title }) => {
@@ -223,7 +267,7 @@ async function structurePass() {
         .set({
           title: detail.title || title,
           status,
-          ...(status === 'COMPLETED' ? { day: null } : {}),
+          ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
           ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
           updatedAt: new Date(),
         })
@@ -251,7 +295,10 @@ async function syncGenres(animeSlug: string, names: string[]) {
     name,
   }))
 
-  await db().insert(genres).values(rows).onConflictDoNothing()
+  const genreChunkSize = 30
+  for (let i = 0; i < rows.length; i += genreChunkSize) {
+    await db().insert(genres).values(rows.slice(i, i + genreChunkSize)).onConflictDoNothing()
+  }
   const stored = await db().select({ id: genres.id, slug: genres.slug }).from(genres)
   const bySlug = new Map(stored.map(genre => [genre.slug, genre.id]))
 
@@ -261,7 +308,10 @@ async function syncGenres(animeSlug: string, names: string[]) {
     .map(id => ({ animeSlug, genreId: id }))
 
   await db().delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
-  if (links.length > 0) await db().insert(animeGenres).values(links).onConflictDoNothing()
+  const linkChunkSize = 30
+  for (let i = 0; i < links.length; i += linkChunkSize) {
+    await db().insert(animeGenres).values(links.slice(i, i + linkChunkSize)).onConflictDoNothing()
+  }
 }
 
 export async function resolveMetadata(slug: string, title: string): Promise<boolean> {

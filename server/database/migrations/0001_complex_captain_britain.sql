@@ -1,0 +1,1 @@
+ALTER TABLE `anime` ADD `ongoing_rank` integer;

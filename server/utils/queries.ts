@@ -101,10 +101,10 @@ export async function listAnimePage(
     .where(filter)
   const total = countRow?.count ?? 0
 
-  // Ongoing follows Otakudesu: ordered by the newest episode upload, newest
-  // first. Completed is grouped by season instead, newest season first.
+  // Ongoing mirrors the upstream Otakudesu order (rank captured at scrape time),
+  // falling back to newest episode date for shows without a rank yet.
   const orderBy = status === 'ONGOING'
-    ? [sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    ? [sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
 
   const rows = await db()

@@ -72,7 +72,7 @@ function parseDetailEpisodes($: cheerio.CheerioAPI, series: string): { title: st
     const title = $el.clone().find('.text-muted').remove().end().text().trim()
     return {
       title,
-      slug: episodeId ? `${series}/${episodeId}` : '',
+      slug: episodeId ? `${series}@${episodeId}` : '',
       date: $el.find('.text-muted').text().trim(),
     }
   }).get().filter(entry => entry.slug)
@@ -144,8 +144,10 @@ function groupByQuality(streams: YlnimeStream[]): EpisodeData['mirrors'] {
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const [series, episodeId] = slug.split('/')
-  if (!series || !episodeId) return null
+  const at = slug.lastIndexOf('@')
+  if (at <= 0 || at === slug.length - 1) return null
+  const series = slug.slice(0, at)
+  const episodeId = slug.slice(at + 1)
   const url = `${BASE_URL}/index.php?series=${encodeURIComponent(series)}&episode=${encodeURIComponent(episodeId)}`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)

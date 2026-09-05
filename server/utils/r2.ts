@@ -78,6 +78,21 @@ export function keyToOrigin(key: string): string | null {
   return null
 }
 
+export async function hasCachedMedia(key: string): Promise<boolean> {
+  const bucket = r2Bucket()
+  if (!bucket) return false
+  const head = await bucket.head(key).catch(() => null)
+  if (head) return true
+  if (key.startsWith('posters/')) {
+    const sub = key.slice(8)
+    const leg1 = await bucket.head(`cdn.myanimelist.net/images/anime/${sub}`).catch(() => null)
+    if (leg1) return true
+    const leg2 = await bucket.head(sub).catch(() => null)
+    if (leg2) return true
+  }
+  return false
+}
+
 export interface MediaObject {
   body: ReadableStream | null
   contentType: string

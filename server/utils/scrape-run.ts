@@ -2,6 +2,7 @@ import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
+import { mirrorAnimeMedia } from './media-mirror'
 import { toR2Url } from './r2'
 import { parseEpisodeDate, scrapeAnimeDetailFresh, scrapeCompletedFresh, scrapeOngoingFresh } from './scraper'
 
@@ -269,6 +270,7 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
         })
         .where(eq(anime.slug, slug))
       await syncGenres(slug, mal.genres)
+      await mirrorAnimeMedia(poster, characters)
       return true
     }
     catch (error) {

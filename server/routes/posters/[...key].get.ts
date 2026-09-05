@@ -1,5 +1,5 @@
 import { createError, getRouterParam } from 'h3'
-import { fetchPosterBytes, getCachedPoster, isPosterKey, posterOrigin, storePoster } from '../../../utils/posters'
+import { fetchPosterBytes, getCachedPoster, isPosterKey, posterOrigin, storePoster } from '../../utils/posters'
 
 const POSTER_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=31536000, immutable'
 
@@ -30,8 +30,7 @@ export default defineEventHandler(async (event) => {
     await storePoster(key, data.bytes, data.contentType)
   }
   catch {
-    // Serve straight from upstream when the cache write fails; the browser
-    // cache header below still limits repeat fetches.
+    // Serve straight from upstream when cache write fails
   }
   return new Response(data.bytes, {
     headers: {

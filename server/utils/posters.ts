@@ -1,6 +1,6 @@
 import { getSpoofHeaders } from './spoof'
 
-const POSTER_HOSTS = new Set(['cdn.myanimelist.net'])
+const MAL_CDN_PREFIX = 'https://cdn.myanimelist.net/images/anime/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const POSTER_FETCH_TIMEOUT_MS = 15000
 
@@ -30,54 +30,40 @@ function posterBucket(): R2BucketLike | null {
   return env?.POSTERS ?? null
 }
 
-function posterHost(value: string): string | null {
-  try {
-    return new URL(value).hostname
-  }
-  catch {
-    return null
-  }
-}
-
-/** True for remote poster URLs we mirror into R2 (allow-list guards the proxy route against SSRF). */
-export function isPosterUrl(value: string): boolean {
-  return POSTER_HOSTS.has(posterHost(value) ?? '')
-}
-
-/** True when the cache-route key belongs to a mirrored poster host. */
+/** Validate that a key matches the pattern `<id>/<file>.jpg` without directory traversal. */
 export function isPosterKey(key: string): boolean {
-  const slash = key.indexOf('/')
-  if (slash <= 0) return false
-  return POSTER_HOSTS.has(key.slice(0, slash)) && !key.includes('..')
-}
-
-/** R2 object key for a mirrored poster URL, or null when the URL is not mirrorable. */
-export function posterKey(value: string): string | null {
-  if (!isPosterUrl(value)) return null
-  const url = new URL(value)
-  return `${url.hostname}${url.pathname}`
+  if (!key || key.includes('..')) return false
+  return /^\d+\/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp)$/i.test(key)
 }
 
 /**
- * Map a stored poster value to the local R2-backed cache route. Remote,
- * mirrorable posters are rewritten to `/img/posters/<key>`; anything else
- * (empty, already local, non-mirrored host) is returned unchanged.
+ * Extract short R2 key `<folder>/<filename>` from a full MyAnimeList poster URL.
+ * e.g. "https://cdn.myanimelist.net/images/anime/1319/158376.jpg" -> "1319/158376.jpg"
+ */
+export function posterKey(value: string): string | null {
+  if (!value.startsWith(MAL_CDN_PREFIX)) return null
+  const sub = value.slice(MAL_CDN_PREFIX.length)
+  return isPosterKey(sub) ? sub : null
+}
+
+/**
+ * Map a stored poster value to the clean `/posters/<key>` URL.
+ * - If already starts with `/posters/` or `/img/posters/`, normalizes it.
+ * - If remote MAL URL, rewrites to `/posters/<id>/<file>.ext`.
+ * - Empty or unknown formats pass through unchanged.
  */
 export function posterSrc(value: string | null | undefined): string {
   if (!value) return ''
+  if (value.startsWith('/posters/')) return value
+  if (value.startsWith('/img/posters/cdn.myanimelist.net/images/anime/')) {
+    return `/posters/${value.slice('/img/posters/cdn.myanimelist.net/images/anime/'.length)}`
+  }
   const key = posterKey(value)
-  return key ? `/img/posters/${key}` : value
+  return key ? `/posters/${key}` : value
 }
 
 export function postersEnabled(): boolean {
   return posterBucket() !== null
-}
-
-export async function hasCachedPoster(key: string): Promise<boolean> {
-  const bucket = posterBucket()
-  if (!bucket) return false
-  const object = await bucket.head(key)
-  return object !== null
 }
 
 export interface PosterObject {
@@ -86,10 +72,17 @@ export interface PosterObject {
   etag?: string
 }
 
-export async function getCachedPoster(key: string): Promise<PosterObject | null> {
+/**
+ * Lookup a poster from R2. Checks both the clean short key (`1319/158376.jpg`)
+ * and the legacy long key (`cdn.myanimelist.net/images/anime/1319/158376.jpg`).
+ */
+export async function getCachedPoster(shortKey: string): Promise<PosterObject | null> {
   const bucket = posterBucket()
   if (!bucket) return null
-  const object = await bucket.get(key)
+  let object = await bucket.get(shortKey)
+  if (!object) {
+    object = await bucket.get(`cdn.myanimelist.net/images/anime/${shortKey}`)
+  }
   if (!object) return null
   return {
     body: object.body ?? null,
@@ -104,15 +97,13 @@ export async function storePoster(key: string, data: ArrayBuffer, contentType: s
   await bucket.put(key, data, { httpMetadata: { contentType } })
 }
 
-/** Origin URL a cache-route key maps back to. */
-export function posterOrigin(key: string): string {
-  return `https://${key}`
+/** Origin URL a short key maps back to. */
+export function posterOrigin(shortKey: string): string {
+  return `${MAL_CDN_PREFIX}${shortKey}`
 }
 
 /**
- * Fetch a remote poster with browser-like headers. Retries a few times with
- * backoff on throttling (403/429) and upstream errors, since MAL's CDN limits
- * bursts from worker egress IPs.
+ * Fetch a remote poster with browser-like headers. Retries on throttling.
  */
 export async function fetchPosterBytes(
   url: string,

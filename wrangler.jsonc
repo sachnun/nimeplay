@@ -12,7 +12,7 @@
     {
       "binding": "DB",
       "database_name": "nimeplay",
-      "database_id": "aa1c7419-d7e1-4b32-94db-400b48573073",
+      "database_id": "c508dec7-3561-4441-8a2f-48abc1ff69ea",
       "migrations_dir": "server/database/migrations"
     }
   ]

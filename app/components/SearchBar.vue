@@ -6,7 +6,6 @@ const emit = defineEmits<{ close: [] }>()
 
 const query = ref('')
 const results = ref<SearchResult[]>([])
-const loading = ref(false)
 const searched = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | null = null
@@ -32,7 +31,6 @@ watch(query, (value) => {
       searched.value = false
       return
     }
-    loading.value = true
     searched.value = true
     try {
       const result = await $fetch<SearchResult[]>('/api/search', { params: { query: trimmed } })
@@ -42,7 +40,6 @@ watch(query, (value) => {
       if (token !== searchToken) return
       results.value = []
     }
-    if (token === searchToken) loading.value = false
   }, value.trim() ? 500 : 0)
 })
 
@@ -80,17 +77,7 @@ onMounted(() => {
       </div>
 
       <div class="overflow-y-auto flex-1 p-4">
-        <div v-if="loading" class="flex flex-col divide-y divide-zinc-800">
-          <div v-for="i in 4" :key="i" class="flex items-center gap-3 px-2 py-2.5">
-            <div class="w-12 h-16 rounded bg-zinc-800 animate-pulse shrink-0" />
-            <div class="flex-1 min-w-0 space-y-2">
-              <div class="h-4 w-3/4 bg-zinc-800 rounded animate-pulse" />
-              <div class="h-3 w-1/3 bg-zinc-800/60 rounded animate-pulse" />
-              <div class="h-3 w-1/2 bg-zinc-800/60 rounded animate-pulse" />
-            </div>
-          </div>
-        </div>
-        <div v-else-if="searched && results.length === 0" class="text-center text-zinc-500 py-12 text-lg">No results found</div>
+        <div v-if="searched && results.length === 0" class="text-center text-zinc-500 py-12 text-lg">No results found</div>
         <div v-else-if="!searched" class="text-center text-zinc-600 py-12 text-sm">Type to search anime</div>
         <div v-else class="flex flex-col divide-y divide-zinc-800">
           <NuxtLink

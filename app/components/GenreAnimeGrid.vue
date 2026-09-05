@@ -43,8 +43,6 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
     to: `/anime/${anime.malId}`,
   }
 }))
-const skeletonCount = computed(() => Math.max((cols.value - allAnime.value.length % cols.value) % cols.value + cols.value * 3, 18))
-
 async function loadPage(page: number) {
   return $fetch<PageData>(`/api/genre/${props.genreSlug}`, { params: { page } })
 }
@@ -111,15 +109,6 @@ function goToEpisode(malId: number, episodeNum: string | number) {
           </div>
         </div>
       </NuxtLink>
-
-      <div v-for="i in loading ? skeletonCount : 0" :key="`skeleton-${i}`" class="rounded-lg overflow-hidden bg-card animate-pulse">
-        <div class="relative aspect-[3/4] bg-zinc-900">
-          <div class="absolute bottom-0 left-0 right-0 p-3">
-            <div class="h-4 w-3/4 bg-white/10 rounded mb-2" />
-            <div class="h-3 w-1/2 bg-white/10 rounded" />
-          </div>
-        </div>
-      </div>
     </div>
     <div ref="sentinelRef" class="py-4">
       <p v-if="isEnd && allAnime.length > 0" class="text-sm text-zinc-600 text-center">No more anime to load</p>

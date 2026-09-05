@@ -1,4 +1,3 @@
-import { Effect, pipe } from 'effect'
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
 import { isDesuStreamHd, extractDesuStream } from './desustream'
@@ -17,56 +16,46 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isFiledon, extract: extractFiledon },
 ]
 
-function fetchIframeHtmlEffect(iframeUrl: string) {
-  return pipe(
-    Effect.tryPromise({
-      try: () =>
-        fetch(iframeUrl, {
-          headers: getSpoofHeaders(iframeUrl, 'iframe'),
-          signal: AbortSignal.timeout(8000),
-        }).then((r) => r.text()),
-      catch: () => null,
-    }),
-    Effect.catchAll(() => Effect.succeed('')),
-  )
+async function fetchIframeHtml(iframeUrl: string): Promise<string> {
+  try {
+    const res = await fetch(iframeUrl, {
+      headers: getSpoofHeaders(iframeUrl, 'iframe'),
+      signal: AbortSignal.timeout(8000),
+    })
+    return await res.text()
+  } catch {
+    return ''
+  }
 }
 
-function extractKnownHost(iframeUrl: string, html: string) {
+async function extractKnownHost(iframeUrl: string, html: string): Promise<string | null> {
   const extractor = HOST_EXTRACTORS.find((c) => c.matches(iframeUrl))
-  return extractor
-    ? pipe(
-        Effect.tryPromise({ try: () => extractor.extract(iframeUrl, html) as Promise<string | null>, catch: () => null }),
-        Effect.catchAll(() => Effect.succeed(null)),
-      )
-    : Effect.succeed<string | null>(null)
+  if (!extractor) return null
+  try {
+    return await extractor.extract(iframeUrl, html)
+  } catch {
+    return null
+  }
 }
 
-function extractFallbackHost(iframeUrl: string, html: string) {
-  const mp4Match = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)
-
-  const effects = [
-    pipe(
-      Effect.tryPromise({ try: () => extractVidhide(iframeUrl, html), catch: () => null }),
-      Effect.catchAll(() => Effect.succeed(null)),
-    ),
-    ...(mp4Match?.[1] ? [Effect.succeed<string | null>(mp4Match[1])] : []),
-    pipe(
-      Effect.tryPromise({ try: () => extractDesuDrive(iframeUrl, html), catch: () => null }),
-      Effect.catchAll(() => Effect.succeed(null)),
-    ),
+async function extractFallbackHost(iframeUrl: string, html: string): Promise<string | null> {
+  const mp4Url = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)?.[1]
+  const candidates = [
+    () => extractVidhide(iframeUrl, html),
+    ...(mp4Url ? [async () => mp4Url] : []),
+    () => extractDesuDrive(iframeUrl, html),
   ]
-
-  return Effect.firstSuccessOf(effects)
+  for (const candidate of candidates) {
+    try {
+      const value = await candidate()
+      if (value) return value
+    } catch {}
+  }
+  return null
 }
 
-export function probeIframeUrl(iframeUrl: string): Promise<boolean> {
-  return Effect.runPromise(
-    pipe(
-      fetchIframeHtmlEffect(iframeUrl),
-      Effect.map((body) => body.length > 100),
-      Effect.catchAll(() => Effect.succeed(false)),
-    ),
-  )
+export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
+  return (await fetchIframeHtml(iframeUrl)).length > 100
 }
 
 export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
@@ -87,18 +76,8 @@ export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
   return 'file'
 }
 
-export function extractStreamUrl(iframeUrl: string): Promise<{ url: string | null; iframeUrl: string }> {
-  return Effect.runPromise(
-    pipe(
-      fetchIframeHtmlEffect(iframeUrl),
-      Effect.flatMap((html) =>
-        Effect.firstSuccessOf([
-          extractKnownHost(iframeUrl, html),
-          extractFallbackHost(iframeUrl, html),
-        ]),
-      ),
-      Effect.map((url) => ({ url, iframeUrl })),
-      Effect.catchAll(() => Effect.succeed({ url: null, iframeUrl })),
-    ),
-  )
+export async function extractStreamUrl(iframeUrl: string): Promise<{ url: string | null; iframeUrl: string }> {
+  const html = await fetchIframeHtml(iframeUrl)
+  const url = (await extractKnownHost(iframeUrl, html)) ?? (await extractFallbackHost(iframeUrl, html))
+  return { url, iframeUrl }
 }

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, like, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
-import { posterSrc } from './posters'
+import { posterSrc } from './r2'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 
 // API response shapes — mirrored by `app/utils/types.ts`.
@@ -325,16 +325,3 @@ export async function getGenreAnimePage(
   return { anime: cards, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
 }
 
-export async function getLatestEpisodes(malIds: number[]): Promise<Map<number, number>> {
-  if (malIds.length === 0) return new Map()
-  const rows = await db()
-    .select({
-      malId: anime.malId,
-      latest: sql<number>`max(${episodes.number})`,
-    })
-    .from(anime)
-    .innerJoin(episodes, eq(episodes.animeSlug, anime.slug))
-    .where(sql`${anime.malId} in (${sql.join(malIds.map(id => sql`${id}`), sql`, `)})`)
-    .groupBy(anime.malId)
-  return new Map(rows.map(row => [row.malId!, Number(row.latest)]))
-}

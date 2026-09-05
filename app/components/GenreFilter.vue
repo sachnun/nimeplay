@@ -28,21 +28,9 @@ function onClickOutside(event: MouseEvent) {
 onMounted(() => document.addEventListener('click', onClickOutside))
 onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
-const SKELETON_WIDTHS = [
-  56, 72, 88, 64, 80, 56, 72, 64, 88, 72,
-  56, 80, 64, 72, 88, 60, 76, 68, 84, 56,
-  72, 80, 64, 88, 56, 76, 68, 72, 84, 60,
-  80, 56, 88, 64, 72, 76, 60, 84, 68, 80,
-]
-const AVG_PILL = SKELETON_WIDTHS.reduce((a, b) => a + b, 0) / SKELETON_WIDTHS.length
-
 const showAll = ref(false)
-const visibleCount = ref(SKELETON_WIDTHS.length)
+const visibleCount = ref(20)
 const measureRef = ref<HTMLDivElement | null>(null)
-
-function fallbackVisibleCount() {
-  return Math.max(1, Math.floor((window.innerWidth - 88) / (AVG_PILL + 8)))
-}
 
 function countFirstRowItems(children: HTMLElement[], firstTop: number, limit: number) {
   let count = 0
@@ -70,10 +58,7 @@ function fitMoreSlot(el: HTMLElement, children: HTMLElement[], count: number, mo
 
 function calculate() {
   const el = measureRef.value
-  if (!el) {
-    visibleCount.value = fallbackVisibleCount()
-    return
-  }
+  if (!el) return
   const children = Array.from(el.children) as HTMLElement[]
   const moreEl = el.querySelector<HTMLElement>('[data-more-slot]')
   if (children.length < 2) return
@@ -108,13 +93,7 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
 </script>
 
 <template>
-  <div v-if="genres.length === 0" class="mb-6 relative">
-    <div class="flex flex-wrap gap-2 overflow-hidden max-h-7">
-      <div class="w-8 h-7 rounded-full bg-zinc-800 animate-pulse" />
-      <div v-for="(w, i) in SKELETON_WIDTHS.slice(0, visibleCount)" :key="i" class="h-7 rounded-full bg-zinc-800 animate-pulse" :style="{ width: `${w}px` }" />
-    </div>
-  </div>
-  <div v-else class="mb-6 relative">
+  <div v-if="genres.length > 0" class="mb-6 relative">
     <div ref="measureRef" class="flex flex-wrap gap-2 invisible absolute inset-x-0 pointer-events-none" aria-hidden="true">
       <span class="px-3 py-1.5 rounded-full text-xs font-medium"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" /></span>
       <span v-for="genre in genres" :key="genre.slug" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">{{ genre.name }}</span>

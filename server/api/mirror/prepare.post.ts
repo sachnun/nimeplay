@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{ dataContent: string; extract: boolean }>(event)
   if (!body?.dataContent) return emptyResult()
 
-  return cache.prepare.get(body.extract, body.dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
+  return cache.get('prepare', `${body.extract}:${body.dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(body.dataContent)
     if (!mirrorId) return emptyResult()
     const iframeUrl = await resolvemirror(mirrorId)

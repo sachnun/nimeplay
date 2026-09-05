@@ -7,7 +7,7 @@ interface AniskipResponse {
 
 const ANISKIP_TIMEOUT_MS = 6000
 
-async function fetchAniskipSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
+export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
   const length = Math.floor(episodeLength)
   const params = new URLSearchParams()
   params.append('types', 'op')
@@ -26,8 +26,4 @@ async function fetchAniskipSkipTimes(malId: number, episode: number, episodeLeng
   } catch {
     return []
   }
-}
-
-export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
-  return fetchAniskipSkipTimes(malId, episode, episodeLength)
 }

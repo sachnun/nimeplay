@@ -5,6 +5,12 @@
   "triggers": {
     "crons": ["*/10 * * * *"]
   },
+  "r2_buckets": [
+    {
+      "binding": "POSTERS",
+      "bucket_name": "nimeplay-posters"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

@@ -597,7 +597,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function mediaArtwork() {
     const artworkUrl = episode.value.thumbnail || props.animeThumbnail
-    return artworkUrl ? [96, 192, 256, 384, 512].map((size) => ({ src: artworkUrl, sizes: `${size}x${size}`, type: 'image/jpeg' })) : []
+    if (!artworkUrl) return []
+    let src = artworkUrl
+    try {
+      src = new URL(artworkUrl, window.location.href).href
+    }
+    catch {}
+    return [96, 192, 256, 384, 512].map((size) => ({ src, sizes: `${size}x${size}`, type: 'image/jpeg' }))
   }
 
   function updateMediaMetadata() {

@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, like, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
+import { posterSrc } from './posters'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 
 // API response shapes — mirrored by `app/utils/types.ts`.
@@ -128,7 +129,7 @@ export async function listAnimePage(
     anime: rows.map(row => ({
       malId: row.malId!,
       title: row.title,
-      thumbnail: row.poster ?? '',
+      thumbnail: posterSrc(row.poster),
       episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
       day: row.day ?? '',
       date: formatSeason(row.season),
@@ -161,7 +162,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
     .groupBy(anime.slug)
     .limit(20)
 
-  return rows.map(row => ({ ...row, malId: row.malId! }))
+  return rows.map(row => ({ ...row, thumbnail: posterSrc(row.thumbnail), malId: row.malId! }))
 }
 
 export async function getGenresForAnime(animeSlug: string): Promise<Genre[]> {
@@ -232,7 +233,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     studio: row.studio ?? '',
     source: row.source ?? '',
     genres: await getGenresForAnime(row.slug),
-    thumbnail: row.poster ?? '',
+    thumbnail: posterSrc(row.poster),
     synopsis: row.synopsis ?? '',
     season: row.season ?? '',
     episodes: episodeRows.map(entry => ({
@@ -262,7 +263,7 @@ export async function resolveEpisode(
   const match = row[0]
   if (!match) return null
   return {
-    anime: { title: match.title, thumbnail: match.poster ?? '' },
+    anime: { title: match.title, thumbnail: posterSrc(match.poster) },
     sourceSlug: match.episodeSlug,
     episodeTitle: match.episodeTitle,
   }
@@ -306,7 +307,7 @@ export async function getGenreAnimePage(
     cards.push({
       malId: row.malId!,
       title: row.title,
-      thumbnail: row.poster ?? '',
+      thumbnail: posterSrc(row.poster),
       studio: '',
       episodes: '',
       rating: row.rating != null ? String(row.rating) : '',

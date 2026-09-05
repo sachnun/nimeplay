@@ -2,6 +2,7 @@ import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
+import { hasCachedPoster, posterKey, posterSrc, postersEnabled, storePoster } from './posters'
 import { parseEpisodeDate, scrapeAnimeDetailFresh, scrapeCompletedFresh, scrapeOngoingFresh } from './scraper'
 
 const OTAKUDESU_BASE = 'https://otakudesu.blog'
@@ -13,6 +14,8 @@ const MAL_DELAY_MS = Number(process.env.SCRAPE_MAL_DELAY_MS || 600)
 const CONCURRENCY = Number(process.env.SCRAPE_CONCURRENCY || 4)
 const DETAIL_BUDGET = Number(process.env.SCRAPE_DETAIL_BUDGET || 6)
 const META_BUDGET = Number(process.env.SCRAPE_META_BUDGET || 3)
+const POSTER_BUDGET = Number(process.env.SCRAPE_POSTER_BUDGET || 60)
+const POSTER_FETCH_TIMEOUT_MS = 12000
 const WALL_BUDGET_MS = Number(process.env.SCRAPE_WALL_BUDGET_MS || 15000)
 const DETAIL_GRACE_MS = Number(process.env.SCRAPE_DETAIL_GRACE_MS || 6 * 60 * 60 * 1000)
 const ACTIVE_REFRESH_MS = Number(process.env.SCRAPE_ACTIVE_REFRESH_HOURS || 24) * 60 * 60 * 1000
@@ -311,6 +314,69 @@ async function metadataPass(mode: 'cron' | 'full') {
   return { pending: pending.length, resolved, deferred: failed, remaining: totalRemaining }
 }
 
+const ABSOLUTE_POSTER = sql`${anime.poster} like 'http%'`
+
+async function countPendingPosters(): Promise<number> {
+  const [row] = await db()
+    .select({ count: sql<number>`count(*)` })
+    .from(anime)
+    .where(ABSOLUTE_POSTER)
+  return row?.count ?? 0
+}
+
+async function posterPass() {
+  const startedAt = Date.now()
+  const pending = await countPendingPosters()
+  console.log(`[posters] ${pending} anime still reference remote posters`)
+  if (!postersEnabled()) {
+    console.log('[posters] skipped: POSTERS binding unavailable')
+    return { pending, mirrored: 0, failed: 0, remaining: pending, skipped: true }
+  }
+
+  const targets = await db()
+    .select({ slug: anime.slug, poster: anime.poster })
+    .from(anime)
+    .where(ABSOLUTE_POSTER)
+    .orderBy(sql`random()`)
+    .limit(POSTER_BUDGET)
+
+  console.log(`[posters] mirroring ${targets.length}/${pending} posters into R2`)
+  let mirrored = 0
+  let failed = 0
+  await pool(targets, async ({ slug, poster }) => {
+    const posterUrl = poster!
+    const key = posterKey(posterUrl)
+    if (!key) {
+      console.warn(`[posters] skipping non-mirrorable poster for ${slug}`)
+      return
+    }
+    try {
+      if (!(await hasCachedPoster(key))) {
+        const upstream = await fetch(posterUrl, {
+          signal: AbortSignal.timeout(POSTER_FETCH_TIMEOUT_MS),
+        })
+        if (!upstream.ok) throw new Error(`upstream HTTP ${upstream.status}`)
+        const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream'
+        if (!contentType.startsWith('image/')) throw new Error(`unexpected content-type ${contentType}`)
+        const bytes = await upstream.arrayBuffer()
+        await storePoster(key, bytes, contentType)
+      }
+      await db()
+        .update(anime)
+        .set({ poster: posterSrc(posterUrl) })
+        .where(eq(anime.slug, slug))
+      mirrored++
+    }
+    catch (error) {
+      failed++
+      console.warn(`[posters] failed ${slug}:`, error instanceof Error ? error.message : error)
+    }
+  }, startedAt + WALL_BUDGET_MS)
+  const totalRemaining = await countPendingPosters()
+  console.log(`[posters] mirrored ${mirrored}/${targets.length}, failed ${failed}, remaining ${totalRemaining}`)
+  return { pending, mirrored, failed, remaining: totalRemaining }
+}
+
 export interface ScrapeStats {
   mode: 'cron' | 'full'
   startedAt: string
@@ -320,6 +386,7 @@ export interface ScrapeStats {
   skipped?: boolean
   structure: { candidates: number, done: number, remaining: number }
   metadata: { pending: number, resolved: number, deferred: number, remaining: number }
+  posters: { pending: number, mirrored: number, failed: number, remaining: number, skipped?: boolean }
 }
 
 let activeRun = false
@@ -337,6 +404,7 @@ export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promi
       skipped: true,
       structure: { candidates: 0, done: 0, remaining: 0 },
       metadata: { pending: 0, resolved: 0, deferred: 0, remaining: 0 },
+      posters: { pending: 0, mirrored: 0, failed: 0, remaining: 0, skipped: true },
     }
   }
   activeRun = true
@@ -344,6 +412,7 @@ export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promi
     const startedAt = new Date()
     let structure = { candidates: 0, done: 0, remaining: 0 }
     let metadata = { pending: 0, resolved: 0, deferred: 0, remaining: 0 }
+    let posters: { pending: number, mirrored: number, failed: number, remaining: number, skipped?: boolean } = { pending: 0, mirrored: 0, failed: 0, remaining: 0, skipped: true }
     try {
       structure = await structurePass()
     }
@@ -356,14 +425,21 @@ export async function runScrape(options: { mode?: 'cron' | 'full' } = {}): Promi
     catch (error) {
       console.error(`[scrape] metadata pass failed:`, error instanceof Error ? error.message : error)
     }
+    try {
+      posters = await posterPass()
+    }
+    catch (error) {
+      console.error(`[scrape] poster pass failed:`, error instanceof Error ? error.message : error)
+    }
     return {
       mode,
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       durationMs: Date.now() - startedAt.getTime(),
-      completed: structure.remaining === 0 && metadata.remaining === 0,
+      completed: structure.remaining === 0 && metadata.remaining === 0 && (posters.skipped || posters.remaining === 0),
       structure,
       metadata,
+      posters,
     }
   }
   finally {

@@ -251,36 +251,9 @@ async function structurePass() {
 
   let done = 0
   await pool(targets, async ({ slug, title }) => {
-    try {
-      const detail = await scrapeAnimeDetailFresh(slug)
-      if (!detail) {
-        console.warn(`[structure] empty detail ${slug}`)
-        return
-      }
-      const status = normalizeStatus(detail.status)
-      const latestEpisodeAt = detail.episodes
-        .map(entry => parseEpisodeDate(entry.date))
-        .filter((date): date is Date => date !== null)
-        .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-      await db()
-        .update(anime)
-        .set({
-          title: detail.title || title,
-          status,
-          ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
-          ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(anime.slug, slug))
-      await upsertEpisodes(slug, detail.episodes)
-    }
-    catch (error) {
-      console.warn(`[structure] failed ${slug}:`, error instanceof Error ? error.message : error)
-    }
-    finally {
-      done++
-      if (done % 25 === 0) console.log(`[structure] ${done}/${targets.length}`)
-    }
+    await refreshAnimeBySlug(slug, title, false)
+    done++
+    if (done % 25 === 0) console.log(`[structure] ${done}/${targets.length}`)
   }, startedAt + WALL_BUDGET_MS)
   const totalRemaining = await countPendingStructure()
   console.log(`[structure] done (${done}/${targets.length} anime)`)

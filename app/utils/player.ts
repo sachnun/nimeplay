@@ -106,18 +106,3 @@ export function formatTime(s: number): string {
   return `${h}:${ms}:${ss}`
 }
 
-export function getEpNum(nav: { title: string; slug: string }[], slug: string): string {
-  const ascending = [...nav].reverse()
-  const idx = ascending.findIndex((ep) => ep.slug === slug)
-  if (idx === -1) return '1'
-  return ascending[idx]?.title.match(/episode\s*(\d+)/i)?.[1] ?? `${idx + 1}`
-}
-
-export function extractEpisodeNumber(slug: string): number | null {
-  const match = slug.match(/episode-(\d+)/i)
-  return match?.[1] ? Number.parseInt(match[1]) : null
-}
-
-export function episodeNumFor(ep: { title: string }, index: number) {
-  return ep.title.match(/episode\s*(\d+)/i)?.[1] ?? `${index + 1}`
-}

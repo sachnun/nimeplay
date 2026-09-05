@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, ilike, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/pg-core'
+import { and, asc, desc, eq, like, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 
@@ -75,16 +75,17 @@ function formatSeason(season: string | null): string {
 }
 
 /** Season rank within a year: winter < spring < summer < fall. */
-const SEASON_RANK = sql`case split_part(${anime.season}, ' ', 1)
-  when 'winter' then 1
-  when 'spring' then 2
-  when 'summer' then 3
-  when 'fall' then 4
+const SEASON_RANK = sql`case
+  when ${anime.season} like 'winter%' then 1
+  when ${anime.season} like 'spring%' then 2
+  when ${anime.season} like 'summer%' then 3
+  when ${anime.season} like 'fall%' then 4
   else 0 end`
 
 /** Numeric year parsed from the tail of "summer 2026"-style season strings. */
-const SEASON_YEAR = sql`case when ${anime.season} ~ '\\d+$'
-  then substring(${anime.season} from '\\d+$')::int
+const SEASON_YEAR = sql`case
+  when length(${anime.season}) >= 4 and substr(${anime.season}, -4) glob '[0-9][0-9][0-9][0-9]'
+  then cast(substr(${anime.season}, -4) as integer)
   else 0 end`
 
 export async function listAnimePage(
@@ -94,7 +95,7 @@ export async function listAnimePage(
   const filter = and(eq(anime.status, status), METADATA_READY)
 
   const [countRow] = await db()
-    .select({ count: sql<number>`cast(count(*) as int)` })
+    .select({ count: sql<number>`count(*)` })
     .from(anime)
     .where(filter)
   const total = countRow?.count ?? 0
@@ -131,7 +132,7 @@ export async function listAnimePage(
       episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
       day: row.day ?? '',
       date: formatSeason(row.season),
-      rating: row.rating ?? undefined,
+      rating: row.rating != null ? String(row.rating) : undefined,
     })),
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
   }
@@ -150,13 +151,13 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
       title: anime.title,
       thumbnail: sql<string>`coalesce(${anime.poster}, '')`,
       status: sql<string>`coalesce(${anime.status}, '')`,
-      rating: sql<string>`coalesce(${anime.rating}::text, '')`,
-      genres: sql<string>`coalesce(string_agg(distinct ${gr.name}, ', '), '')`,
+      rating: sql<string>`coalesce(cast(${anime.rating} as text), '')`,
+      genres: sql<string>`coalesce(group_concat(${gr.name}, ', '), '')`,
     })
     .from(anime)
     .leftJoin(animeGenres, eq(animeGenres.animeSlug, anime.slug))
     .leftJoin(gr, eq(gr.id, animeGenres.genreId))
-    .where(and(ilike(anime.title, `%${query}%`), METADATA_READY))
+    .where(and(like(anime.title, `%${query}%`), METADATA_READY))
     .groupBy(anime.slug)
     .limit(20)
 
@@ -177,7 +178,7 @@ interface AnimeRecord {
   title: string
   poster: string | null
   synopsis: string | null
-  rating: string | null
+  rating: number | null
   season: string | null
   status: string | null
   type: string | null
@@ -221,7 +222,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     malId: row.malId,
     title: row.title,
     japanese: '',
-    score: row.rating ?? '',
+    score: row.rating != null ? String(row.rating) : '',
     producer: '',
     type: row.type ?? '',
     status: row.status === 'COMPLETED' ? 'Completed' : 'Ongoing',
@@ -277,7 +278,7 @@ export async function getGenreAnimePage(
   const filter = and(eq(animeGenres.genreId, genre.id), METADATA_READY)
 
   const [countRow] = await db()
-    .select({ count: sql<number>`cast(count(*) as int)` })
+    .select({ count: sql<number>`count(*)` })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.slug, animeGenres.animeSlug))
     .where(filter)
@@ -291,9 +292,9 @@ export async function getGenreAnimePage(
       malId: anime.malId,
       title: anime.title,
       thumbnail: sql<string>`coalesce(${anime.poster}, '')`,
-      rating: sql<string>`coalesce(${anime.rating}::text, '')`,
+      rating: sql<string>`coalesce(cast(${anime.rating} as text), '')`,
       season: anime.season,
-      genres: sql<string>`coalesce(string_agg(distinct ${allGenres.name}, ', '), '')`,
+      genres: sql<string>`coalesce(group_concat(${allGenres.name}, ', '), '')`,
     })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.slug, animeGenres.animeSlug))
@@ -301,7 +302,7 @@ export async function getGenreAnimePage(
     .leftJoin(allGenres, eq(allGenres.id, allAnimeGenres.genreId))
     .where(filter)
     .groupBy(anime.slug)
-    .orderBy(desc(anime.rating), desc(anime.updatedAt))
+    .orderBy(sql`${anime.rating} desc nulls first`, desc(anime.updatedAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 

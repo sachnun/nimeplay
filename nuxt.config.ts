@@ -14,8 +14,12 @@ export default defineNuxtConfig({
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   nitro: {
     preset: 'cloudflare_module',
+    scheduledTasks: {
+      '*/10 * * * *': ['scrape'],
+    },
     experimental: {
       openAPI: true,
+      tasks: true,
     },
     cloudflare: {
       deployConfig: true,

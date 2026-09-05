@@ -1,43 +1,40 @@
 # Nimeplay
 
-Minimal anime streaming app built with Nuxt 4, Vue 3, Tailwind CSS, and Nitro server APIs. It includes search, genre browsing, anime detail pages, episode navigation, and a custom player.
+<p align="center">
+  <img src="https://github.com/sachnun/nimeplay/releases/download/assets/device-shot.webp" alt="Nimeplay" width="880">
+</p>
 
-<p align="center"><img src="docs/screenshots/nest-hub-max.webp" alt="Nimeplay on Nest Hub Max" height="220">&nbsp;&nbsp;&nbsp;<img src="docs/screenshots/ipad-mini.webp" alt="Nimeplay on iPad Mini" height="220">&nbsp;&nbsp;&nbsp;<img src="docs/screenshots/iphone-14-pro-max.webp" alt="Nimeplay on iPhone 14 Pro Max" height="220"></p>
+Minimal anime streaming: browse genres, search titles, and watch episodes.
 
-## Setup
-
-Requires Node.js 20+.
+## Quick start
 
 ```bash
 npm install
-```
-
-Run locally:
-
-```bash
 npm run dev
 ```
 
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3000`.
 
-Production build and preview:
+## Syncing data
+
+The catalog is synced by a scraper. Start the dev server first, then:
+
+```bash
+npm run scrape          # incremental sync
+npm run scrape -- --full
+```
+
+Schema migrations:
+
+```bash
+npm run db:generate
+npm run db:migrate:local
+npm run db:migrate      # production database
+```
+
+## Production build
 
 ```bash
 npm run build
 npm run preview
 ```
-
-Static build:
-
-```bash
-npm run generate
-```
-
-## Development
-
-The main app lives in `app/`, server APIs live in `server/`, and static files live in `public/`.
-
-```bash
-npm run typecheck
-```
-

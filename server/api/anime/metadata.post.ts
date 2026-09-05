@@ -1,4 +1,4 @@
-import { desc, eq, ilike } from 'drizzle-orm'
+import { desc, eq, like } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime } from '../../utils/mal'
@@ -76,7 +76,7 @@ async function lookupInDb(body: MetadataRequestBody) {
   const [row] = await db()
     .select(columns)
     .from(anime)
-    .where(ilike(anime.title, `%${title}%`))
+    .where(like(anime.title, `%${title}%`))
     .orderBy(desc(anime.updatedAt))
     .limit(1)
   return row ?? null

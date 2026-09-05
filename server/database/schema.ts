@@ -1,31 +1,48 @@
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import {
+  customType,
   index,
   integer,
-  jsonb,
-  numeric,
-  pgTable,
   primaryKey,
-  serial,
+  real,
+  sqliteTable,
   text,
-  timestamp,
-  unique,
-} from 'drizzle-orm/pg-core'
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 import type { MalCharacter } from '../utils/mal'
 
-export const genres = pgTable('genres', {
-  id: serial('id').primaryKey(),
+function jsonText<T>() {
+  return customType<{ data: T, driverData: string }>({
+    dataType() {
+      return 'text'
+    },
+    toDriver(value: T) {
+      return JSON.stringify(value)
+    },
+    fromDriver(value: string): T {
+      try {
+        return JSON.parse(value) as T
+      }
+      catch {
+        return [] as T
+      }
+    },
+  })
+}
+
+export const genres = sqliteTable('genres', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
 })
 
-export const anime = pgTable('anime', {
+export const anime = sqliteTable('anime', {
   slug: text('slug').primaryKey(),
   malId: integer('mal_id'),
   title: text('title').notNull(),
   poster: text('poster'),
   synopsis: text('synopsis'),
-  rating: numeric('rating', { precision: 4, scale: 2 }),
+  rating: real('rating'),
   rank: integer('rank'),
   popularity: integer('popularity'),
   season: text('season'),
@@ -35,20 +52,20 @@ export const anime = pgTable('anime', {
   studio: text('studio'),
   source: text('source'),
   trailerId: text('trailer_id'),
-  characters: jsonb('characters').$type<MalCharacter[]>().notNull().default([]),
+  characters: jsonText<MalCharacter[]>()('characters').notNull().default(sql`'[]'`),
   sourceUrl: text('source_url'),
   /** Parsed date of the newest episode, derived from the Otakudesu detail page. */
-  latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
+  latestEpisodeAt: integer('latest_episode_at', { mode: 'timestamp_ms' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+  metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
 }, table => [
-  unique('anime_mal_id_key').on(table.malId),
+  uniqueIndex('anime_mal_id_key').on(table.malId),
   index('anime_updated_at_idx').on(table.updatedAt),
   index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
 ])
 
-export const animeGenres = pgTable('anime_genres', {
+export const animeGenres = sqliteTable('anime_genres', {
   animeSlug: text('anime_slug')
     .notNull()
     .references(() => anime.slug, { onDelete: 'cascade' }),
@@ -60,8 +77,8 @@ export const animeGenres = pgTable('anime_genres', {
   index('anime_genres_genre_id_idx').on(table.genreId),
 ])
 
-export const episodes = pgTable('episodes', {
-  id: serial('id').primaryKey(),
+export const episodes = sqliteTable('episodes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
   animeSlug: text('anime_slug')
     .notNull()
     .references(() => anime.slug, { onDelete: 'cascade' }),
@@ -69,10 +86,10 @@ export const episodes = pgTable('episodes', {
   number: integer('number').notNull(),
   title: text('title').notNull(),
   releaseDate: text('release_date'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
 }, table => [
-  unique('episodes_anime_slug_number_key').on(table.animeSlug, table.number),
-  unique('episodes_slug_key').on(table.slug),
+  uniqueIndex('episodes_anime_slug_number_key').on(table.animeSlug, table.number),
+  uniqueIndex('episodes_slug_key').on(table.slug),
   index('episodes_anime_slug_idx').on(table.animeSlug),
 ])
 

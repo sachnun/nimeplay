@@ -66,7 +66,7 @@ async function registerAnimeRows(cards: { slug: string, title: string, day?: str
         target: anime.slug,
         set: {
           day: sql`excluded.day`,
-          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${anime.latestEpisodeAt})`,
+          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
         },
       })
   }
@@ -100,19 +100,19 @@ interface Candidate {
   title: string
 }
 
-function pendingStructureWhere(staleCutoff: Date, detailGrace: Date, activeRefresh: Date) {
+function pendingStructureWhere(staleCutoffMs: number, detailGraceMs: number, activeRefreshMs: number) {
   return sql`(
     (
       (${anime.status} is null or ${anime.status} = 'ONGOING')
-      and ${anime.updatedAt} < ${activeRefresh.toISOString()}
+      and ${anime.updatedAt} < ${activeRefreshMs}
     )
     or (
       ${anime.status} = 'COMPLETED'
-      and ${anime.updatedAt} < ${staleCutoff.toISOString()}
+      and ${anime.updatedAt} < ${staleCutoffMs}
     )
     or (
       not exists (select 1 from episodes e where e.anime_slug = ${anime.slug})
-      and ${anime.updatedAt} < ${detailGrace.toISOString()}
+      and ${anime.updatedAt} < ${detailGraceMs}
     )
   )`
 }
@@ -122,16 +122,16 @@ async function countPendingStructure(): Promise<number> {
   const detailGrace = new Date(Date.now() - DETAIL_GRACE_MS)
   const activeRefresh = new Date(Date.now() - ACTIVE_REFRESH_MS)
   const [row] = await db()
-    .select({ count: sql<number>`count(*)::int` })
+    .select({ count: sql<number>`count(*)` })
     .from(anime)
-    .where(pendingStructureWhere(staleCutoff, detailGrace, activeRefresh))
+    .where(pendingStructureWhere(staleCutoff.getTime(), detailGrace.getTime(), activeRefresh.getTime()))
   return row?.count ?? 0
 }
 
 async function countPendingMetadata(mode: 'cron' | 'full'): Promise<number> {
   const staleCutoff = new Date(Date.now() - METADATA_STALE_DAYS * 24 * 60 * 60 * 1000)
   const [row] = await db()
-    .select({ count: sql<number>`count(*)::int` })
+    .select({ count: sql<number>`count(*)` })
     .from(anime)
     .where(mode === 'cron'
       ? or(isNull(anime.malId), isNull(anime.metadataSyncedAt))
@@ -163,7 +163,7 @@ async function structurePass() {
   const candidates: Candidate[] = await db()
     .select({ slug: anime.slug, title: anime.title })
     .from(anime)
-    .where(pendingStructureWhere(staleCutoff, detailGrace, activeRefresh))
+    .where(pendingStructureWhere(staleCutoff.getTime(), detailGrace.getTime(), activeRefresh.getTime()))
 
   const targets = candidates.slice(0, DETAIL_BUDGET)
   console.log(`[structure] ${candidates.length} anime need detail sync, processing ${targets.length}`)
@@ -246,7 +246,7 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
           malId: mal.malId,
           synopsis: mal.synopsis,
           poster: mal.poster,
-          rating: mal.score !== null ? String(mal.score) : null,
+          rating: mal.score,
           rank: mal.rank,
           popularity: mal.popularity,
           season: mal.season && mal.year ? `${mal.season} ${mal.year}` : mal.season,
@@ -261,9 +261,8 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
       return true
     }
     catch (error) {
-      const pgCode = (error as { code?: string }).code
-        ?? (error as { cause?: { code?: string } }).cause?.code
-      if (pgCode === '23505') {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('UNIQUE constraint failed')) {
         console.warn(`[metadata] mal_id ${mal.malId} already owned by another row, skipping ${slug}`)
         return false
       }

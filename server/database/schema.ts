@@ -65,6 +65,7 @@ export const anime = sqliteTable('anime', {
   index('anime_updated_at_idx').on(table.updatedAt),
   index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
+  index('anime_status_mal_id_idx').on(table.status, table.malId),
 ])
 
 export const animeGenres = sqliteTable('anime_genres', {

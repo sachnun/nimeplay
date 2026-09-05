@@ -3,7 +3,7 @@ import { createError, getRouterParam } from 'h3'
 import { db } from '../../../utils/db'
 import { anime, episodes } from '../../../database/schema'
 import { resolveEpisode } from '../../../utils/queries'
-import { scrapeEpisode } from '../../../utils/scraper'
+import { scrapeEpisode } from '../../../utils/sources'
 
 defineRouteMeta({
   openAPI: {

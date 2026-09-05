@@ -21,6 +21,8 @@ const EXTRACTABLE = [
   'otakuwatch',
   'odstream',
   'filedon',
+  'animeverse',
+  'pixeldrain',
 ]
 
 const SOURCE_PRIORITY_GROUPS = [

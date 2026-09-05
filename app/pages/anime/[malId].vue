@@ -30,7 +30,7 @@ watchEffect(() => {
     :japanese-title="anime.japanese || undefined"
     :thumbnail="anime.thumbnail"
     :genres="anime.genres"
-    :synopsis-id="anime.synopsis || undefined"
+    :synopsis-id="anime.synopsisId || undefined"
     :otakudesu="{
       score: anime.score,
       status: anime.status,

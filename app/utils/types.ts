@@ -24,6 +24,7 @@ export interface AnimeDetail {
   genres: { name: string; slug: string }[]
   thumbnail: string
   synopsis: string
+  synopsisId: string
   season?: string
   episodes: { number: number; date: string }[]
 }

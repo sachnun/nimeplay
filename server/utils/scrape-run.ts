@@ -165,6 +165,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         .set({
           title: detail.title || title,
           status,
+          synopsisId: detail.synopsis || null,
           ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
           ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
           updatedAt: new Date(),

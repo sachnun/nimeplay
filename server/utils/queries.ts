@@ -285,36 +285,38 @@ export async function getGenreAnimePage(
     .where(filter)
   const total = countRow?.count ?? 0
 
+  const allGenres = alias(genres, 'all_genres')
+  const allAnimeGenres = alias(animeGenres, 'all_anime_genres')
+
   const rows = await db()
     .select({
-      slug: anime.slug,
       malId: anime.malId,
       title: anime.title,
-      poster: anime.poster,
-      rating: anime.rating,
+      thumbnail: sql<string>`coalesce(${anime.poster}, '')`,
+      rating: sql<string>`coalesce(cast(${anime.rating} as text), '')`,
       season: anime.season,
-      updatedAt: anime.updatedAt,
+      genres: sql<string>`coalesce(group_concat(${allGenres.name}, ', '), '')`,
     })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.slug, animeGenres.animeSlug))
+    .leftJoin(allAnimeGenres, eq(allAnimeGenres.animeSlug, anime.slug))
+    .leftJoin(allGenres, eq(allGenres.id, allAnimeGenres.genreId))
     .where(filter)
+    .groupBy(anime.slug)
     .orderBy(sql`${anime.rating} desc nulls first`, desc(anime.updatedAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 
-  const cards: GenreAnimeCard[] = []
-  for (const row of rows) {
-    cards.push({
-      malId: row.malId!,
-      title: row.title,
-      thumbnail: posterSrc(row.poster),
-      studio: '',
-      episodes: '',
-      rating: row.rating != null ? String(row.rating) : '',
-      genres: (await getGenresForAnime(row.slug)).map(genreEntry => genreEntry.name).join(', '),
-      date: formatSeason(row.season),
-    })
-  }
+  const cards: GenreAnimeCard[] = rows.map(row => ({
+    malId: row.malId!,
+    title: row.title,
+    thumbnail: posterSrc(row.thumbnail),
+    studio: '',
+    episodes: '',
+    rating: row.rating,
+    genres: row.genres,
+    date: formatSeason(row.season),
+  }))
 
   return { anime: cards, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
 }

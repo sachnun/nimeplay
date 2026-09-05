@@ -65,7 +65,7 @@ const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [
   /\s+BD\b/,
 ]
 
-export interface AnimeCard {
+export interface ScrapedAnimeCard {
   title: string
   slug: string
   thumbnail: string
@@ -75,7 +75,7 @@ export interface AnimeCard {
   rating?: string
 }
 
-export interface AnimeDetail {
+export interface ScrapedAnimeDetail {
   title: string
   japanese: string
   score: string
@@ -105,7 +105,7 @@ export interface EpisodeData {
   thumbnail: string
 }
 
-export interface SearchResult {
+export interface ScrapedSearchResult {
   title: string
   slug: string
   thumbnail: string
@@ -114,12 +114,12 @@ export interface SearchResult {
   rating: string
 }
 
-export interface Genre {
+export interface ScrapedGenre {
   name: string
   slug: string
 }
 
-export interface GenreAnimeCard {
+export interface ScrapedGenreAnimeCard {
   title: string
   slug: string
   thumbnail: string
@@ -158,8 +158,8 @@ function getTotalPages($: cheerio.CheerioAPI): number {
   return Number.parseInt(lastPage) || 1
 }
 
-function parseAnimeCards($: cheerio.CheerioAPI): AnimeCard[] {
-  const anime: AnimeCard[] = []
+function parseAnimeCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
+  const anime: ScrapedAnimeCard[] = []
   $('.detpost').each((_, el) => {
     const $el = $(el)
     const epztipe = parseEpsType($el.find('.epztipe').text())
@@ -216,11 +216,11 @@ function titleFromInfo(info: Record<string, string>, fallback: string): string {
   return infoValue(info, 'Judul') || fallback
 }
 
-function appendUniqueGenre(genres: Genre[], name: string, slug: string) {
+function appendUniqueGenre(genres: ScrapedGenre[], name: string, slug: string) {
   if (name && slug && !genres.some((genre) => genre.slug === slug)) genres.push({ name, slug })
 }
 
-async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+async function scrapeAnimeListFresh(path: string, page: number): Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/${path}/page/${page}/` : `${BASE_URL}/${path}/`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
@@ -252,23 +252,23 @@ async function corsPost(url: string, body: string): Promise<Record<string, unkno
   return res.json()
 }
 
-export async function scrapeOngoingFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+export async function scrapeOngoingFresh(page = 1): Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }> {
   return scrapeAnimeListFresh('ongoing-anime', page)
 }
 
-export function scrapeOngoing(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return cache.ongoing.get(page, LIST_TTL, () => scrapeOngoingFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
+export function scrapeOngoing(page = 1): Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }> {
+  return cache.ongoing.get(page, LIST_TTL, () => scrapeOngoingFresh(page)) as Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }>
 }
 
-export async function scrapeCompletedFresh(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
+export async function scrapeCompletedFresh(page = 1): Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }> {
   return scrapeAnimeListFresh('complete-anime', page)
 }
 
-export function scrapeCompleted(page = 1): Promise<{ anime: AnimeCard[]; totalPages: number }> {
-  return cache.completed.get(page, LIST_TTL, () => scrapeCompletedFresh(page)) as Promise<{ anime: AnimeCard[]; totalPages: number }>
+export function scrapeCompleted(page = 1): Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }> {
+  return cache.completed.get(page, LIST_TTL, () => scrapeCompletedFresh(page)) as Promise<{ anime: ScrapedAnimeCard[]; totalPages: number }>
 }
 
-export async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail | null> {
+export async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
   const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
   const $ = cheerio.load(html)
   const h1Title = cleanTitle($('.jdlrx h1').text().trim())
@@ -294,8 +294,8 @@ export async function scrapeAnimeDetailFresh(slug: string): Promise<AnimeDetail 
   }
 }
 
-export function scrapeAnimeDetail(slug: string): Promise<AnimeDetail | null> {
-  return cache.anime.get(slug, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug)) as Promise<AnimeDetail | null>
+export function scrapeAnimeDetail(slug: string): Promise<ScrapedAnimeDetail | null> {
+  return cache.anime.get(slug, DETAIL_TTL, () => scrapeAnimeDetailFresh(slug)) as Promise<ScrapedAnimeDetail | null>
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
@@ -391,10 +391,10 @@ export function resolvemirror(dataContent: string): Promise<string | null> {
   return cache.mirror.get(dataContent, MIRROR_TTL, () => resolvemirrorFresh(dataContent)) as Promise<string | null>
 }
 
-async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
+async function scrapeSearchFresh(query: string): Promise<ScrapedSearchResult[]> {
   const html = await fetchHTML(`${BASE_URL}/?s=${encodeURIComponent(query)}&post_type=anime`)
   const $ = cheerio.load(html)
-  const results: SearchResult[] = []
+  const results: ScrapedSearchResult[] = []
 
   $('.chivsrc li').each((_, el) => {
     const $el = $(el)
@@ -412,14 +412,14 @@ async function scrapeSearchFresh(query: string): Promise<SearchResult[]> {
   return results
 }
 
-export function scrapeSearch(query: string): Promise<SearchResult[]> {
-  return cache.search.get(query.toLowerCase(), SEARCH_TTL, () => scrapeSearchFresh(query)) as Promise<SearchResult[]>
+export function scrapeSearch(query: string): Promise<ScrapedSearchResult[]> {
+  return cache.search.get(query.toLowerCase(), SEARCH_TTL, () => scrapeSearchFresh(query)) as Promise<ScrapedSearchResult[]>
 }
 
-async function scrapeGenreListFresh(): Promise<Genre[]> {
+async function scrapeGenreListFresh(): Promise<ScrapedGenre[]> {
   const html = await fetchHTML(`${BASE_URL}/genre-list/`)
   const $ = cheerio.load(html)
-  const genres: Genre[] = []
+  const genres: ScrapedGenre[] = []
 
   $('.genres a[rel="tag"], .taxindex a[rel="tag"], .page a[rel="tag"]').each((_, el) => {
     const name = $(el).text().trim()
@@ -438,15 +438,15 @@ async function scrapeGenreListFresh(): Promise<Genre[]> {
   return genres
 }
 
-export function scrapeGenreList(): Promise<Genre[]> {
-  return cache.genre.list(GENRE_LIST_TTL, scrapeGenreListFresh) as Promise<Genre[]>
+export function scrapeGenreList(): Promise<ScrapedGenre[]> {
+  return cache.genre.list(GENRE_LIST_TTL, scrapeGenreListFresh) as Promise<ScrapedGenre[]>
 }
 
-async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
+async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: ScrapedGenreAnimeCard[]; totalPages: number }> {
   const url = page > 1 ? `${BASE_URL}/genres/${slug}/page/${page}/` : `${BASE_URL}/genres/${slug}/`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
-  const anime: GenreAnimeCard[] = []
+  const anime: ScrapedGenreAnimeCard[] = []
 
   $('.col-anime-con').each((_, el) => {
     const $el = $(el)
@@ -465,6 +465,6 @@ async function scrapeGenreFresh(slug: string, page = 1): Promise<{ anime: GenreA
   return { anime, totalPages: getTotalPages($) }
 }
 
-export function scrapeGenre(slug: string, page = 1): Promise<{ anime: GenreAnimeCard[]; totalPages: number }> {
-  return cache.genre.page(slug, page, LIST_TTL, () => scrapeGenreFresh(slug, page)) as Promise<{ anime: GenreAnimeCard[]; totalPages: number }>
+export function scrapeGenre(slug: string, page = 1): Promise<{ anime: ScrapedGenreAnimeCard[]; totalPages: number }> {
+  return cache.genre.page(slug, page, LIST_TTL, () => scrapeGenreFresh(slug, page)) as Promise<{ anime: ScrapedGenreAnimeCard[]; totalPages: number }>
 }

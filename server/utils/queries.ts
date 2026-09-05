@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, like, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
+import { posterSrc } from './posters'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 
 // API response shapes — mirrored by `app/utils/types.ts`.
@@ -100,10 +101,10 @@ export async function listAnimePage(
     .where(filter)
   const total = countRow?.count ?? 0
 
-  // Ongoing follows Otakudesu: ordered by the newest episode upload, newest
-  // first. Completed is grouped by season instead, newest season first.
+  // Ongoing mirrors the upstream Otakudesu order (rank captured at scrape time),
+  // falling back to newest episode date for shows without a rank yet.
   const orderBy = status === 'ONGOING'
-    ? [sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    ? [sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
 
   const rows = await db()
@@ -128,7 +129,7 @@ export async function listAnimePage(
     anime: rows.map(row => ({
       malId: row.malId!,
       title: row.title,
-      thumbnail: row.poster ?? '',
+      thumbnail: posterSrc(row.poster),
       episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
       day: row.day ?? '',
       date: formatSeason(row.season),
@@ -161,7 +162,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
     .groupBy(anime.slug)
     .limit(20)
 
-  return rows.map(row => ({ ...row, malId: row.malId! }))
+  return rows.map(row => ({ ...row, thumbnail: posterSrc(row.thumbnail), malId: row.malId! }))
 }
 
 export async function getGenresForAnime(animeSlug: string): Promise<Genre[]> {
@@ -232,7 +233,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     studio: row.studio ?? '',
     source: row.source ?? '',
     genres: await getGenresForAnime(row.slug),
-    thumbnail: row.poster ?? '',
+    thumbnail: posterSrc(row.poster),
     synopsis: row.synopsis ?? '',
     season: row.season ?? '',
     episodes: episodeRows.map(entry => ({
@@ -262,7 +263,7 @@ export async function resolveEpisode(
   const match = row[0]
   if (!match) return null
   return {
-    anime: { title: match.title, thumbnail: match.poster ?? '' },
+    anime: { title: match.title, thumbnail: posterSrc(match.poster) },
     sourceSlug: match.episodeSlug,
     episodeTitle: match.episodeTitle,
   }
@@ -309,7 +310,7 @@ export async function getGenreAnimePage(
   const cards: GenreAnimeCard[] = rows.map(row => ({
     malId: row.malId!,
     title: row.title,
-    thumbnail: row.thumbnail,
+    thumbnail: posterSrc(row.thumbnail),
     studio: '',
     episodes: '',
     rating: row.rating,

@@ -1,4 +1,5 @@
 import { getGenreList, listAnimePage } from '../utils/queries'
+import { scheduleCatalogRefresh } from '../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
@@ -11,12 +12,11 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async () => {
-  const [ongoingData, completedData, genres] = await Promise.all([
+export default defineEventHandler((event) => {
+  scheduleCatalogRefresh(event)
+  return Promise.all([
     listAnimePage('ONGOING', 1),
     listAnimePage('COMPLETED', 1),
     getGenreList(),
-  ])
-
-  return { ongoingData, completedData, genres }
+  ]).then(([ongoingData, completedData, genres]) => ({ ongoingData, completedData, genres }))
 })

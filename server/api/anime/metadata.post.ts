@@ -1,3 +1,4 @@
+import { toR2Url } from '../../utils/r2'
 import { desc, eq, like } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { anime } from '../../database/schema'
@@ -110,7 +111,14 @@ export default defineEventHandler(async (event) => {
         season,
         year,
         trailerEmbedUrl: row.trailerId ? `https://www.youtube.com/embed/${row.trailerId}` : null,
-        characters: [...main, ...supporting.slice(0, 10)],
+        characters: [...main, ...supporting.slice(0, 10)].map(c => ({
+          ...c,
+          imageUrl: toR2Url(c.imageUrl, 'characters'),
+          voiceActor: c.voiceActor ? {
+            ...c.voiceActor,
+            imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
+          } : undefined
+        })),
       }
     }
 
@@ -140,7 +148,14 @@ export default defineEventHandler(async (event) => {
       season: fetched.season,
       year: fetched.year,
       trailerEmbedUrl: fetched.trailerId ? `https://www.youtube.com/embed/${fetched.trailerId}` : null,
-      characters: [...main, ...supporting.slice(0, 10)],
+      characters: [...main, ...supporting.slice(0, 10)].map(c => ({
+          ...c,
+          imageUrl: toR2Url(c.imageUrl, 'characters'),
+          voiceActor: c.voiceActor ? {
+            ...c.voiceActor,
+            imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
+          } : undefined
+        })),
     }
   }) as Promise<unknown>
 })

@@ -56,6 +56,8 @@ export const anime = sqliteTable('anime', {
   sourceUrl: text('source_url'),
   /** Parsed date of the newest episode, derived from the Otakudesu detail page. */
   latestEpisodeAt: integer('latest_episode_at', { mode: 'timestamp_ms' }),
+  /** Position in the Otakudesu ongoing list at the last scrape (upstream order). */
+  ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
   metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
 }, table => [

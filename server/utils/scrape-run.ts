@@ -5,6 +5,7 @@ import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
 import { mirrorAnimeMedia } from './media-mirror'
 import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh } from './sources'
+import { splitSource } from './sources'
 import { parseEpisodeDate } from './sources/shared'
 import type { AnimeSource } from './sources/types'
 
@@ -294,6 +295,50 @@ async function syncGenres(animeSlug: string, names: string[]) {
   }
 }
 
+async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
+  const poster = mal.poster ? toR2Url(mal.poster, 'posters') : null
+  const characters = mal.characters.map(c => ({
+    ...c,
+    imageUrl: toR2Url(c.imageUrl, 'characters'),
+    voiceActor: c.voiceActor ? {
+      ...c.voiceActor,
+      imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors'),
+    } : undefined,
+  }))
+
+  await db()
+    .update(anime)
+    .set({
+      malId: mal.malId,
+      synopsis: mal.synopsis,
+      poster,
+      rating: mal.score,
+      rank: mal.rank,
+      popularity: mal.popularity,
+      season: mal.season && mal.year ? `${mal.season} ${mal.year}` : mal.season,
+      trailerId: mal.trailerId,
+      studio: mal.studio,
+      source: mal.source,
+      characters,
+      metadataSyncedAt: new Date(),
+    })
+    .where(eq(anime.slug, slug))
+  await syncGenres(slug, mal.genres)
+  await mirrorAnimeMedia(poster, characters)
+}
+
+/** Demote the current mal_id owner when this row's source is preferred over theirs. */
+async function stealIfPreferred(slug: string, malId: number): Promise<boolean> {
+  const [owner] = await db().select({ slug: anime.slug }).from(anime).where(eq(anime.malId, malId)).limit(1)
+  if (!owner || owner.slug === slug) return false
+  const mine = splitSource(slug).source.priority
+  const theirs = splitSource(owner.slug).source.priority
+  if (mine >= theirs) return false
+  await db().update(anime).set({ malId: null, metadataSyncedAt: null }).where(eq(anime.slug, owner.slug))
+  console.log(`[metadata] ${slug} takes mal_id ${malId} from ${owner.slug}`)
+  return true
+}
+
 export async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   try {
     const entries = await searchMalAnimeEntries(title)
@@ -307,41 +352,17 @@ export async function resolveMetadata(slug: string, title: string): Promise<bool
     if (!mal) return false
 
     try {
-      const poster = mal.poster ? toR2Url(mal.poster, 'posters') : null
-      const characters = mal.characters.map(c => ({
-        ...c,
-        imageUrl: toR2Url(c.imageUrl, 'characters'),
-        voiceActor: c.voiceActor ? {
-          ...c.voiceActor,
-          imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors'),
-        } : undefined,
-      }))
-
-      await db()
-        .update(anime)
-        .set({
-          malId: mal.malId,
-          synopsis: mal.synopsis,
-          poster,
-          rating: mal.score,
-          rank: mal.rank,
-          popularity: mal.popularity,
-          season: mal.season && mal.year ? `${mal.season} ${mal.year}` : mal.season,
-          trailerId: mal.trailerId,
-          studio: mal.studio,
-          source: mal.source,
-          characters,
-          metadataSyncedAt: new Date(),
-        })
-        .where(eq(anime.slug, slug))
-      await syncGenres(slug, mal.genres)
-      await mirrorAnimeMedia(poster, characters)
+      await applyMalMetadata(slug, mal)
       return true
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('UNIQUE constraint failed') && await stealIfPreferred(slug, mal.malId)) {
+        await applyMalMetadata(slug, mal)
+        return true
+      }
       if (message.includes('UNIQUE constraint failed')) {
-        console.warn(`[metadata] mal_id ${mal.malId} already owned by another row, skipping ${slug}`)
+        console.warn(`[metadata] mal_id ${mal.malId} already owned by a preferred row, skipping ${slug}`)
         return false
       }
       throw error

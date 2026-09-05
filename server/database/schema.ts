@@ -42,6 +42,7 @@ export const anime = sqliteTable('anime', {
   title: text('title').notNull(),
   poster: text('poster'),
   synopsis: text('synopsis'),
+  synopsisId: text('synopsis_id'),
   rating: real('rating'),
   rank: integer('rank'),
   popularity: integer('popularity'),

@@ -56,6 +56,7 @@ export interface AnimeDetail {
   genres: Genre[]
   thumbnail: string
   synopsis: string
+  synopsisId: string
   season?: string
   episodes: { number: number, date: string }[]
 }
@@ -179,6 +180,7 @@ interface AnimeRecord {
   title: string
   poster: string | null
   synopsis: string | null
+  synopsisId: string | null
   rating: number | null
   season: string | null
   status: string | null
@@ -195,6 +197,7 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
       title: anime.title,
       poster: anime.poster,
       synopsis: anime.synopsis,
+      synopsisId: anime.synopsisId,
       rating: anime.rating,
       season: anime.season,
       status: anime.status,
@@ -235,6 +238,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     genres: await getGenresForAnime(row.slug),
     thumbnail: posterSrc(row.poster),
     synopsis: row.synopsis ?? '',
+    synopsisId: row.synopsisId ?? '',
     season: row.season ?? '',
     episodes: episodeRows.map(entry => ({
       number: entry.number,

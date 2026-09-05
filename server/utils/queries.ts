@@ -4,6 +4,14 @@ import { db } from './db'
 import { posterSrc } from './r2'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
+import {
+  getAnimeDetailFromSnapshot,
+  getGenreAnimePageFromSnapshot,
+  getGenreListFromSnapshot,
+  listAnimePageFromSnapshot,
+  resolveEpisodeFromSnapshot,
+  searchAnimeFromSnapshot,
+} from './catalog-fallback'
 
 // API response shapes — mirrored by `app/utils/types.ts`.
 export interface Genre {
@@ -67,6 +75,17 @@ const PAGE_SIZE = 24
 const LIST_TTL_MS = Number(process.env.LIST_TTL_MS || 3 * 60 * 1000)
 const GENRE_TTL_MS = 10 * 60 * 1000
 
+/** Serve the R2 catalog snapshot when a D1 read fails (e.g. quota exceeded). */
+async function withSnapshotFallback<T>(dbCall: () => Promise<T>, snapshotCall: () => Promise<T>): Promise<T> {
+  try {
+    return await dbCall()
+  }
+  catch (error) {
+    console.warn('[query] D1 read failed, serving catalog snapshot:', error instanceof Error ? error.message : error)
+    return snapshotCall()
+  }
+}
+
 /**
  * Every public entry point requires MAL metadata to exist: rows still waiting
  * for their MyAnimeList match stay hidden from listings, search, and detail
@@ -95,7 +114,10 @@ const SEASON_YEAR = sql`case
   else 0 end`
 
 export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number): Promise<{ anime: AnimeCard[], totalPages: number }> {
-  return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>
+  return withSnapshotFallback(
+    () => cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>,
+    () => listAnimePageFromSnapshot(status, page),
+  )
 }
 
 async function listAnimePageFresh(
@@ -149,7 +171,10 @@ async function listAnimePageFresh(
 }
 
 export function getGenreList(): Promise<Genre[]> {
-  return cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh()) as Promise<Genre[]>
+  return withSnapshotFallback(
+    () => cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh()) as Promise<Genre[]>,
+    () => getGenreListFromSnapshot(),
+  )
 }
 
 async function getGenreListFresh(): Promise<Genre[]> {
@@ -157,7 +182,14 @@ async function getGenreListFresh(): Promise<Genre[]> {
   return rows
 }
 
-export async function searchAnime(query: string): Promise<SearchResult[]> {
+export function searchAnime(query: string): Promise<SearchResult[]> {
+  return withSnapshotFallback(
+    () => searchAnimeFresh(query),
+    () => searchAnimeFromSnapshot(query),
+  )
+}
+
+async function searchAnimeFresh(query: string): Promise<SearchResult[]> {
   const gr = alias(genres, 'gr')
   const rows = await db()
     .select({
@@ -221,7 +253,14 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
   return row ? { ...row, malId: row.malId! } : null
 }
 
-export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {
+export function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {
+  return withSnapshotFallback(
+    () => getAnimeDetailFresh(malId),
+    () => getAnimeDetailFromSnapshot(malId),
+  )
+}
+
+async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
   const row = await getAnimeByMalId(malId)
   if (!row) return null
 
@@ -257,7 +296,17 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
 }
 
 /** Resolve an episode by MAL id + episode number (URL scheme: /anime/{malId}/{episode}). */
-export async function resolveEpisode(
+export function resolveEpisode(
+  malId: number,
+  number: number,
+): Promise<{ anime: { title: string, thumbnail: string }, sourceSlug: string, episodeTitle: string } | null> {
+  return withSnapshotFallback(
+    () => resolveEpisodeFresh(malId, number),
+    () => resolveEpisodeFromSnapshot(malId, number),
+  )
+}
+
+async function resolveEpisodeFresh(
   malId: number,
   number: number,
 ): Promise<{ anime: { title: string, thumbnail: string }, sourceSlug: string, episodeTitle: string } | null> {
@@ -282,7 +331,17 @@ export async function resolveEpisode(
   }
 }
 
-export async function getGenreAnimePage(
+export function getGenreAnimePage(
+  slug: string,
+  page: number,
+): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
+  return withSnapshotFallback(
+    () => getGenreAnimePageFresh(slug, page),
+    () => getGenreAnimePageFromSnapshot(slug, page),
+  )
+}
+
+async function getGenreAnimePageFresh(
   slug: string,
   page: number,
 ): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
@@ -333,4 +392,3 @@ export async function getGenreAnimePage(
 
   return { anime: cards, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
 }
-

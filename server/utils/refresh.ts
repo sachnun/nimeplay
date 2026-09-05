@@ -8,6 +8,7 @@ import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
+import { saveCatalogSnapshot } from './catalog-snapshot'
 
 const DETAIL_REFRESH_MS = Number(process.env.REFRESH_DETAIL_MS || 6 * 60 * 60 * 1000)
 const METADATA_REFRESH_MS = Number(process.env.REFRESH_METADATA_MS || 7 * 24 * 60 * 60 * 1000)
@@ -247,7 +248,7 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
     finally {
       animeRunning.delete(malId)
     }
-  })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
+  })().then(() => saveCatalogSnapshot()).catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
   waitUntil(event, task)
 }
 
@@ -322,6 +323,7 @@ async function syncOngoingCatalog(): Promise<void> {
     }
     await sleep(600)
   }
+  void saveCatalogSnapshot()
 }
 
 /** Throttled, one-flight, non-blocking. Call from home/list traffic. */

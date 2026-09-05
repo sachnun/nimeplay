@@ -4,9 +4,10 @@ import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
 import { mirrorAnimeMedia } from './media-mirror'
 import { toR2Url } from './r2'
-import { parseEpisodeDate, scrapeAnimeDetailFresh, scrapeCompletedFresh, scrapeOngoingFresh } from './scraper'
+import { getSources, scrapeAnimeDetailFresh } from './sources'
+import { parseEpisodeDate } from './sources/shared'
+import type { AnimeSource } from './sources/types'
 
-const OTAKUDESU_BASE = 'https://otakudesu.blog'
 const ONGOING_PAGES = Number(process.env.SCRAPE_PAGES || 3)
 const COMPLETED_PAGES = Number(process.env.SCRAPE_COMPLETED_PAGES || 1)
 const METADATA_STALE_DAYS = Number(process.env.SCRAPE_STALE_DAYS || 7)
@@ -52,6 +53,7 @@ function normalizeStatus(raw: string): string {
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
 interface RegisterCard {
+  source: AnimeSource
   slug: string
   title: string
   day?: string
@@ -61,12 +63,12 @@ interface RegisterCard {
 
 async function registerAnimeRows(cards: RegisterCard[]) {
   const rows = cards.map(card => ({
-    slug: card.slug,
+    slug: `${card.source.id}:${card.slug}`,
     title: card.title,
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
     ongoingRank: card.ongoingRank ?? null,
-    sourceUrl: `${OTAKUDESU_BASE}/anime/${card.slug}/`,
+    sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
   const chunkSize = 15
   for (let i = 0; i < rows.length; i += chunkSize) {
@@ -88,6 +90,7 @@ async function upsertEpisodes(
   animeSlug: string,
   list: { title: string, slug: string, date: string }[],
 ) {
+  const sourcePrefix = `${animeSlug.split(':')[0]}:`
   const rows = list
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
     .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)
@@ -98,7 +101,7 @@ async function upsertEpisodes(
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize).map(({ entry, number }) => ({
       animeSlug,
-      slug: entry.slug,
+      slug: `${sourcePrefix}${entry.slug}`,
       number,
       title: entry.title,
       releaseDate: entry.date || null,
@@ -190,25 +193,27 @@ async function structurePass() {
   console.log(`[structure] ongoing pages 1..${ONGOING_PAGES}, completed pages 1..${COMPLETED_PAGES}`)
   const startedAt = Date.now()
 
-  const cards: { slug: string, title: string, day?: string, date?: string, ongoingRank?: number | null, episodeNumber?: number | null }[] = []
+  const cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, ongoingRank?: number | null, episodeNumber?: number | null }[] = []
   let ongoingRank = 0
-  for (let page = 1; page <= ONGOING_PAGES; page++) {
-    const result = await scrapeOngoingFresh(page)
-    for (const card of result.anime) {
-      ongoingRank++
-      cards.push({ slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank, episodeNumber: episodeNumber(card.episode) })
+  for (const source of getSources()) {
+    for (let page = 1; page <= ONGOING_PAGES; page++) {
+      const result = await source.ongoingFresh(page)
+      for (const card of result.anime) {
+        ongoingRank++
+        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank, episodeNumber: episodeNumber(card.episode) })
+      }
     }
-  }
-  for (let page = 1; page <= COMPLETED_PAGES; page++) {
-    const result = await scrapeCompletedFresh(page)
-    cards.push(...result.anime.map(card => ({ slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank: null, episodeNumber: null })))
+    for (let page = 1; page <= COMPLETED_PAGES; page++) {
+      const result = await source.completedFresh(page)
+      cards.push(...result.anime.map(card => ({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank: null, episodeNumber: null })))
+    }
   }
 
   const seen = new Set<string>()
-  const unique = cards.filter(card => !seen.has(card.slug) && seen.add(card.slug))
+  const unique = cards.filter(card => !seen.has(`${card.source.id}:${card.slug}`) && seen.add(`${card.source.id}:${card.slug}`))
   await registerAnimeRows(unique)
 
-  const ongoingSlugs = unique.filter(card => card.episodeNumber != null).map(card => card.slug)
+  const ongoingSlugs = unique.filter(card => card.episodeNumber != null).map(card => `${card.source.id}:${card.slug}`)
   const freshSet = new Set<string>()
   if (ongoingSlugs.length > 0) {
     const episodeRows = await db()
@@ -218,8 +223,9 @@ async function structurePass() {
       .groupBy(episodes.animeSlug)
     const dbMax = new Map(episodeRows.map(row => [row.slug, row.max]))
     for (const card of unique) {
-      if (card.episodeNumber != null && card.episodeNumber > (dbMax.get(card.slug) ?? 0)) {
-        freshSet.add(card.slug)
+      const prefixed = `${card.source.id}:${card.slug}`
+      if (card.episodeNumber != null && card.episodeNumber > (dbMax.get(prefixed) ?? 0)) {
+        freshSet.add(prefixed)
       }
     }
   }
@@ -235,9 +241,10 @@ async function structurePass() {
   const targetSet = new Set<string>()
   const targets: Candidate[] = []
   for (const card of unique) {
-    if (freshSet.has(card.slug) && !targetSet.has(card.slug)) {
-      targets.push({ slug: card.slug, title: card.title })
-      targetSet.add(card.slug)
+    const prefixed = `${card.source.id}:${card.slug}`
+    if (freshSet.has(prefixed) && !targetSet.has(prefixed)) {
+      targets.push({ slug: prefixed, title: card.title })
+      targetSet.add(prefixed)
     }
   }
   for (const candidate of candidates) {

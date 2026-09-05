@@ -77,6 +77,7 @@ export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
 }
 
 export async function extractStreamUrl(iframeUrl: string): Promise<{ url: string | null; iframeUrl: string }> {
+  if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(iframeUrl)) return { url: iframeUrl, iframeUrl }
   const html = await fetchIframeHtml(iframeUrl)
   const url = (await extractKnownHost(iframeUrl, html)) ?? (await extractFallbackHost(iframeUrl, html))
   return { url, iframeUrl }

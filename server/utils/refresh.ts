@@ -8,7 +8,6 @@ import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
-import { saveCatalogSnapshot } from './catalog-snapshot'
 
 const DETAIL_REFRESH_MS = Number(process.env.REFRESH_DETAIL_MS || 6 * 60 * 60 * 1000)
 const METADATA_REFRESH_MS = Number(process.env.REFRESH_METADATA_MS || 7 * 24 * 60 * 60 * 1000)
@@ -16,6 +15,9 @@ const CATALOG_SYNC_MS = Number(process.env.REFRESH_CATALOG_MS || 10 * 60 * 1000)
 const CATALOG_META_BUDGET = Number(process.env.REFRESH_CATALOG_META || 10)
 const ONGOING_PAGES = Number(process.env.REFRESH_ONGOING_PAGES || 3)
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/** Set to "1" to pause all background database writes until the D1 quota recovers. */
+const WRITES_PAUSED = process.env.DISABLE_DB_WRITES === '1'
 
 const animeRunning = new Map<number, boolean>()
 let catalogSyncRunning = false
@@ -218,6 +220,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
  * Resolves the slug from the MAL id before scraping.
  */
 export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
+  if (WRITES_PAUSED) return
   if (animeRunning.get(malId)) return
   animeRunning.set(malId, true)
   const task = (async () => {
@@ -248,7 +251,7 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
     finally {
       animeRunning.delete(malId)
     }
-  })().then(() => saveCatalogSnapshot()).catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
+  })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
   waitUntil(event, task)
 }
 
@@ -323,11 +326,11 @@ async function syncOngoingCatalog(): Promise<void> {
     }
     await sleep(600)
   }
-  void saveCatalogSnapshot()
 }
 
 /** Throttled, one-flight, non-blocking. Call from home/list traffic. */
 export function scheduleCatalogSync(event: H3Event): void {
+  if (WRITES_PAUSED) return
   const now = Date.now()
   if (catalogSyncRunning || now - lastCatalogSync < CATALOG_SYNC_MS) return
   lastCatalogSync = now

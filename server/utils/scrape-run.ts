@@ -2,6 +2,7 @@ import { eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
+import { toR2Url } from './r2'
 import { parseEpisodeDate, scrapeAnimeDetailFresh, scrapeCompletedFresh, scrapeOngoingFresh } from './scraper'
 
 const OTAKUDESU_BASE = 'https://otakudesu.blog'
@@ -240,12 +241,22 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
     if (!mal) return false
 
     try {
+      const poster = mal.poster ? toR2Url(mal.poster, 'posters') : null
+      const characters = mal.characters.map(c => ({
+        ...c,
+        imageUrl: toR2Url(c.imageUrl, 'characters'),
+        voiceActor: c.voiceActor ? {
+          ...c.voiceActor,
+          imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors'),
+        } : undefined,
+      }))
+
       await db()
         .update(anime)
         .set({
           malId: mal.malId,
           synopsis: mal.synopsis,
-          poster: mal.poster,
+          poster,
           rating: mal.score,
           rank: mal.rank,
           popularity: mal.popularity,
@@ -253,7 +264,7 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
           trailerId: mal.trailerId,
           studio: mal.studio,
           source: mal.source,
-          characters: mal.characters,
+          characters,
           metadataSyncedAt: new Date(),
         })
         .where(eq(anime.slug, slug))

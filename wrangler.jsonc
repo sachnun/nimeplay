@@ -5,7 +5,7 @@
   "r2_buckets": [
     {
       "binding": "R2",
-      "bucket_name": "nimeplay"
+      "bucket_name": "nimeplay-live"
     }
   ],
   "d1_databases": [

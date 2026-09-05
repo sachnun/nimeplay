@@ -7,8 +7,8 @@
   },
   "r2_buckets": [
     {
-      "binding": "POSTERS",
-      "bucket_name": "nimeplay-posters"
+      "binding": "R2",
+      "bucket_name": "nimeplay"
     }
   ],
   "d1_databases": [

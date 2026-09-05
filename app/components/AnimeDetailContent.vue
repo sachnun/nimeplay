@@ -101,7 +101,7 @@ onMounted(() => {
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">
-              <InfoSection :otakudesu="otakudesu" :metadata="data" :loading="loading" />
+              <InfoSection :otakudesu="otakudesu" :metadata="data" />
             </div>
             <div class="lg:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
@@ -130,7 +130,7 @@ onMounted(() => {
             <SynopsisSection :synopsis-id="synopsisId" :synopsis-en="data?.synopsisEn" :loading="loading" />
           </div>
           <div>
-            <CharactersSection :characters="data?.characters" :loading="loading" />
+            <CharactersSection :characters="data?.characters" />
           </div>
         </div>
       </div>

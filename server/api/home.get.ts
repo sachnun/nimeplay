@@ -1,4 +1,5 @@
 import { getGenreList, listAnimePage } from '../utils/queries'
+import { scheduleCatalogSync } from '../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
@@ -11,7 +12,8 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(() => {
+export default defineEventHandler((event) => {
+  scheduleCatalogSync(event)
   return Promise.all([
     listAnimePage('ONGOING', 1),
     listAnimePage('COMPLETED', 1),

@@ -1,17 +1,26 @@
 import type { H3Event } from 'h3'
-import { eq, sql } from 'drizzle-orm'
+import { eq, inArray, isNull, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { bestMalAnimeMatch, fetchMalAnime, searchMalAnimeEntries } from './mal'
 import { mirrorAnimeMedia } from './media-mirror'
 import { toR2Url } from './r2'
-import { scrapeAnimeDetailFresh, splitSource } from './sources'
+import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
+import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
 const DETAIL_REFRESH_MS = Number(process.env.REFRESH_DETAIL_MS || 6 * 60 * 60 * 1000)
 const METADATA_REFRESH_MS = Number(process.env.REFRESH_METADATA_MS || 7 * 24 * 60 * 60 * 1000)
+const CATALOG_SYNC_MS = Number(process.env.REFRESH_CATALOG_MS || 10 * 60 * 1000)
+const CATALOG_META_BUDGET = Number(process.env.REFRESH_CATALOG_META || 10)
+const ONGOING_PAGES = Number(process.env.REFRESH_ONGOING_PAGES || 3)
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const animeRunning = new Map<number, boolean>()
+let catalogSyncRunning = false
+let lastCatalogSync = 0
+
+const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
 function waitUntil(event: H3Event, promise: Promise<unknown>): void {
   const withWaitUntil = event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }
@@ -239,5 +248,90 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
       animeRunning.delete(malId)
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
+  waitUntil(event, task)
+}
+
+async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, ongoingRank: number }[]) {
+  if (cards.length === 0) return
+  const rows = cards.map(card => ({
+    slug: `${card.source.id}:${card.slug}`,
+    title: card.title,
+    day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
+    latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
+    ongoingRank: card.ongoingRank,
+    sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
+  }))
+  const chunkSize = 15
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    await db()
+      .insert(anime)
+      .values(rows.slice(i, i + chunkSize))
+      .onConflictDoUpdate({
+        target: anime.slug,
+        set: {
+          day: sql`excluded.day`,
+          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
+          ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
+        },
+      })
+  }
+}
+
+/**
+ * On-demand multi-source catalog sync, throttled by traffic: walks every
+ * source's ongoing list and registers anime the catalog is missing, then
+ * attaches MAL metadata to a small batch of still-unmatched rows so shared
+ * titles settle on the preferred (direct-file) source.
+ */
+async function syncOngoingCatalog(): Promise<void> {
+  let ongoingRank = 0
+  for (const source of getSources()) {
+    try {
+      const cards = []
+      for (let page = 1; page <= ONGOING_PAGES; page++) {
+        const result = await source.ongoingFresh(page)
+        if (result.anime.length === 0) break
+        for (const card of result.anime) {
+          ongoingRank++
+          cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank })
+        }
+        await sleep(250)
+      }
+      await registerOngoingCards(cards)
+      console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    }
+    catch (error) {
+      console.warn(`[catalog] ${source.id} ongoing sync failed:`, error instanceof Error ? error.message : error)
+    }
+  }
+
+  const pending = await db()
+    .select({ slug: anime.slug, title: anime.title })
+    .from(anime)
+    .where(isNull(anime.malId))
+    .orderBy(sql`random()`)
+    .limit(CATALOG_META_BUDGET)
+  for (const row of pending) {
+    try {
+      if (await resolveMetadata(row.slug, row.title)) {
+        console.log(`[catalog] metadata resolved: ${row.slug}`)
+      }
+    }
+    catch (error) {
+      console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error)
+    }
+    await sleep(600)
+  }
+}
+
+/** Throttled, one-flight, non-blocking. Call from home/list traffic. */
+export function scheduleCatalogSync(event: H3Event): void {
+  const now = Date.now()
+  if (catalogSyncRunning || now - lastCatalogSync < CATALOG_SYNC_MS) return
+  lastCatalogSync = now
+  catalogSyncRunning = true
+  const task = syncOngoingCatalog()
+    .catch(error => console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error))
+    .finally(() => { catalogSyncRunning = false })
   waitUntil(event, task)
 }

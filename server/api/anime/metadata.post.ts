@@ -2,7 +2,7 @@ import { toR2Url } from '../../utils/r2'
 import { desc, eq, like } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { anime } from '../../database/schema'
-import { fetchMalAnime, searchMalAnime } from '../../utils/mal'
+import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 
 defineRouteMeta({
   openAPI: {
@@ -83,6 +83,41 @@ async function lookupInDb(body: MetadataRequestBody) {
   return row ?? null
 }
 
+function toMetadataPayload(source: {
+  malId: number
+  synopsis: string
+  score: number | null
+  rank: number | null
+  popularity: number | null
+  season: string | null
+  year: number | null
+  trailerId: string | null
+  characters: MalCharacter[]
+}) {
+  const main = source.characters.filter(c => c.role === 'Main')
+  const supporting = source.characters.filter(c => c.role !== 'Main')
+  return {
+    malId: source.malId,
+    synopsisEn: stripHtml(source.synopsis),
+    background: '',
+    malScore: source.score !== null ? Number(source.score) : null,
+    malRank: source.rank,
+    popularity: source.popularity,
+    rating: '',
+    season: source.season,
+    year: source.year,
+    trailerEmbedUrl: source.trailerId ? `https://www.youtube.com/embed/${source.trailerId}` : null,
+    characters: [...main, ...supporting.slice(0, 10)].map(c => ({
+      ...c,
+      imageUrl: toR2Url(c.imageUrl, 'characters'),
+      voiceActor: c.voiceActor ? {
+        ...c.voiceActor,
+        imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
+      } : undefined
+    })),
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody<MetadataRequestBody>(event)
   const title = body?.title?.trim() || ''
@@ -92,34 +127,23 @@ export default defineEventHandler(async (event) => {
   if (!malId && !title) return null
 
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
-  return cache.metadata.get(cacheKey, METADATA_TTL, async () => {
+  return cache.get('metadata', cacheKey, METADATA_TTL, async () => {
     // Database first — metadata is synced from MyAnimeList by the scraper.
     const row = await lookupInDb({ ...body, title })
     if (row?.malId && (row.synopsis || (row.characters?.length ?? 0) > 0)) {
       if (body?.idOnly === true) return { malId: row.malId }
       const { season, year } = splitSeasonYear(row.season)
-      const main = row.characters.filter(c => c.role === 'Main')
-      const supporting = row.characters.filter(c => c.role !== 'Main')
-      return {
+      return toMetadataPayload({
         malId: row.malId,
-        synopsisEn: stripHtml(row.synopsis ?? ''),
-        background: '',
-        malScore: row.rating !== null ? Number(row.rating) : null,
-        malRank: row.rank,
+        synopsis: row.synopsis ?? '',
+        score: row.rating,
+        rank: row.rank,
         popularity: row.popularity,
-        rating: '',
         season,
         year,
-        trailerEmbedUrl: row.trailerId ? `https://www.youtube.com/embed/${row.trailerId}` : null,
-        characters: [...main, ...supporting.slice(0, 10)].map(c => ({
-          ...c,
-          imageUrl: toR2Url(c.imageUrl, 'characters'),
-          voiceActor: c.voiceActor ? {
-            ...c.voiceActor,
-            imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
-          } : undefined
-        })),
-      }
+        trailerId: row.trailerId,
+        characters: row.characters,
+      })
     }
 
     // Fallback: live MyAnimeList fetch for titles not yet synced.
@@ -134,28 +158,16 @@ export default defineEventHandler(async (event) => {
     if (!fetched) return null
 
     if (body?.idOnly === true) return { malId: fetched.malId }
-
-    const main = fetched.characters.filter(c => c.role === 'Main')
-    const supporting = fetched.characters.filter(c => c.role !== 'Main')
-    return {
+    return toMetadataPayload({
       malId: fetched.malId,
-      synopsisEn: stripHtml(fetched.synopsis),
-      background: '',
-      malScore: fetched.score,
-      malRank: fetched.rank,
+      synopsis: fetched.synopsis,
+      score: fetched.score,
+      rank: fetched.rank,
       popularity: fetched.popularity,
-      rating: '',
       season: fetched.season,
       year: fetched.year,
-      trailerEmbedUrl: fetched.trailerId ? `https://www.youtube.com/embed/${fetched.trailerId}` : null,
-      characters: [...main, ...supporting.slice(0, 10)].map(c => ({
-          ...c,
-          imageUrl: toR2Url(c.imageUrl, 'characters'),
-          voiceActor: c.voiceActor ? {
-            ...c.voiceActor,
-            imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
-          } : undefined
-        })),
-    }
+      trailerId: fetched.trailerId,
+      characters: fetched.characters,
+    })
   }) as Promise<unknown>
 })

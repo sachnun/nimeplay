@@ -1,8 +1,7 @@
 import { createError, getRouterParam } from 'h3'
-import { getCachedPoster, isPosterKey, posterOrigin, storePoster } from '../../../utils/posters'
+import { fetchPosterBytes, getCachedPoster, isPosterKey, posterOrigin, storePoster } from '../../../utils/posters'
 
 const POSTER_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=31536000, immutable'
-const UPSTREAM_TIMEOUT_MS = 10000
 
 export default defineEventHandler(async (event) => {
   const key = getRouterParam(event, 'key')
@@ -20,33 +19,24 @@ export default defineEventHandler(async (event) => {
   }
 
   const origin = posterOrigin(key)
-  let upstream: Response
+  let data: { contentType: string, bytes: ArrayBuffer }
   try {
-    upstream = await fetch(origin, { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) })
+    data = await fetchPosterBytes(origin)
   }
   catch {
     return Response.redirect(origin, 302)
   }
-  if (!upstream.ok) {
-    await upstream.body?.cancel().catch(() => {})
-    return Response.redirect(origin, 302)
+  try {
+    await storePoster(key, data.bytes, data.contentType)
   }
-
-  const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream'
-  const bytes = await upstream.arrayBuffer()
-  if (contentType.startsWith('image/')) {
-    try {
-      await storePoster(key, bytes, contentType)
-    }
-    catch {
-      // Serve straight from upstream when the cache write fails; the browser
-      // cache header below still limits repeat fetches.
-    }
+  catch {
+    // Serve straight from upstream when the cache write fails; the browser
+    // cache header below still limits repeat fetches.
   }
-  return new Response(bytes, {
+  return new Response(data.bytes, {
     headers: {
       'Cache-Control': POSTER_CACHE_CONTROL,
-      'Content-Type': contentType,
+      'Content-Type': data.contentType,
     },
   })
 })

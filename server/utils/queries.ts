@@ -111,10 +111,10 @@ async function listAnimePageFresh(
     .where(filter)
   const total = countRow?.count ?? 0
 
-  // Ongoing mirrors the upstream Otakudesu order (rank captured at scrape time),
-  // falling back to newest episode date for shows without a rank yet.
+  // Ongoing puts shows with newly added episodes first, then follows the
+  // upstream Otakudesu order for the rest.
   const orderBy = status === 'ONGOING'
-    ? [sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
 
   const rows = await db()

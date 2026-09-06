@@ -60,6 +60,8 @@ export const anime = sqliteTable('anime', {
   ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
   metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
+  /* Bumped only when a detail refresh actually adds new episode rows. Drives recency-first ongoing order. */
+  lastNewEpisodeAt: integer('last_new_episode_at', { mode: 'timestamp_ms' }),
   metadataAttempts: integer('metadata_attempts').notNull().default(0),
   metadataLastError: text('metadata_last_error'),
   metadataRetryAt: integer('metadata_retry_at', { mode: 'timestamp_ms' }),

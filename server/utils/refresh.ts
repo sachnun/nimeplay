@@ -404,6 +404,17 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         .map(entry => parseEpisodeDate(entry.date))
         .filter((date): date is Date => date !== null)
         .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
+      const [beforeRow] = await db()
+        .select({ max: sql<number | null>`max(${episodes.number})` })
+        .from(episodes)
+        .where(eq(episodes.animeSlug, slug))
+      const maxBefore = Number(beforeRow?.max ?? 0)
+      await upsertEpisodes(slug, detail.episodes)
+      const [afterRow] = await db()
+        .select({ max: sql<number | null>`max(${episodes.number})` })
+        .from(episodes)
+        .where(eq(episodes.animeSlug, slug))
+      const maxAfter = Number(afterRow?.max ?? 0)
       await db()
         .update(anime)
         .set({
@@ -411,10 +422,10 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
           status,
           ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
           ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+          ...(maxAfter > maxBefore ? { lastNewEpisodeAt: new Date() } : {}),
           updatedAt: new Date(),
         })
         .where(eq(anime.slug, slug))
-      await upsertEpisodes(slug, detail.episodes)
     }
   }
   catch (error) {

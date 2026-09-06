@@ -60,11 +60,17 @@ export const anime = sqliteTable('anime', {
   ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
   metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
+  /* Bumped only when a detail refresh actually adds new episode rows. Drives recency-first ongoing order. */
+  lastNewEpisodeAt: integer('last_new_episode_at', { mode: 'timestamp_ms' }),
+  metadataAttempts: integer('metadata_attempts').notNull().default(0),
+  metadataLastError: text('metadata_last_error'),
+  metadataRetryAt: integer('metadata_retry_at', { mode: 'timestamp_ms' }),
 }, table => [
   uniqueIndex('anime_mal_id_key').on(table.malId),
   index('anime_updated_at_idx').on(table.updatedAt),
   index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
+  index('anime_status_mal_id_idx').on(table.status, table.malId),
 ])
 
 export const animeGenres = sqliteTable('anime_genres', {

@@ -3,6 +3,7 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
 import { posterSrc } from './r2'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
+import { cache } from './cache'
 
 // API response shapes — mirrored by `app/utils/types.ts`.
 export interface Genre {
@@ -62,6 +63,11 @@ export interface AnimeDetail {
 
 const PAGE_SIZE = 24
 
+/** Listing responses are read-heavy and slow-changing; keep them out of D1. */
+const LIST_TTL_MS = Number(process.env.LIST_TTL_MS || 3 * 60 * 1000)
+const GENRE_TTL_MS = 10 * 60 * 1000
+
+
 /**
  * Every public entry point requires MAL metadata to exist: rows still waiting
  * for their MyAnimeList match stay hidden from listings, search, and detail
@@ -89,7 +95,11 @@ const SEASON_YEAR = sql`case
   then cast(substr(${anime.season}, -4) as integer)
   else 0 end`
 
-export async function listAnimePage(
+export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number): Promise<{ anime: AnimeCard[], totalPages: number }> {
+  return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>
+}
+
+async function listAnimePageFresh(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
 ): Promise<{ anime: AnimeCard[], totalPages: number }> {
@@ -101,10 +111,10 @@ export async function listAnimePage(
     .where(filter)
   const total = countRow?.count ?? 0
 
-  // Ongoing mirrors the upstream Otakudesu order (rank captured at scrape time),
-  // falling back to newest episode date for shows without a rank yet.
+  // Ongoing puts shows with newly added episodes first, then follows the
+  // upstream Otakudesu order for the rest.
   const orderBy = status === 'ONGOING'
-    ? [sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
 
   const rows = await db()
@@ -139,7 +149,11 @@ export async function listAnimePage(
   }
 }
 
-export async function getGenreList(): Promise<Genre[]> {
+export function getGenreList(): Promise<Genre[]> {
+  return cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh()) as Promise<Genre[]>
+}
+
+async function getGenreListFresh(): Promise<Genre[]> {
   const rows = await db().select({ name: genres.name, slug: genres.slug }).from(genres).orderBy(asc(genres.name))
   return rows
 }
@@ -320,4 +334,3 @@ export async function getGenreAnimePage(
 
   return { anime: cards, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
 }
-

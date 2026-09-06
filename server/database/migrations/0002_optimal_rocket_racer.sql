@@ -1,0 +1,1 @@
+CREATE INDEX `anime_status_mal_id_idx` ON `anime` (`status`,`mal_id`);

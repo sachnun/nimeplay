@@ -12,8 +12,7 @@
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply nimeplay --remote",
-    "db:migrate:local": "wrangler d1 migrations apply nimeplay --local",
-    "scrape": "tsx scripts/scrape.ts"
+    "db:migrate:local": "wrangler d1 migrations apply nimeplay --local"
   },
   "dependencies": {
     "@nuxt/fonts": "^0.14.0",

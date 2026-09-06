@@ -1,4 +1,6 @@
 import type { MaybeRefOrGetter, Ref } from 'vue'
+import { fetchAnimeMetadata } from '~/utils/remote'
+import type { AnimeMetadata } from '~/utils/types'
 
 interface AnimeProgressEntry {
   malId: number
@@ -92,4 +94,93 @@ export async function loadGridPage(options: {
 export async function fillGridViewport(isSentinelNearViewport: () => boolean, loadMore: () => void | Promise<void>) {
   await nextTick()
   if (isSentinelNearViewport()) void loadMore()
+}
+
+export function useAnimeMetadata(malId: Ref<number> | number, title: Ref<string> | string, japaneseTitle?: Ref<string | undefined> | string) {
+  const data = ref<AnimeMetadata | null>(null)
+  const loading = ref(true)
+
+  const idRef = toRef(malId)
+  const titleRef = toRef(title)
+  const japaneseRef = japaneseTitle === undefined ? ref<string | undefined>() : toRef(japaneseTitle)
+
+  const load = async () => {
+    if (!idRef.value) return
+    loading.value = true
+    const result = await fetchAnimeMetadata(idRef.value)
+    if (result) data.value = result
+    loading.value = false
+  }
+
+  if (import.meta.client) {
+    const { $runIdle } = useNuxtApp()
+    watch([idRef, titleRef, japaneseRef], (_, __, onCleanup) => {
+      loading.value = true
+      const cancel = $runIdle(() => { void load() }, 1800)
+      onCleanup(cancel)
+    }, { immediate: true })
+  }
+
+  return { data, loading }
+}
+
+const LONG_PRESS_DELAY_MS = 550
+const MOVE_TOLERANCE_PX = 12
+
+export function useProgressCardLongPress() {
+  let timer: number | null = null
+  let startX = 0
+  let startY = 0
+  let suppressClick = false
+
+  function clearLongPress() {
+    if (timer === null) return
+    window.clearTimeout(timer)
+    timer = null
+  }
+
+  function onProgressCardPointerDown(event: PointerEvent, malId: number | null) {
+    if (!malId || event.button !== 0) return
+    clearLongPress()
+    startX = event.clientX
+    startY = event.clientY
+    timer = window.setTimeout(() => {
+      timer = null
+      suppressClick = true
+      void navigateTo(`/anime/${malId}`)
+    }, LONG_PRESS_DELAY_MS)
+  }
+
+  function onProgressCardPointerMove(event: PointerEvent) {
+    if (timer === null) return
+    if (Math.abs(event.clientX - startX) > MOVE_TOLERANCE_PX || Math.abs(event.clientY - startY) > MOVE_TOLERANCE_PX) {
+      clearLongPress()
+    }
+  }
+
+  function onProgressCardPointerEnd() {
+    clearLongPress()
+  }
+
+  function onProgressCardClick(event: MouseEvent) {
+    if (!suppressClick) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+    suppressClick = false
+  }
+
+  function onProgressCardContextMenu(event: MouseEvent, hasProgress: boolean) {
+    if (hasProgress) event.preventDefault()
+  }
+
+  onBeforeUnmount(clearLongPress)
+
+  return {
+    onProgressCardPointerDown,
+    onProgressCardPointerMove,
+    onProgressCardPointerEnd,
+    onProgressCardClick,
+    onProgressCardContextMenu,
+  }
 }

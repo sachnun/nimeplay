@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OtakudesuInfo } from '~/utils/types'
+import type { Genre, OtakudesuInfo } from '~/utils/types'
 
 const props = defineProps<{
   malId: number
@@ -13,6 +13,13 @@ const props = defineProps<{
 }>()
 
 const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
+const selectedGenre = useState<Genre | null>('selected-genre', () => null)
+const infoItems = computed(() => [
+  { label: 'Status', value: props.otakudesu.status },
+  { label: 'Type', value: props.otakudesu.type },
+  { label: 'Studio', value: props.otakudesu.studio },
+  { label: 'Source', value: props.otakudesu.source },
+].filter((item) => item.value))
 const posterOpen = ref(false)
 const showTrailerBackground = ref(false)
 const router = useRouter()
@@ -27,6 +34,10 @@ function goBack() {
 
 function closePoster() {
   posterOpen.value = false
+}
+
+function selectGenre(genre: { name: string; slug: string }) {
+  selectedGenre.value = { name: genre.name, slug: genre.slug }
 }
 
 watch(posterOpen, (open) => {
@@ -82,7 +93,9 @@ onMounted(() => {
             <div class="lg:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-1.5 mt-3">
-                <GenreLink v-for="genre in genres" :key="genre.slug" :name="genre.name" :slug="genre.slug" />
+                <NuxtLink v-for="genre in genres" :key="genre.slug" to="/" class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors" @click="selectGenre(genre)">
+                  {{ genre.name }}
+                </NuxtLink>
               </div>
               <div class="flex items-center gap-1.5 mt-2 text-xs text-zinc-400">
                 <template v-for="(text, i) in [otakudesu.studio].filter(Boolean)" :key="text">
@@ -97,11 +110,23 @@ onMounted(() => {
             <div class="hidden lg:block">
               <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-2 mt-3">
-                <GenreLink v-for="genre in genres" :key="genre.slug" :name="genre.name" :slug="genre.slug" />
+                <NuxtLink v-for="genre in genres" :key="genre.slug" to="/" class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors" @click="selectGenre(genre)">
+                  {{ genre.name }}
+                </NuxtLink>
               </div>
             </div>
             <div class="hidden lg:block lg:mt-5">
-              <InfoSection :otakudesu="otakudesu" :metadata="data" />
+              <section>
+                <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
+                  Information
+                </h2>
+                <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                  <div v-for="item in infoItems" :key="item.label" class="flex justify-between gap-2 sm:block">
+                    <span class="text-zinc-400 text-xs uppercase tracking-wide [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.label }}</span>
+                    <span class="sm:ml-0 sm:block text-zinc-100 text-sm [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.value }}</span>
+                  </div>
+                </div>
+              </section>
             </div>
             <div class="lg:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
@@ -130,7 +155,7 @@ onMounted(() => {
             <SynopsisSection :synopsis-id="synopsisId" :synopsis-en="data?.synopsisEn" :loading="loading" />
           </div>
           <div>
-            <CharactersSection :characters="data?.characters" />
+            <CharacterList :characters="data?.characters" />
           </div>
         </div>
       </div>

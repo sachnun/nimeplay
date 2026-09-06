@@ -1,5 +1,14 @@
 import { getSpoofHeaders } from '../spoof'
 
+export type TitleCleanupRule = RegExp | [RegExp, string]
+
+export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): string {
+  return rules.reduce((value, rule) => {
+    if (Array.isArray(rule)) return value.replace(rule[0], rule[1])
+    return value.replace(rule, '')
+  }, title).trim()
+}
+
 const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
 

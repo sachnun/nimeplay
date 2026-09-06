@@ -18,14 +18,28 @@ const { data } = await useAsyncData<HomeData>('home', async () => {
     genres: [],
   }),
 })
+
+const selectedGenre = useState<Genre | null>('selected-genre', () => null)
+const searchOpen = ref(false)
 </script>
 
 <template>
   <div class="px-6 py-8">
-    <HomeContent
-      :ongoing-data="data.ongoingData"
-      :completed-data="data.completedData"
-      :genres="data.genres"
-    />
+    <GenreFilter :genres="data.genres" :selected-genre="selectedGenre" @select="selectedGenre = $event" @search="searchOpen = true" @sign-in="searchOpen = false" />
+
+    <section v-if="selectedGenre">
+      <GenreAnimeGrid :key="selectedGenre.slug" :genre-slug="selectedGenre.slug" />
+    </section>
+    <section v-else>
+      <AnimeInfiniteGrid
+        page-type="ONGOING"
+        :initial-data="data.ongoingData"
+        next-page-type="COMPLETED"
+        :next-initial-data="data.completedData"
+        :next-show-day="false"
+      />
+    </section>
+
+    <SearchBar :open="searchOpen" @close="searchOpen = false" />
   </div>
 </template>

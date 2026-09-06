@@ -1,8 +1,6 @@
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
-import { isDesuStreamHd, extractDesuStream } from './desustream'
-import { isDesuDrive, extractDesuDrive } from './desudrive'
-import { isFiledon, extractFiledon } from './filedon'
+import { isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon } from './hosts'
 
 type HostExtractor = {
   matches: (url: string) => boolean

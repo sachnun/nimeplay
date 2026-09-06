@@ -1,4 +1,15 @@
-import type { SkipTime } from '~/utils/types'
+import type { AnimeMetadata, SkipTime } from './types'
+
+export async function fetchAnimeMetadata(malId: number): Promise<AnimeMetadata | null> {
+  try {
+    return await $fetch<AnimeMetadata | null>('/api/anime/metadata', {
+      method: 'POST',
+      body: { malId },
+    })
+  } catch {
+    return null
+  }
+}
 
 interface AniskipResponse {
   found: boolean
@@ -17,7 +28,6 @@ export async function fetchSkipTimes(malId: number, episode: number, episodeLeng
   params.append('types', 'recap')
   params.append('episodeLength', length.toString())
   const url = `https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`
-
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(ANISKIP_TIMEOUT_MS) })
     if (!res.ok) return []

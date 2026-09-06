@@ -67,10 +67,13 @@ export const anime = sqliteTable('anime', {
   metadataRetryAt: integer('metadata_retry_at', { mode: 'timestamp_ms' }),
 }, table => [
   uniqueIndex('anime_mal_id_key').on(table.malId),
+  index('anime_title_idx').on(table.title),
   index('anime_updated_at_idx').on(table.updatedAt),
   index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
   index('anime_status_mal_id_idx').on(table.status, table.malId),
+  index('anime_metadata_retry_at_idx').on(table.metadataRetryAt),
+  index('anime_metadata_attempts_idx').on(table.metadataAttempts),
 ])
 
 export const animeGenres = sqliteTable('anime_genres', {

@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
 import { fetchMalAnime, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
@@ -20,7 +20,27 @@ const SYNC_WALL_MS = Number(process.env.REFRESH_WALL_MS || 25000)
 const METADATA_MAX_ERROR_LEN = 500
 const METADATA_RETRY_BASE_MS = 60 * 60 * 1000
 const METADATA_RETRY_CAP_MS = 24 * 60 * 60 * 1000
+const BIND_CHUNK_SIZE = 40
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+function chunkValues<T>(values: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < values.length; i += size) chunks.push(values.slice(i, i + size))
+  return chunks
+}
+
+function retryDelaysSec(): { d1: number, d2: number, d3: number, d4: number, d5: number, cap: number } {
+  const base = Math.max(1, Math.round(METADATA_RETRY_BASE_MS / 1000))
+  const cap = Math.max(base, Math.round(METADATA_RETRY_CAP_MS / 1000))
+  return {
+    d1: Math.min(base, cap),
+    d2: Math.min(base * 2, cap),
+    d3: Math.min(base * 4, cap),
+    d4: Math.min(base * 8, cap),
+    d5: Math.min(base * 16, cap),
+    cap: cap,
+  }
+}
 
 const WRITES_PAUSED = process.env.DISABLE_DB_WRITES === '1'
 
@@ -73,12 +93,6 @@ function normalizeStatus(raw: string): string {
   return 'ONGOING'
 }
 
-function retryDelayMs(attempts: number): number {
-  const step = Math.max(1, attempts)
-  const delay = METADATA_RETRY_BASE_MS * Math.pow(2, step - 1)
-  return Math.min(delay, METADATA_RETRY_CAP_MS)
-}
-
 function parseOdYear(value: string | null | undefined): number | null {
   if (!value) return null
   const match = value.match(/(\d{4})/)
@@ -93,19 +107,19 @@ function truncateError(message: string): string {
 
 async function recordMetadataFailure(slug: string, message: string): Promise<void> {
   try {
-    const [row] = await db()
-      .select({ attempts: anime.metadataAttempts })
-      .from(anime)
-      .where(eq(anime.slug, slug))
-      .limit(1)
-    const nextAttempts = (row?.attempts ?? 0) + 1
-    const retryAt = new Date(Date.now() + retryDelayMs(nextAttempts))
+    const delays = retryDelaysSec()
     await db()
       .update(anime)
       .set({
-        metadataAttempts: nextAttempts,
+        metadataAttempts: sql`${anime.metadataAttempts} + 1`,
         metadataLastError: truncateError(message),
-        metadataRetryAt: retryAt,
+        metadataRetryAt: sql`cast((strftime('%s', 'now') + case
+          when coalesce(${anime.metadataAttempts}, 0) + 1 >= 6 then ${delays.cap}
+          when coalesce(${anime.metadataAttempts}, 0) + 1 = 5 then ${delays.d5}
+          when coalesce(${anime.metadataAttempts}, 0) + 1 = 4 then ${delays.d4}
+          when coalesce(${anime.metadataAttempts}, 0) + 1 = 3 then ${delays.d3}
+          when coalesce(${anime.metadataAttempts}, 0) + 1 = 2 then ${delays.d2}
+          else ${delays.d1} end) * 1000 as integer)`,
       })
       .where(eq(anime.slug, slug))
   }
@@ -141,11 +155,11 @@ export interface MetadataFailure {
 }
 
 export async function getMetadataFailures(limit = 20): Promise<{ total: number, failures: MetadataFailure[] }> {
-  const [countRow] = await db()
+  const countQuery = db()
     .select({ count: sql<number>`count(*)` })
     .from(anime)
     .where(sql`${anime.metadataAttempts} > 0`)
-  const rows = await db()
+  const rowsQuery = db()
     .select({
       slug: anime.slug,
       title: anime.title,
@@ -158,6 +172,7 @@ export async function getMetadataFailures(limit = 20): Promise<{ total: number, 
     .where(sql`${anime.metadataAttempts} > 0`)
     .orderBy(sql`${anime.metadataAttempts} desc`)
     .limit(Math.max(1, Math.min(100, limit)))
+  const [[countRow], rows] = await Promise.all([countQuery, rowsQuery])
   return {
     total: countRow?.count ?? 0,
     failures: rows.map((row: any) => ({
@@ -203,17 +218,17 @@ async function upsertEpisodes(
 
   if (rows.length === 0) return
 
-  const chunkSize = 15
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize).map(({ entry, number }) => ({
+  const client = db()
+  const statements = chunkValues(rows, 15).map(chunk =>
+    client.insert(episodes).values(chunk.map(({ entry, number }) => ({
       animeSlug,
       slug: `${sourcePrefix}${entry.slug}`,
       number,
       title: entry.title,
       releaseDate: entry.date || null,
-    }))
-    await db().insert(episodes).values(chunk).onConflictDoNothing()
-  }
+    }))).onConflictDoNothing(),
+  )
+  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -223,12 +238,17 @@ async function syncGenres(animeSlug: string, names: string[]) {
     slug: slugify(name),
     name,
   }))
+  const wantedSlugs = [...new Set(rows.map(row => row.slug))]
 
-  const genreChunkSize = 30
-  for (let i = 0; i < rows.length; i += genreChunkSize) {
-    await db().insert(genres).values(rows.slice(i, i + genreChunkSize)).onConflictDoNothing()
-  }
-  const stored = await db().select({ id: genres.id, slug: genres.slug }).from(genres)
+  const client = db()
+  const genreStatements = chunkValues(rows, 30).map(chunk =>
+    client.insert(genres).values(chunk).onConflictDoNothing(),
+  )
+  await client.batch(genreStatements as [typeof genreStatements[number], ...typeof genreStatements[number][]])
+  const stored = await db()
+    .select({ id: genres.id, slug: genres.slug })
+    .from(genres)
+    .where(inArray(genres.slug, wantedSlugs))
   const bySlug = new Map(stored.map((genre: any) => [genre.slug, genre.id]))
 
   const links = rows
@@ -236,11 +256,16 @@ async function syncGenres(animeSlug: string, names: string[]) {
     .filter((id): id is number => id !== undefined)
     .map(id => ({ animeSlug, genreId: id }))
 
-  await db().delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
-  const linkChunkSize = 30
-  for (let i = 0; i < links.length; i += linkChunkSize) {
-    await db().insert(animeGenres).values(links.slice(i, i + linkChunkSize)).onConflictDoNothing()
+  const writeClient = db()
+  const linkStatements = [
+    writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug)),
+    ...chunkValues(links, 30).map(chunk => writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()),
+  ]
+  if (links.length === 0) {
+    await writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
+    return
   }
+  await writeClient.batch(linkStatements as [typeof linkStatements[number], ...typeof linkStatements[number][]])
 }
 
 async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
@@ -278,15 +303,24 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
   await mirrorAnimeMedia(poster, characters)
 }
 
-async function stealIfPreferred(slug: string, malId: number): Promise<boolean> {
-  const [owner] = await db().select({ slug: anime.slug }).from(anime).where(eq(anime.malId, malId)).limit(1)
-  if (!owner || owner.slug === slug) return false
+async function stealFromOwner(slug: string, ownerSlug: string, malId: number): Promise<boolean> {
+  if (ownerSlug === slug) return false
   const mine = splitSource(slug).source.priority
-  const theirs = splitSource(owner.slug).source.priority
+  const theirs = splitSource(ownerSlug).source.priority
   if (mine >= theirs) return false
-  await db().update(anime).set({ malId: null, metadataSyncedAt: null }).where(eq(anime.slug, owner.slug))
-  console.log(`[metadata] ${slug} takes mal_id ${malId} from ${owner.slug}`)
+  await db().update(anime).set({ malId: null, metadataSyncedAt: null }).where(eq(anime.slug, ownerSlug))
+  console.log(`[metadata] ${slug} takes mal_id ${malId} from ${ownerSlug}`)
   return true
+}
+
+async function stealIfPreferred(slug: string, malId: number, knownOwnerSlug?: string | null): Promise<boolean> {
+  if (knownOwnerSlug !== undefined) {
+    if (!knownOwnerSlug) return false
+    return stealFromOwner(slug, knownOwnerSlug, malId)
+  }
+  const [owner] = await db().select({ slug: anime.slug }).from(anime).where(eq(anime.malId, malId)).limit(1)
+  if (!owner) return false
+  return stealFromOwner(slug, owner.slug, malId)
 }
 
 export async function resolveMetadata(slug: string, title: string): Promise<boolean> {
@@ -354,7 +388,7 @@ export async function resolveMetadata(slug: string, title: string): Promise<bool
           console.warn(`[metadata] sequel guard ${slug}: ${lastReason}`)
           continue
         }
-        if (await stealIfPreferred(slug, mal.malId)) {
+        if (await stealIfPreferred(slug, mal.malId, owner.slug)) {
           await applyMalMetadata(slug, mal)
           return true
         }
@@ -410,11 +444,11 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         .where(eq(episodes.animeSlug, slug))
       const maxBefore = Number(beforeRow?.max ?? 0)
       await upsertEpisodes(slug, detail.episodes)
-      const [afterRow] = await db()
-        .select({ max: sql<number | null>`max(${episodes.number})` })
-        .from(episodes)
-        .where(eq(episodes.animeSlug, slug))
-      const maxAfter = Number(afterRow?.max ?? 0)
+      const maxInDetail = detail.episodes.reduce((max, entry) => {
+        const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
+        return parsed != null && parsed > max ? parsed : max
+      }, 0)
+      const maxAfter = Math.max(maxBefore, maxInDetail)
       await db()
         .update(anime)
         .set({
@@ -487,20 +521,18 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     ongoingRank: card.ongoingRank,
     sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
-  const chunkSize = 15
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    await db()
-      .insert(anime)
-      .values(rows.slice(i, i + chunkSize))
-      .onConflictDoUpdate({
-        target: anime.slug,
-        set: {
-          day: sql`excluded.day`,
-          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
-          ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
-        },
-      })
-  }
+  const client = db()
+  const statements = chunkValues(rows, 15).map(chunk =>
+    client.insert(anime).values(chunk).onConflictDoUpdate({
+      target: anime.slug,
+      set: {
+        day: sql`excluded.day`,
+        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
+        ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
+      },
+    }),
+  )
+  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
 }
 
 async function refreshFlipCandidates(ongoingSlugs: Set<string>, deadlineMs: number): Promise<number> {
@@ -522,10 +554,13 @@ async function refreshFlipCandidates(ongoingSlugs: Set<string>, deadlineMs: numb
   }
   if (completedSlugs.length === 0) return 0
 
-  const statusRows = await db()
-    .select({ slug: anime.slug, title: anime.title, status: anime.status })
-    .from(anime)
-    .where(inArray(anime.slug, completedSlugs))
+  const statusResults = await Promise.all(chunkValues([...new Set(completedSlugs)], BIND_CHUNK_SIZE).map(chunk =>
+    db()
+      .select({ slug: anime.slug, title: anime.title, status: anime.status })
+      .from(anime)
+      .where(inArray(anime.slug, chunk)),
+  ))
+  const statusRows = statusResults.flat()
   const flips = statusRows.filter(row => row.status === 'ONGOING')
   let refreshed = 0
   for (const row of flips) {
@@ -577,14 +612,14 @@ async function refreshFreshEpisodes(
     .filter(item => item.episode != null)
   if (wanted.length === 0) return 0
   const dbMax = new Map<string, number>()
-  const chunkSize = 50
-  for (let i = 0; i < wanted.length; i += chunkSize) {
-    const chunk = wanted.slice(i, i + chunkSize)
-    const rows = await db()
+  const maxResults = await Promise.all(chunkValues(wanted, BIND_CHUNK_SIZE).map(chunk =>
+    db()
       .select({ slug: episodes.animeSlug, max: sql<number>`max(${episodes.number})` })
       .from(episodes)
       .where(inArray(episodes.animeSlug, chunk.map(item => item.slug)))
-      .groupBy(episodes.animeSlug)
+      .groupBy(episodes.animeSlug),
+  ))
+  for (const rows of maxResults) {
     for (const row of rows) {
       dbMax.set((row as { slug: string }).slug, Number((row as { max: number | null }).max ?? 0))
     }
@@ -667,23 +702,19 @@ async function syncOngoingCatalog(): Promise<void> {
   const now = new Date()
   const retryReady = or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))
   const eligibleWhere = and(isNull(anime.malId), retryReady)
-  const [totalRow] = await db()
-    .select({ count: sql<number>`count(*)` })
-    .from(anime)
-    .where(isNull(anime.malId))
-  const totalPending = totalRow?.count ?? 0
-  const [eligibleRow] = await db()
-    .select({ count: sql<number>`count(*)` })
-    .from(anime)
-    .where(eligibleWhere)
-  const eligibleTotal = eligibleRow?.count ?? 0
+  const [totalResult, eligibleResult] = await Promise.all([
+    db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId)),
+    db().select({ count: sql<number>`count(*)` }).from(anime).where(eligibleWhere),
+  ])
+  const totalPending = totalResult[0]?.count ?? 0
+  const eligibleTotal = eligibleResult[0]?.count ?? 0
   const deferredByBackoff = Math.max(0, totalPending - eligibleTotal)
 
   const pending = await db()
     .select({ slug: anime.slug, title: anime.title })
     .from(anime)
     .where(eligibleWhere)
-    .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`random()`)
+    .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, asc(anime.updatedAt))
     .limit(CATALOG_META_BUDGET)
   console.log(`[catalog] ${totalPending} rows need MAL metadata, ${deferredByBackoff} deferred by backoff, processing ${pending.length}`)
   let resolved = 0

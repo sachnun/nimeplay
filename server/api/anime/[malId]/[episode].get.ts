@@ -1,8 +1,5 @@
-import { asc, eq } from 'drizzle-orm'
 import { createError, getRouterParam } from 'h3'
-import { db } from '../../../utils/db'
-import { anime, episodes } from '../../../database/schema'
-import { resolveEpisode } from '../../../utils/queries'
+import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
 import { scrapeEpisode } from '../../../utils/sources'
 
 defineRouteMeta({
@@ -44,16 +41,11 @@ export default defineEventHandler(async (event) => {
   const resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
-  const scraped = await scrapeEpisode(resolved.sourceSlug)
+  const [scraped, episodeNumbers] = await Promise.all([
+    scrapeEpisode(resolved.sourceSlug),
+    getEpisodeNumbers(resolved.animeSlug),
+  ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
-
-  // Full episode list for the drawer, keyed by number instead of source slug.
-  const list = await db()
-    .select({ number: episodes.number })
-    .from(episodes)
-    .innerJoin(anime, eq(anime.slug, episodes.animeSlug))
-    .where(eq(anime.malId, malId))
-    .orderBy(asc(episodes.number))
 
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
@@ -64,6 +56,6 @@ export default defineEventHandler(async (event) => {
       mirrors: scraped.mirrors,
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },
-    episodes: list.map(entry => entry.number),
+    episodes: episodeNumbers,
   }
 })

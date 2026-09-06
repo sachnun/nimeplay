@@ -1,7 +1,6 @@
 import * as cheerio from 'cheerio'
 import { sealStreamToken } from '../streamUrl'
-import { cleanTitleWithRules, type TitleCleanupRule } from '../title'
-import { fetchHTML, parseEpisodeDate, postForm } from './shared'
+import { cleanTitleWithRules, fetchHTML, parseEpisodeDate, postForm, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const BASE_URL = 'https://otakudesu.blog'

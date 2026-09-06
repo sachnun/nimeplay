@@ -17,12 +17,7 @@ Open `http://localhost:3000`.
 
 ## Syncing data
 
-The catalog is synced by a scraper. Start the dev server first, then:
-
-```bash
-npm run scrape          # incremental sync
-npm run scrape -- --full
-```
+The catalog syncs itself in the background while the server runs.
 
 Schema migrations:
 

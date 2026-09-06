@@ -1,6 +1,48 @@
-import { getDb } from './db'
+import { openDB, type IDBPDatabase } from 'idb'
 
+const DB_NAME = 'nimeplay'
+const DB_VERSION = 3
 const COMPLETED_PROGRESS_THRESHOLD = 0.87
+
+let dbPromise: Promise<IDBPDatabase> | null = null
+
+export function getDb(): Promise<IDBPDatabase> {
+  if (!dbPromise) {
+    dbPromise = openDB(DB_NAME, DB_VERSION, {
+      upgrade(db, oldVersion) {
+        for (const store of ['progress', 'prefs']) {
+          if (!db.objectStoreNames.contains(store)) db.createObjectStore(store)
+        }
+        if (oldVersion < 2) {
+          for (const store of ['jikan', 'animeDetail', 'jikanData', 'skipTimes']) {
+            if (db.objectStoreNames.contains(store)) db.deleteObjectStore(store)
+          }
+        }
+        if (oldVersion < 3) {
+          if (db.objectStoreNames.contains('progress')) db.deleteObjectStore('progress')
+          db.createObjectStore('progress')
+        }
+      },
+    })
+  }
+  return dbPromise
+}
+
+export async function getAutoSkip(): Promise<boolean> {
+  if (!import.meta.client) return false
+  try {
+    const db = await getDb()
+    return (await db.get('prefs', 'autoskip')) === '1'
+  } catch {
+    return false
+  }
+}
+
+export async function setAutoSkip(value: boolean): Promise<void> {
+  if (!import.meta.client) return
+  const db = await getDb()
+  await db.put('prefs', value ? '1' : '0', 'autoskip')
+}
 
 export type WatchProgressStatus = 'unstarted' | 'in_progress' | 'completed'
 
@@ -12,13 +54,8 @@ export interface WatchProgress {
   episodeNumber: number
 }
 
-/** Progress store key: "malId:episodeNumber" (URL scheme /anime/{malId}/{episode}). */
 export function progressKey(malId: number, episodeNumber: number): string {
   return `${malId}:${episodeNumber}`
-}
-
-function entryKey(data: Omit<WatchProgress, 'updatedAt'>): string {
-  return progressKey(data.malId, data.episodeNumber)
 }
 
 export async function markWatched(key: string, data: Omit<WatchProgress, 'updatedAt'>) {

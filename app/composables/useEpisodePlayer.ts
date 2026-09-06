@@ -1,4 +1,7 @@
-import { fetchSkipTimes } from '~/utils/aniskip'
+import { fetchSkipTimes } from '~/utils/remote'
+import { useEpisodePlayerGestures } from './player/gestures'
+import { useEpisodePlayerMediaEvents } from './player/media-events'
+import { useEpisodePlayerResolution } from './player/resolution'
 import type { EpisodeData, SkipTime } from '~/utils/types'
 
 interface EpisodePlayerProps {

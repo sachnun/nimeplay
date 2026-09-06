@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WatchProgressStatus } from '~/utils/watchHistory'
+import type { WatchProgressStatus } from '~/utils/storage'
 
 const props = defineProps<{
   episodes: number[]

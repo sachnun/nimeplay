@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { AnimeCharacter } from '~/utils/types'
 
-const props = defineProps<{ characters: AnimeCharacter[] }>()
+const props = defineProps<{ characters?: AnimeCharacter[] }>()
 
 const showAll = ref(false)
 const preview = ref<AnimeCharacter | null>(null)
-const mainChars = computed(() => props.characters.filter((c) => c.role === 'Main'))
-const hasSupporting = computed(() => props.characters.length > mainChars.value.length)
-const displayed = computed(() => showAll.value ? props.characters : mainChars.value.length > 0 ? mainChars.value : props.characters.slice(0, 10))
+const mainChars = computed(() => (props.characters ?? []).filter((c) => c.role === 'Main'))
+const hasSupporting = computed(() => (props.characters ?? []).length > mainChars.value.length)
+const displayed = computed(() => {
+  const list = props.characters ?? []
+  return showAll.value ? list : mainChars.value.length > 0 ? mainChars.value : list.slice(0, 10)
+})
 
 function closePreview() {
   preview.value = null
@@ -23,7 +26,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="characters.length > 0">
+  <section v-if="characters && characters.length > 0">
+    <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+      Characters
+    </h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-2.5">
       <button
         v-for="char in displayed"
@@ -89,5 +95,5 @@ onMounted(() => {
         </button>
       </div>
     </div>
-  </div>
+  </section>
 </template>

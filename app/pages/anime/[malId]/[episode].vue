@@ -18,7 +18,6 @@ const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
     watch: [malId, episodeParam],
     default: () => null,
     server: false,
-    lazy: true,
     getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
   },
 )

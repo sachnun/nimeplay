@@ -107,6 +107,19 @@ summary::-webkit-details-marker {
   display: none;
 }
 
+.osd-fade-enter-active {
+  transition: opacity 0.2s ease-out;
+}
+
+.osd-fade-leave-active {
+  transition: opacity 0.25s ease-in;
+}
+
+.osd-fade-enter-from,
+.osd-fade-leave-to {
+  opacity: 0;
+}
+
 .vol-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;

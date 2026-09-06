@@ -15,6 +15,8 @@ const CATALOG_SYNC_MS = Number(process.env.REFRESH_CATALOG_MS || 10 * 60 * 1000)
 const CATALOG_META_BUDGET = Number(process.env.REFRESH_CATALOG_META || 10)
 const ONGOING_PAGES = Number(process.env.REFRESH_ONGOING_PAGES || 6)
 const COMPLETED_PAGES = Number(process.env.REFRESH_COMPLETED_PAGES || 3)
+const FRESH_BUDGET = Number(process.env.REFRESH_FRESH_BUDGET || 12)
+const SYNC_WALL_MS = Number(process.env.REFRESH_WALL_MS || 25000)
 const METADATA_MAX_ERROR_LEN = 500
 const METADATA_RETRY_BASE_MS = 60 * 60 * 1000
 const METADATA_RETRY_CAP_MS = 24 * 60 * 60 * 1000
@@ -32,6 +34,7 @@ interface CatalogStats {
   durationMs: number
   sourcesRegistered: Record<string, number>
   flipRefreshed: number
+  freshRefreshed: number
   failedPages: number
   metadataPending: number
   metadataResolved: number
@@ -183,6 +186,8 @@ export async function getCatalogHealth() {
       completedPages: COMPLETED_PAGES,
       catalogMetaBudget: CATALOG_META_BUDGET,
       catalogSyncMs: CATALOG_SYNC_MS,
+      freshBudget: FRESH_BUDGET,
+      wallMs: SYNC_WALL_MS,
     },
   }
 }
@@ -487,7 +492,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
   }
 }
 
-async function refreshFlipCandidates(ongoingSlugs: Set<string>): Promise<number> {
+async function refreshFlipCandidates(ongoingSlugs: Set<string>, deadlineMs: number): Promise<number> {
   const completedSlugs: string[] = []
   for (const source of getSources()) {
     for (let page = 1; page <= COMPLETED_PAGES; page++) {
@@ -513,6 +518,7 @@ async function refreshFlipCandidates(ongoingSlugs: Set<string>): Promise<number>
   const flips = statusRows.filter(row => row.status === 'ONGOING')
   let refreshed = 0
   for (const row of flips) {
+    if (Date.now() > deadlineMs) break
     try {
       await refreshAnimeBySlug(row.slug, row.title, false)
       refreshed++
@@ -529,6 +535,7 @@ async function refreshFlipCandidates(ongoingSlugs: Set<string>): Promise<number>
       .where(eq(anime.status, 'ONGOING'))
       .limit(500)
     for (const row of dbOngoing) {
+      if (refreshed >= 12 || Date.now() > deadlineMs) break
       if (!ongoingSlugs.has(row.slug) && !flips.some(item => item.slug === row.slug)) {
         try {
           await refreshAnimeBySlug(row.slug, row.title, false)
@@ -550,8 +557,49 @@ async function refreshFlipCandidates(ongoingSlugs: Set<string>): Promise<number>
   return refreshed
 }
 
+async function refreshFreshEpisodes(
+  cards: { slug: string, title: string, episode: string }[],
+  deadlineMs: number,
+): Promise<number> {
+  const wanted = cards
+    .map(card => ({ slug: card.slug, title: card.title, episode: episodeNumber(card.episode) }))
+    .filter(item => item.episode != null)
+  if (wanted.length === 0) return 0
+  const dbMax = new Map<string, number>()
+  const chunkSize = 50
+  for (let i = 0; i < wanted.length; i += chunkSize) {
+    const chunk = wanted.slice(i, i + chunkSize)
+    const rows = await db()
+      .select({ slug: episodes.animeSlug, max: sql<number>`max(${episodes.number})` })
+      .from(episodes)
+      .where(inArray(episodes.animeSlug, chunk.map(item => item.slug)))
+      .groupBy(episodes.animeSlug)
+    for (const row of rows) {
+      dbMax.set((row as { slug: string }).slug, Number((row as { max: number | null }).max ?? 0))
+    }
+  }
+  let refreshed = 0
+  for (const item of wanted) {
+    if (refreshed >= FRESH_BUDGET || Date.now() > deadlineMs) break
+    if (item.episode != null && item.episode > (dbMax.get(item.slug) ?? 0)) {
+      try {
+        await refreshAnimeBySlug(item.slug, item.title, false)
+        refreshed++
+      }
+      catch (error) {
+        console.warn(`[catalog] fresh refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
+      }
+    }
+  }
+  if (refreshed > 0) {
+    console.log(`[catalog] fresh episodes: ${refreshed} refreshed`)
+  }
+  return refreshed
+}
+
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
+  const deadlineMs = startedAt.getTime() + SYNC_WALL_MS
   const sourcesRegistered: Record<string, number> = {}
   let failedPages = 0
   const ongoingSlugs = new Set<string>()
@@ -565,7 +613,7 @@ async function syncOngoingCatalog(): Promise<void> {
           if (result.anime.length === 0) break
           for (const card of result.anime) {
             ongoingRank++
-            cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, ongoingRank })
+            cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
             ongoingSlugs.add(`${source.id}:${card.slug}`)
           }
         }
@@ -586,10 +634,21 @@ async function syncOngoingCatalog(): Promise<void> {
 
   let flipRefreshed = 0
   try {
-    flipRefreshed = await refreshFlipCandidates(ongoingSlugs)
+    flipRefreshed = await refreshFlipCandidates(ongoingSlugs, deadlineMs)
   }
   catch (error) {
     console.warn('[catalog] flip pass failed, continuing to metadata:', error instanceof Error ? error.message : error)
+  }
+
+  let freshRefreshed = 0
+  try {
+    freshRefreshed = await refreshFreshEpisodes(
+      cards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
+      deadlineMs,
+    )
+  }
+  catch (error) {
+    console.warn('[catalog] fresh pass failed, continuing to metadata:', error instanceof Error ? error.message : error)
   }
 
   const now = new Date()
@@ -616,6 +675,7 @@ async function syncOngoingCatalog(): Promise<void> {
   console.log(`[catalog] ${totalPending} rows need MAL metadata, ${deferredByBackoff} deferred by backoff, processing ${pending.length}`)
   let resolved = 0
   for (const row of pending) {
+    if (Date.now() > deadlineMs) break
     try {
       if (await resolveMetadata(row.slug, row.title)) {
         resolved++
@@ -634,6 +694,7 @@ async function syncOngoingCatalog(): Promise<void> {
     durationMs: Date.now() - startedAt.getTime(),
     sourcesRegistered,
     flipRefreshed,
+    freshRefreshed,
     failedPages,
     metadataPending: totalPending,
     metadataResolved: resolved,

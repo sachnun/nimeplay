@@ -45,16 +45,16 @@ defineEmits<{
   <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'">
     <div class="px-4 md:px-8 pb-4 [@media_(hover:none)_and_(pointer:coarse)]:pb-[max(1rem,env(safe-area-inset-bottom))] pt-20" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
       <div class="group/prog relative w-full cursor-pointer mb-2 py-2 -my-1">
-        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full bg-white/20 transition-all" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" />
-        <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white/30 transition-all" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${bufferedPct}%` }" />
+        <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full bg-white/20 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" />
+        <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white/30 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${bufferedPct}%` }" />
         <div
           v-for="skip in skipTimes"
           :key="`${skip.skipType}-${skip.interval.startTime}`"
-          class="absolute top-1/2 -translate-y-1/2 rounded-full transition-all"
+          class="absolute top-1/2 -translate-y-1/2 rounded-full transition-[height]"
           :class="[(skip.skipType === 'op' || skip.skipType === 'mixed-op') ? 'bg-white/35' : 'bg-white/15', isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2']"
           :style="{ left: `${(skip.interval.startTime / duration) * 100}%`, width: `${((skip.interval.endTime - skip.interval.startTime) / duration) * 100}%` }"
         />
-        <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white transition-all" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${progress}%` }" />
+        <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${progress}%` }" />
         <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md transition-opacity" :class="isSeeking ? 'opacity-100 scale-110' : 'opacity-0 group-hover/prog:opacity-100'" :style="{ left: `${progress}%` }" />
         <input type="range" :min="0" :max="duration || 0" step="0.1" :value="currentTime" :disabled="!duration" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-none" aria-label="Seek" @pointerdown="$emit('seekStart')" @input="$emit('seekPreview', Number(($event.target as HTMLInputElement).value))" @change="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointerup="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointercancel="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))">
       </div>

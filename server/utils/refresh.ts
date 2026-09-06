@@ -615,9 +615,10 @@ async function syncOngoingCatalog(): Promise<void> {
   let failedPages = 0
   const ongoingSlugs = new Set<string>()
   let ongoingRank = 0
+  const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
   for (const source of getSources()) {
     try {
-      const cards = []
+      const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
       for (let page = 1; page <= ONGOING_PAGES; page++) {
         try {
           const result = await source.ongoingFresh(page)
@@ -635,6 +636,7 @@ async function syncOngoingCatalog(): Promise<void> {
         await sleep(250)
       }
       await registerOngoingCards(cards)
+      allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
       sourcesRegistered[source.id] = cards.length
       console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
     }
@@ -654,7 +656,7 @@ async function syncOngoingCatalog(): Promise<void> {
   let freshRefreshed = 0
   try {
     freshRefreshed = await refreshFreshEpisodes(
-      cards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
+      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
       deadlineMs,
     )
   }

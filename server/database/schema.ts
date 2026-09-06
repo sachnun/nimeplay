@@ -60,6 +60,9 @@ export const anime = sqliteTable('anime', {
   ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
   metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
+  metadataAttempts: integer('metadata_attempts').notNull().default(0),
+  metadataLastError: text('metadata_last_error'),
+  metadataRetryAt: integer('metadata_retry_at', { mode: 'timestamp_ms' }),
 }, table => [
   uniqueIndex('anime_mal_id_key').on(table.malId),
   index('anime_updated_at_idx').on(table.updatedAt),

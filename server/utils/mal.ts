@@ -220,21 +220,16 @@ function contentOverlap(siteTitle: string, malTitle: string): number {
  * preferred: marker-only overlaps ("Season 3" matching "Shingeki no
  * Kyojin Season 3") are how wrong franchises get picked.
  */
-export function bestMalAnimeMatch(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry | null {
+export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
   const passing = entries.filter(entry => titlesMatch(siteTitle, entry.title))
-  if (passing.length === 0) return null
+  if (passing.length === 0) return []
   const content = passing.filter(entry => contentOverlap(siteTitle, entry.title) > 0)
   const pool = content.length > 0 ? content : passing
-  let best = pool[0]!
-  let bestScore = -Infinity
-  for (const entry of pool) {
-    const score = matchScore(siteTitle, entry.title)
-    if (score > bestScore) {
-      best = entry
-      bestScore = score
-    }
-  }
-  return best
+  return [...pool].sort((a, b) => matchScore(siteTitle, b.title) - matchScore(siteTitle, a.title))
+}
+
+export function bestMalAnimeMatch(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry | null {
+  return rankMalAnimeMatches(siteTitle, entries)[0] ?? null
 }
 
 export async function searchMalAnime(title: string): Promise<number | null> {

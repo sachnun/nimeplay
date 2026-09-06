@@ -36,7 +36,9 @@ const {
   loadingMessage,
   navigateEpisode,
   nextEpisode,
-  onProgressDown,
+  onSeekCommit,
+  onSeekPreview,
+  onSeekStart,
   prevEpisode,
   progress,
   qualityOptions,
@@ -153,7 +155,9 @@ const {
       @change-volume="changeVolume"
       @hide-volume="hideVolumeControl"
       @navigate="navigateEpisode"
-      @progress-down="onProgressDown"
+      @seek-commit="onSeekCommit"
+      @seek-preview="onSeekPreview"
+      @seek-start="onSeekStart"
       @show-volume="showVolumeControl"
       @toggle-auto-skip="toggleAutoSkip"
       @toggle-episodes="toggleEpisodesPanel"

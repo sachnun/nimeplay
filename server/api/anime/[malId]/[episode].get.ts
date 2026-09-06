@@ -30,11 +30,11 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineCachedEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   const episodeNumber = Number(getRouterParam(event, 'episode'))
 
-  if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0) {
+  if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0 || episodeNumber > 5000) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id or episode number' })
   }
 
@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
+  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=300')
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
@@ -58,4 +59,8 @@ export default defineEventHandler(async (event) => {
     },
     episodes: episodeNumbers,
   }
+}, {
+  maxAge: 60,
+  staleMaxAge: 300,
+  getKey: (event) => `episode:v1:${getRouterParam(event, 'malId')}:${getRouterParam(event, 'episode')}`,
 })

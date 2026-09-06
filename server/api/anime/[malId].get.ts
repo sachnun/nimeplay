@@ -23,7 +23,7 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineCachedEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   if (!Number.isInteger(malId) || malId <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id' })
@@ -32,5 +32,10 @@ export default defineEventHandler(async (event) => {
   const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
   scheduleAnimeRefresh(event, malId)
+  setHeader(event, 'Cache-Control', 'public, max-age=300, s-maxage=300, stale-while-revalidate=3600')
   return detail
+}, {
+  maxAge: 300,
+  staleMaxAge: 3600,
+  getKey: (event) => `anime-detail:v1:${getRouterParam(event, 'malId')}`,
 })

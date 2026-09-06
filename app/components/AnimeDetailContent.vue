@@ -130,7 +130,7 @@ onMounted(() => {
             <SynopsisSection :synopsis-id="synopsisId" :synopsis-en="data?.synopsisEn" :loading="loading" />
           </div>
           <div>
-            <CharactersSection :characters="data?.characters" />
+            <LazyCharactersSection hydrate-on-visible :characters="data?.characters" />
           </div>
         </div>
       </div>

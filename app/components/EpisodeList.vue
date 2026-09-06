@@ -43,6 +43,7 @@ function episodeStatus(number: number) {
         v-for="number in [...episodes].reverse()"
         :key="number"
         :to="`/anime/${malId}/${number}`"
+        :prefetch="false"
         class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
         :class="episodeStatus(number) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(number) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
       >

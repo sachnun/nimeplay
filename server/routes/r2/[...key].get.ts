@@ -16,6 +16,15 @@ export default defineEventHandler(async (event) => {
 
   // 1. Check R2 Cache (fastest)
   const cached = await getCachedMedia(key)
+  if (cached?.etag) {
+    const ifNoneMatch = getRequestHeader(event, 'if-none-match')
+    if (ifNoneMatch && ifNoneMatch === cached.etag) {
+      setResponseStatus(event, 304)
+      setHeader(event, 'ETag', cached.etag)
+      setHeader(event, 'Cache-Control', MEDIA_CACHE_CONTROL)
+      return null
+    }
+  }
   if (cached) {
     const headers: Record<string, string> = {
       'Cache-Control': MEDIA_CACHE_CONTROL,
@@ -31,8 +40,10 @@ export default defineEventHandler(async (event) => {
 
   try {
     const { contentType, bytes } = await fetchRemoteMedia(origin)
-    // Async store to R2 without blocking client response if possible or inline
-    await storeMedia(key, bytes, contentType).catch(() => {})
+    const store = storeMedia(key, bytes, contentType).catch(() => {})
+    const withWaitUntil = event as { waitUntil?: (p: Promise<unknown>) => void }
+    if (withWaitUntil.waitUntil) withWaitUntil.waitUntil(store)
+    else await store
     return new Response(bytes, {
       headers: {
         'Cache-Control': MEDIA_CACHE_CONTROL,

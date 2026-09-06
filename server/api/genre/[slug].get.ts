@@ -28,11 +28,23 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+const MAX_GENRE_PAGE = 100
+
+export default defineCachedEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') || ''
-  const page = Math.max(1, Number(getQuery(event).page) || 1)
+  if (!/^[a-z0-9-]{1,64}$/.test(slug)) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  const page = Math.min(MAX_GENRE_PAGE, Math.max(1, Number(getQuery(event).page) || 1))
 
   const result = await getGenreAnimePage(slug, page)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  setHeader(event, 'Cache-Control', 'public, max-age=600, s-maxage=600, stale-while-revalidate=3600')
   return result
+}, {
+  maxAge: 600,
+  staleMaxAge: 3600,
+  getKey: (event) => {
+    const slug = getRouterParam(event, 'slug') || ''
+    const page = Math.min(MAX_GENRE_PAGE, Math.max(1, Number(getQuery(event).page) || 1))
+    return `genre:v1:${slug}:${page}`
+  },
 })

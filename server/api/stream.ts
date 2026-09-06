@@ -1,8 +1,8 @@
 defineRouteMeta({
   openAPI: {
     tags: ['Stream'],
-    summary: 'Proxy stream by token',
-    description: 'Resolves a sealed stream token and proxies the upstream playlist or media, forwarding Range headers. Supports HLS (m3u8) and direct files.',
+    summary: 'Resolve stream by token',
+    description: 'Resolves a sealed stream token. HLS playlists are proxied with rewritten segment URLs, direct files redirect to upstream so video bytes never pass through the Worker.',
     parameters: [
       {
         name: 't',
@@ -58,38 +58,48 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid stream protocol' })
   }
 
-  const range = getRequestHeader(event, 'range') || undefined
-  const res = await fetch(target, {
-    headers: { ...getSpoofHeaders(`${target.origin}/`, 'iframe'), ...(range ? { Range: range } : {}) },
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-  })
-
-  if (!res.ok && res.status !== 206) {
-    throw createError({ statusCode: res.status, statusMessage: 'Failed to fetch stream' })
-  }
-
-  const contentType = res.headers.get('content-type')
-
-  if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) {
+  if (isPlaylistUrl(target)) {
+    const res = await fetch(target, {
+      headers: getSpoofHeaders(`${target.origin}/`, 'iframe'),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    })
+    if (!res.ok) throw createError({ statusCode: res.status, statusMessage: 'Failed to fetch stream' })
     const body = await res.text()
     const origin = getRequestURL(event).origin
     const rewritten = await rewriteHlsPlaylist(body, target.toString(), origin)
-    setHeader(event, 'Content-Type', contentType || 'application/vnd.apple.mpegurl')
+    setHeader(event, 'Content-Type', res.headers.get('content-type') || 'application/vnd.apple.mpegurl')
     setHeader(event, 'Cache-Control', 'no-store')
     return rewritten
   }
 
-  setResponseStatus(event, res.status)
-  setHeader(event, 'Content-Type', contentType || 'application/octet-stream')
+  const range = getRequestHeader(event, 'range') || undefined
+  const res = await fetch(target, {
+    method: range ? 'GET' : 'HEAD',
+    headers: { ...getSpoofHeaders(`${target.origin}/`, 'iframe'), ...(range ? { Range: range } : {}) },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+  })
+  void res.body?.cancel().catch(() => {})
+
+  const contentType = res.headers.get('content-type')
+  if (isPlaylistResponse(contentType)) {
+    const full = await fetch(target, {
+      headers: getSpoofHeaders(`${target.origin}/`, 'iframe'),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    })
+    if (!full.ok) throw createError({ statusCode: full.status, statusMessage: 'Failed to fetch stream' })
+    const body = await full.text()
+    const origin = getRequestURL(event).origin
+    const rewritten = await rewriteHlsPlaylist(body, target.toString(), origin)
+    setHeader(event, 'Content-Type', full.headers.get('content-type') || 'application/vnd.apple.mpegurl')
+    setHeader(event, 'Cache-Control', 'no-store')
+    return rewritten
+  }
+  if (!res.ok && res.status !== 206) {
+    throw createError({ statusCode: res.status, statusMessage: 'Failed to fetch stream' })
+  }
+
   setHeader(event, 'Cache-Control', 'no-store')
-  const acceptRanges = res.headers.get('accept-ranges')
-  setHeader(event, 'Accept-Ranges', acceptRanges === 'none' ? 'none' : 'bytes')
-  const contentLength = Number(res.headers.get('content-length'))
-  if (Number.isFinite(contentLength) && contentLength > 0) setHeader(event, 'Content-Length', contentLength)
-  const contentRange = res.headers.get('content-range')
-  if (contentRange) setHeader(event, 'Content-Range', contentRange)
-  if (res.body) return res.body
-  throw createError({ statusCode: 502, statusMessage: 'Empty upstream response' })
+  return sendRedirect(event, target.toString(), 302)
 })
 
 async function rewriteHlsPlaylist(text: string, baseUrl: string, origin: string): Promise<string> {

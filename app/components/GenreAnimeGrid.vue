@@ -85,6 +85,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         v-for="({ anime, progress, to }, i) in animeCards"
         :key="`${anime.malId}-${i}`"
         :to="to"
+        :prefetch="false"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="progressCard.onProgressCardPointerDown($event, progress ? anime.malId : null)"
         @pointermove="progressCard.onProgressCardPointerMove"

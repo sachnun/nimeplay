@@ -12,11 +12,16 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler((event) => {
+export default defineCachedEventHandler((event) => {
   scheduleCatalogSync(event)
+  setHeader(event, 'Cache-Control', 'public, max-age=180, s-maxage=180, stale-while-revalidate=600')
   return Promise.all([
     listAnimePage('ONGOING', 1),
     listAnimePage('COMPLETED', 1),
     getGenreList(),
   ]).then(([ongoingData, completedData, genres]) => ({ ongoingData, completedData, genres }))
+}, {
+  maxAge: 180,
+  staleMaxAge: 600,
+  getKey: () => 'home:v1',
 })

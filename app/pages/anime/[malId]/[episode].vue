@@ -17,23 +17,25 @@ const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
   {
     watch: [malId, episodeParam],
     default: () => null,
+    server: false,
+    lazy: true,
+    getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
   },
 )
 
 const anime = computed(() => pageData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
 
-if (!anime.value) {
-  await navigateTo('/')
-}
-else if (!episodeData.value) {
-  await navigateTo(`/anime/${malId.value}`)
-}
-
 watchEffect(() => {
-  if (!pending.value && !anime.value) navigateTo('/')
-  else if (!pending.value && !episodeData.value) navigateTo(`/anime/${malId.value}`)
-  if (pageData.value?.episode.title) useHead({ title: pageData.value.episode.title })
+  if (!import.meta.client || pending.value) return
+  if (!anime.value) navigateTo('/')
+  else if (!episodeData.value) navigateTo(`/anime/${malId.value}`)
+})
+
+useSeoMeta({
+  title: () => pageData.value?.episode.title ?? 'Nimeplay',
+  ogTitle: () => pageData.value?.episode.title ?? 'Nimeplay',
+  ogImage: () => pageData.value?.anime.thumbnail || '/favicon.svg',
 })
 </script>
 

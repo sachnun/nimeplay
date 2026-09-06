@@ -20,8 +20,13 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
-  const query = String(getQuery(event).query || '').trim()
-  if (!query) return []
+export default defineCachedEventHandler(async (event) => {
+  const query = String(getQuery(event).query || '').trim().slice(0, 60)
+  if (query.length < 2) return []
+  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=300')
   return searchAnime(query)
+}, {
+  maxAge: 60,
+  staleMaxAge: 300,
+  getKey: (event) => `search:v1:${String(getQuery(event).query || '').trim().slice(0, 60).toLowerCase()}`,
 })

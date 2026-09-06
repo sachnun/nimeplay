@@ -8,7 +8,10 @@ const isEpisodeRoute = computed(() => Boolean(route.params.episode))
 const { data: anime, pending } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${malId.value}`,
   () => $fetch(`/api/anime/${malId.value}`),
-  { watch: [malId, isEpisodeRoute] },
+  {
+    watch: [malId, isEpisodeRoute],
+    getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
+  },
 )
 
 if (!isEpisodeRoute.value && !anime.value) {
@@ -17,7 +20,14 @@ if (!isEpisodeRoute.value && !anime.value) {
 
 watchEffect(() => {
   if (!isEpisodeRoute.value && !pending.value && !anime.value) navigateTo('/')
-  if (anime.value?.title) useHead({ title: anime.value.title })
+})
+
+useSeoMeta({
+  title: () => anime.value?.title ?? 'Nimeplay',
+  description: () => anime.value?.synopsis?.slice(0, 160) || 'Minimal anime streaming',
+  ogTitle: () => anime.value?.title ?? 'Nimeplay',
+  ogDescription: () => anime.value?.synopsis?.slice(0, 160) || 'Minimal anime streaming',
+  ogImage: () => anime.value?.thumbnail || '/favicon.svg',
 })
 </script>
 

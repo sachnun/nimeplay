@@ -27,12 +27,24 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler((event) => {
+const MAX_LIST_PAGE = 100
+
+export default defineCachedEventHandler((event) => {
   const query = getQuery(event)
   const type = String(query.type || 'ONGOING')
-  const page = Math.max(1, Number(query.page) || 1)
+  const page = Math.min(MAX_LIST_PAGE, Math.max(1, Number(query.page) || 1))
 
   if (type === 'ONGOING' && page === 1) scheduleCatalogSync(event)
 
+  setHeader(event, 'Cache-Control', 'public, max-age=180, s-maxage=180, stale-while-revalidate=600')
   return type === 'COMPLETED' ? listAnimePage('COMPLETED', page) : listAnimePage('ONGOING', page)
+}, {
+  maxAge: 180,
+  staleMaxAge: 600,
+  getKey: (event) => {
+    const query = getQuery(event)
+    const type = String(query.type || 'ONGOING')
+    const page = Math.min(MAX_LIST_PAGE, Math.max(1, Number(query.page) || 1))
+    return `anime-page:v1:${type}:${page}`
+  },
 })

@@ -17,6 +17,7 @@ const { data } = await useAsyncData<HomeData>('home', async () => {
     completedData: { anime: [], totalPages: 1 },
     genres: [],
   }),
+  getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
 })
 </script>
 

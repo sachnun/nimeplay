@@ -25,8 +25,13 @@ watch(query, (value) => {
   if (debounce) clearTimeout(debounce)
   const token = ++searchToken
   debounce = setTimeout(async () => {
-    const trimmed = value.trim()
+    const trimmed = value.trim().slice(0, 60)
     if (!trimmed) {
+      results.value = []
+      searched.value = false
+      return
+    }
+    if (trimmed.length < 2) {
       results.value = []
       searched.value = false
       return
@@ -84,6 +89,7 @@ onMounted(() => {
             v-for="result in results"
             :key="result.malId"
             :to="`/anime/${result.malId}`"
+            :prefetch="false"
             class="flex items-center gap-3 px-2 py-2.5 hover:bg-zinc-800/50 rounded-lg transition-colors"
             @click="emit('close')"
           >

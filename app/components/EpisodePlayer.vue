@@ -36,7 +36,9 @@ const {
   loadingMessage,
   navigateEpisode,
   nextEpisode,
-  onProgressDown,
+  onSeekCommit,
+  onSeekPreview,
+  onSeekStart,
   prevEpisode,
   progress,
   qualityOptions,
@@ -88,7 +90,9 @@ const {
 
     <div v-if="showEmpty" class="absolute inset-0 flex items-center justify-center text-zinc-500">No player available</div>
     <PlayerSeekIndicator v-if="seekIndicator" :key="seekIndicatorKey" :indicator="seekIndicator" />
-    <PlayerVolumeIndicator v-if="volumeIndicator" :volume="volumeIndicator.volume" :is-muted="volumeIndicator.isMuted" />
+    <Transition name="osd-fade">
+      <PlayerVolumeIndicator v-if="volumeIndicator" :volume="volumeIndicator.volume" :is-muted="volumeIndicator.isMuted" />
+    </Transition>
 
     <div v-if="speedBoost" class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
       <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm">
@@ -153,7 +157,9 @@ const {
       @change-volume="changeVolume"
       @hide-volume="hideVolumeControl"
       @navigate="navigateEpisode"
-      @progress-down="onProgressDown"
+      @seek-commit="onSeekCommit"
+      @seek-preview="onSeekPreview"
+      @seek-start="onSeekStart"
       @show-volume="showVolumeControl"
       @toggle-auto-skip="toggleAutoSkip"
       @toggle-episodes="toggleEpisodesPanel"

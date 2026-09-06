@@ -365,6 +365,15 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     video.currentTime = newTime
   }
 
+  function showVolumeControl() {
+    if (volumeTimer) clearTimeout(volumeTimer)
+    showVolume.value = true
+  }
+
+  function hideVolumeControl() {
+    volumeTimer = setTimeout(() => { showVolume.value = false }, 300)
+  }
+
   function toggleMute() {
     if (videoRef.value) videoRef.value.muted = !videoRef.value.muted
     showVolumeIndicator()
@@ -379,10 +388,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function changeVolume(v: number) {
+    const clamped = Math.max(0, Math.min(1, v))
+    volume.value = clamped
+    if (clamped > 0) isMuted.value = false
     const video = videoRef.value
     if (!video) return
-    video.volume = Math.max(0, Math.min(1, v))
-    if (video.muted && v > 0) video.muted = false
+    video.volume = clamped
+    if (video.muted && clamped > 0) video.muted = false
     showVolumeIndicator()
   }
 
@@ -429,15 +441,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function clearIdleTimer() {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = null
-  }
-
-  function showVolumeControl() {
-    if (volumeTimer) clearTimeout(volumeTimer)
-    showVolume.value = true
-  }
-
-  function hideVolumeControl() {
-    volumeTimer = setTimeout(() => { showVolume.value = false }, 300)
   }
 
   function isInteractiveTarget(target: HTMLElement | null) {
@@ -532,7 +535,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     handleZonePointerUp,
     handleZoneTouchEnd,
     handleZoneTap,
-    onProgressDown,
+    onSeekCommit,
+    onSeekPreview,
+    onSeekStart,
   } = useEpisodePlayerGestures({
     videoRef,
     currentTime,
@@ -777,7 +782,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage,
     navigateEpisode,
     nextEpisode,
-    onProgressDown,
+    onSeekCommit,
+    onSeekPreview,
+    onSeekStart,
     prevEpisode,
     progress,
     qualityOptions,

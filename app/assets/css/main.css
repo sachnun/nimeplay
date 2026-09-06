@@ -106,3 +106,40 @@ summary::marker,
 summary::-webkit-details-marker {
   display: none;
 }
+
+.osd-fade-enter-active {
+  transition: opacity 0.2s ease-out;
+}
+
+.osd-fade-leave-active {
+  transition: opacity 0.25s ease-in;
+}
+
+.osd-fade-enter-from,
+.osd-fade-leave-to {
+  opacity: 0;
+}
+
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.vol-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.vol-slider::-moz-range-track {
+  background: transparent;
+}

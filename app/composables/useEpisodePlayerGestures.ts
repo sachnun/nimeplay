@@ -182,55 +182,28 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     window.addEventListener('touchcancel', cancelPending, { passive: true })
   }
 
-  function getSeekTime(clientX: number, bar: HTMLElement | null): number | null {
-    if (!bar || !options.duration.value) return null
-    const rect = bar.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return ratio * options.duration.value
+  function clampSeekTime(time: number) {
+    if (!Number.isFinite(time)) return null
+    return Math.max(0, Math.min(time, options.duration.value || 0))
   }
 
-  function eventTouch(event: MouseEvent | TouchEvent, changed: boolean) {
-    if (changed && 'changedTouches' in event) return event.changedTouches[0]
-    return 'touches' in event ? event.touches[0] : null
-  }
-
-  function clientXFromEvent(event: MouseEvent | TouchEvent, changed = false): number | null {
-    const touch = eventTouch(event, changed)
-    if (touch) return touch.clientX
-    return 'clientX' in event ? event.clientX : null
-  }
-
-  function previewSeek(event: MouseEvent | TouchEvent, bar: HTMLElement | null, changed = false) {
-    const clientX = clientXFromEvent(event, changed)
-    if (clientX === null) return null
-    const time = getSeekTime(clientX, bar)
-    if (time !== null) options.currentTime.value = time
-    return time
-  }
-
-  function onProgressDown(event: MouseEvent | TouchEvent) {
-    event.preventDefault()
-    const bar = event.currentTarget as HTMLElement | null
+  function onSeekStart() {
     options.isSeeking.value = true
     options.clearIdleTimer()
-    if (previewSeek(event, bar) === null) return
-    const onMove = (ev: MouseEvent | TouchEvent) => {
-      previewSeek(ev, bar)
-    }
-    const onUp = (ev: MouseEvent | TouchEvent) => {
-      const t = previewSeek(ev, bar, true)
-      if (t !== null) options.seekTo(t)
-      options.isSeeking.value = false
-      options.resetIdle()
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      window.removeEventListener('touchmove', onMove)
-      window.removeEventListener('touchend', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    window.addEventListener('touchmove', onMove)
-    window.addEventListener('touchend', onUp)
+  }
+
+  function onSeekPreview(time: number) {
+    const clamped = clampSeekTime(time)
+    if (clamped === null) return
+    options.currentTime.value = clamped
+  }
+
+  function onSeekCommit(time: number) {
+    const clamped = clampSeekTime(time)
+    if (clamped === null) return
+    options.seekTo(clamped)
+    options.isSeeking.value = false
+    options.resetIdle()
   }
 
   function clearGestureState() {
@@ -256,6 +229,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     handleZonePointerUp,
     handleZoneTouchEnd,
     handleZoneTap,
-    onProgressDown,
+    onSeekCommit,
+    onSeekPreview,
+    onSeekStart,
   }
 }

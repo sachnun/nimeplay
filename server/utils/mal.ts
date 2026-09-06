@@ -228,10 +228,6 @@ export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]
   return [...pool].sort((a, b) => matchScore(siteTitle, b.title) - matchScore(siteTitle, a.title))
 }
 
-export function bestMalAnimeMatch(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry | null {
-  return rankMalAnimeMatches(siteTitle, entries)[0] ?? null
-}
-
 export async function searchMalAnime(title: string): Promise<number | null> {
   const entries = await searchMalAnimeEntries(title)
   return entries[0]?.id ?? null

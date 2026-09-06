@@ -30,8 +30,6 @@ export function r2Bucket(): R2BucketLike | null {
   return env?.R2 ?? env?.POSTERS ?? null
 }
 
-export const isR2Available = () => r2Bucket() !== null
-
 /**
  * Valid media key pattern: <folder>/<subfolder>/<file>
  * e.g. posters/1506/117717.jpg, characters/14/587281.webp, voiceactors/1/87350.jpg

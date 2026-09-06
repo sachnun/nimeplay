@@ -1,6 +1,6 @@
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
 const IV_LENGTH = 12
-const DEFAULT_SECRET = 'nimeplay::v1::7Kp3wQz9rXe2VmYs8NbT4cHd6FjUgLa0'
+const STREAM_SECRET = 'nimeplay::v1::7Kp3wQz9rXe2VmYs8NbT4cHd6FjUgLa0'
 
 type TokenPayload = { u: string; e: number }
 
@@ -8,7 +8,7 @@ let cachedKey: Promise<CryptoKey> | null = null
 
 function getKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey
-  const secret = process.env.STREAM_SECRET || DEFAULT_SECRET
+  const secret = STREAM_SECRET
   const encoded = new TextEncoder().encode(secret)
   cachedKey = crypto.subtle
     .digest('SHA-256', encoded)

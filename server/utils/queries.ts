@@ -65,7 +65,7 @@ const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
 
 /** Listing responses are read-heavy and slow-changing; keep them out of D1. */
-const LIST_TTL_MS = Number(process.env.LIST_TTL_MS || 3 * 60 * 1000)
+const LIST_TTL_MS = 3 * 60 * 1000
 const GENRE_TTL_MS = 10 * 60 * 1000
 const GENRE_PAGE_TTL_MS = 3 * 60 * 1000
 const DETAIL_TTL_MS = 2 * 60 * 1000

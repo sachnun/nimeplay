@@ -1,3 +1,4 @@
+import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
 const MAL_CDN = 'https://cdn.myanimelist.net/images/'
@@ -26,7 +27,7 @@ interface R2BucketLike {
 }
 
 export function r2Bucket(): R2BucketLike | null {
-  const env = (globalThis as { __env__?: { R2?: R2BucketLike; POSTERS?: R2BucketLike } }).__env__
+  const env = cloudflareEnv() as { R2?: R2BucketLike, POSTERS?: R2BucketLike }
   return env?.R2 ?? env?.POSTERS ?? null
 }
 

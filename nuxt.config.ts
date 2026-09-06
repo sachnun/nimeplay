@@ -27,6 +27,20 @@ export default defineNuxtConfig({
           mode: 'smart',
           hint: 'apac',
         },
+        d1_databases: [
+          {
+            binding: 'DB',
+            database_name: 'nimeplay',
+            database_id: 'aa1c7419-d7e1-4b32-94db-400b48573073',
+            migrations_dir: 'server/database/migrations',
+          },
+        ],
+        r2_buckets: [
+          {
+            binding: 'R2',
+            bucket_name: 'nimeplay',
+          },
+        ],
       },
     },
     openAPI: {

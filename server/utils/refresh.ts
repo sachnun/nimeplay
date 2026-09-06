@@ -9,14 +9,14 @@ import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
-const DETAIL_REFRESH_MS = Number(process.env.REFRESH_DETAIL_MS || 6 * 60 * 60 * 1000)
-const METADATA_REFRESH_MS = Number(process.env.REFRESH_METADATA_MS || 7 * 24 * 60 * 60 * 1000)
-const CATALOG_SYNC_MS = Number(process.env.REFRESH_CATALOG_MS || 10 * 60 * 1000)
-const CATALOG_META_BUDGET = Number(process.env.REFRESH_CATALOG_META || 10)
-const ONGOING_PAGES = Number(process.env.REFRESH_ONGOING_PAGES || 6)
-const COMPLETED_PAGES = Number(process.env.REFRESH_COMPLETED_PAGES || 3)
-const FRESH_BUDGET = Number(process.env.REFRESH_FRESH_BUDGET || 12)
-const SYNC_WALL_MS = Number(process.env.REFRESH_WALL_MS || 25000)
+const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
+const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
+const CATALOG_SYNC_MS = 10 * 60 * 1000
+const CATALOG_META_BUDGET = 10
+const ONGOING_PAGES = 6
+const COMPLETED_PAGES = 3
+const FRESH_BUDGET = 12
+const SYNC_WALL_MS = 25000
 const METADATA_MAX_ERROR_LEN = 500
 const METADATA_RETRY_BASE_MS = 60 * 60 * 1000
 const METADATA_RETRY_CAP_MS = 24 * 60 * 60 * 1000
@@ -42,7 +42,7 @@ function retryDelaysSec(): { d1: number, d2: number, d3: number, d4: number, d5:
   }
 }
 
-const WRITES_PAUSED = process.env.DISABLE_DB_WRITES === '1'
+const WRITES_PAUSED = false
 
 const animeRunning = new Map<number, boolean>()
 let catalogSyncRunning = false

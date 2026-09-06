@@ -1,5 +1,5 @@
 import { toR2Url } from '../../utils/r2'
-import { desc, eq, like } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
@@ -54,6 +54,10 @@ function splitSeasonYear(season: string | null): { season: string | null, year: 
   return { season: (name ?? null)?.toLowerCase() ?? null, year: year ? Number(year) : null }
 }
 
+function escapeLike(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
 async function lookupInDb(body: MetadataRequestBody) {
   const columns = {
     malId: anime.malId,
@@ -77,7 +81,7 @@ async function lookupInDb(body: MetadataRequestBody) {
   const [row] = await db()
     .select(columns)
     .from(anime)
-    .where(like(anime.title, `%${title}%`))
+    .where(sql`${anime.title} like ${`%${escapeLike(title)}%`} escape '\\'`)
     .orderBy(desc(anime.updatedAt))
     .limit(1)
   return row ?? null

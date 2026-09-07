@@ -131,8 +131,8 @@ async function detectKindFast(url: string): Promise<'hls' | 'file'> {
   return detected
 }
 
-export function prepareMirror(dataContent: string, extract: boolean, origin: string): Promise<PrepareResult> {
-  return cache.get('prepare', `${extract}:${dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
+export function prepareMirror(dataContent: string, extract: boolean): Promise<PrepareResult> {
+  return cache.get('prepare', `v2:${extract}:${dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(dataContent)
     if (!mirrorId) return emptyPrepareResult()
     const iframeUrl = await resolvemirror(mirrorId)
@@ -144,11 +144,11 @@ export function prepareMirror(dataContent: string, extract: boolean, origin: str
 
     const kind = await detectKindFast(extracted.url)
     const token = await sealStreamToken(extracted.url)
-    return { iframeUrl: extracted.iframeUrl, playUrl: proxiedStreamPath(origin, token), kind, ok: true }
+    return { iframeUrl: extracted.iframeUrl, playUrl: proxiedStreamPath(token), kind, ok: true }
   }) as Promise<PrepareResult>
 }
 
-export async function prepareInitialStream(mirrors: MirrorInput[], origin: string): Promise<InitialStream | null> {
+export async function prepareInitialStream(mirrors: MirrorInput[]): Promise<InitialStream | null> {
   const ranked = rankCandidates(mirrors, '720p')
   const first = ranked[0]
   if (!first) return null
@@ -164,7 +164,7 @@ export async function prepareInitialStream(mirrors: MirrorInput[], origin: strin
       }
     }, INITIAL_PREPARE_TIMEOUT_MS)
     for (const candidate of candidates) {
-      prepareMirror(candidate.dataContent, isExtractableSource(candidate.name), origin).then((result) => {
+      prepareMirror(candidate.dataContent, isExtractableSource(candidate.name)).then((result) => {
         if (done) return
         if (result?.ok && result.playUrl) {
           done = true

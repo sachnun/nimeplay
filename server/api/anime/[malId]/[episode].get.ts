@@ -48,8 +48,7 @@ export default defineEventHandler(async (event) => {
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
-  const origin = getRequestURL(event).origin
-  const initialStream = await prepareInitialStream(scraped.mirrors, origin)
+  const initialStream = await prepareInitialStream(scraped.mirrors)
 
   setHeader(event, 'Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
 

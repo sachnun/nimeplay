@@ -59,8 +59,8 @@ export async function openStreamToken(token: string): Promise<string | null> {
   }
 }
 
-export function proxiedStreamPath(origin: string, token: string): string {
-  return `${origin}/api/stream?t=${token}`
+export function proxiedStreamPath(token: string): string {
+  return `/api/stream?t=${token}`
 }
 
 type SealedUrlEntry = { url: string, expiresAt: number }
@@ -77,14 +77,13 @@ function pruneSealedUrlCache(now: number): void {
   }
 }
 
-export async function sealedStreamUrl(origin: string, rawUrl: string, baseUrl?: string): Promise<string> {
+export async function sealedStreamUrl(rawUrl: string, baseUrl?: string): Promise<string> {
   const absolute = new URL(rawUrl, baseUrl).toString()
-  const key = `${origin}|${absolute}`
   const now = Date.now()
-  const hit = sealedUrlCache.get(key)
+  const hit = sealedUrlCache.get(absolute)
   if (hit && hit.expiresAt > now) return hit.url
-  const url = proxiedStreamPath(origin, await sealStreamToken(absolute, TOKEN_TTL_MS))
-  sealedUrlCache.set(key, { url, expiresAt: now + SEALED_URL_CACHE_TTL_MS })
+  const url = proxiedStreamPath(await sealStreamToken(absolute, TOKEN_TTL_MS))
+  sealedUrlCache.set(absolute, { url, expiresAt: now + SEALED_URL_CACHE_TTL_MS })
   pruneSealedUrlCache(now)
   return url
 }

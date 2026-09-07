@@ -108,8 +108,7 @@ export default defineEventHandler(async (event) => {
 
   if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) {
     const body = await res.text()
-    const origin = getRequestURL(event).origin
-    const rewritten = await rewriteHlsPlaylist(body, target.toString(), origin)
+    const rewritten = await rewriteHlsPlaylist(body, target.toString())
     const playlistType = contentType || 'application/vnd.apple.mpegurl'
     writePlaylistCache(rawUrl, rewritten, playlistType)
     setHeader(event, 'Content-Type', playlistType)
@@ -134,18 +133,18 @@ export default defineEventHandler(async (event) => {
   throw createError({ statusCode: 502, statusMessage: 'Empty upstream response' })
 })
 
-async function rewriteHlsPlaylist(text: string, baseUrl: string, origin: string): Promise<string> {
+async function rewriteHlsPlaylist(text: string, baseUrl: string): Promise<string> {
   const lines = text.split('\n').map(async (line) => {
     const trimmed = line.trim()
     if (!trimmed) return line
     if (trimmed.startsWith('#')) {
       const uris = [...line.matchAll(/URI="([^"]+)"/g)].map((match) => match[1] ?? '')
       if (uris.length === 0) return line
-      const sealed = await Promise.all(uris.map((uri) => sealedStreamUrl(origin, uri, baseUrl)))
+      const sealed = await Promise.all(uris.map((uri) => sealedStreamUrl(uri, baseUrl)))
       let index = 0
       return line.replace(/URI="([^"]+)"/g, () => `URI="${sealed[index++] ?? ''}"`)
     }
-    return sealedStreamUrl(origin, trimmed, baseUrl)
+    return sealedStreamUrl(trimmed, baseUrl)
   })
   return (await Promise.all(lines)).join('\n')
 }

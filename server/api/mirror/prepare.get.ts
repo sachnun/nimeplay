@@ -38,6 +38,5 @@ export default defineEventHandler(async (event) => {
   if (!dataContent) return emptyPrepareResult()
 
   setHeader(event, 'Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
-  const origin = getRequestURL(event).origin
-  return prepareMirror(dataContent, extract, origin)
+  return prepareMirror(dataContent, extract)
 })

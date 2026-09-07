@@ -24,7 +24,7 @@ const searchOpen = ref(false)
 </script>
 
 <template>
-  <div class="px-6 py-8">
+  <main class="px-6 py-8">
     <GenreFilter :genres="data.genres" :selected-genre="selectedGenre" @select="selectedGenre = $event" @search="searchOpen = true" @sign-in="searchOpen = false" />
 
     <section v-if="selectedGenre">
@@ -41,5 +41,5 @@ const searchOpen = ref(false)
     </section>
 
     <SearchBar :open="searchOpen" @close="searchOpen = false" />
-  </div>
+  </main>
 </template>

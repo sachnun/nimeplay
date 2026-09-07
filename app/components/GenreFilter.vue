@@ -142,7 +142,7 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
       </button>
       <button
         v-if="hiddenCount > 0"
-        class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors cursor-pointer"
+        class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors cursor-pointer"
         @click="showAll = !showAll"
       >
         {{ effectiveShowAll ? 'Show less' : `+${hiddenCount} more` }}

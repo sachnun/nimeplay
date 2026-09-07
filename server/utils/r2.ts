@@ -183,3 +183,98 @@ export async function fetchRemoteMedia(
   const contentType = response.headers.get('content-type') ?? 'image/jpeg'
   return { contentType, bytes: await response.arrayBuffer() }
 }
+
+export const MAX_IMAGE_BYTES = 5120
+
+export type ImageFormat = 'avif' | 'webp' | 'jpeg'
+
+export interface ImageTransform {
+  width: number
+  quality: number
+  format: ImageFormat
+}
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'string' ? Number.parseInt(value, 10) : typeof value === 'number' ? value : Number.NaN
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, Math.trunc(n)))
+}
+
+export function imageContentType(format: ImageFormat): string {
+  if (format === 'avif') return 'image/avif'
+  if (format === 'webp') return 'image/webp'
+  return 'image/jpeg'
+}
+
+export function parseImageTransform(query: Record<string, unknown>): ImageTransform | null {
+  const hasW = query.w !== undefined && query.w !== ''
+  const hasQ = query.q !== undefined && query.q !== ''
+  const hasFm = query.fm !== undefined && query.fm !== ''
+  if (!hasW && !hasQ && !hasFm) return null
+  const rawFm = typeof query.fm === 'string' ? query.fm.toLowerCase() : ''
+  const format: ImageFormat = rawFm === 'webp' ? 'webp' : rawFm === 'jpeg' || rawFm === 'jpg' ? 'jpeg' : 'avif'
+  return {
+    width: clampInt(query.w, 16, 400, 200),
+    quality: clampInt(query.q, 10, 80, 30),
+    format,
+  }
+}
+
+export function imageVariantKey(key: string, t: ImageTransform): string {
+  return `__t__/w${t.width}-q${t.quality}-${t.format}/${key}`
+}
+
+export async function getCachedVariant(variantKey: string): Promise<MediaObject | null> {
+  const bucket = r2Bucket()
+  if (!bucket) return null
+  const object = await bucket.get(variantKey).catch(() => null)
+  if (!object) return null
+  return {
+    body: object.body ?? null,
+    contentType: object.httpMetadata?.contentType ?? 'image/avif',
+    etag: object.httpEtag,
+  }
+}
+
+export async function storeVariant(variantKey: string, data: ArrayBuffer, contentType: string): Promise<void> {
+  const bucket = r2Bucket()
+  if (!bucket) return
+  await bucket.put(variantKey, data, { httpMetadata: { contentType } })
+}
+
+async function fetchWithImageResize(origin: string, t: ImageTransform): Promise<{ contentType: string, bytes: ArrayBuffer }> {
+  const options = {
+    headers: getSpoofHeaders(MAL_REFERER, 'cors'),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    cf: {
+      image: {
+        width: t.width,
+        quality: t.quality,
+        format: t.format,
+        fit: 'cover',
+        metadata: 'none',
+      },
+    },
+  } as unknown as RequestInit
+  const response = await fetch(origin, options)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const contentType = response.headers.get('content-type') ?? imageContentType(t.format)
+  return { contentType, bytes: await response.arrayBuffer() }
+}
+
+export async function fetchTransformedMedia(origin: string, t: ImageTransform): Promise<{ contentType: string, bytes: ArrayBuffer }> {
+  let width = t.width
+  let quality = t.quality
+  let last: { contentType: string, bytes: ArrayBuffer } | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const current: ImageTransform = { width, quality, format: t.format }
+    const result = await fetchWithImageResize(origin, current)
+    last = result
+    if (result.bytes.byteLength <= MAX_IMAGE_BYTES) return result
+    quality = Math.max(10, quality - 10)
+    width = Math.max(96, Math.round(width * 0.8))
+    if (attempt === 2 && last) return last
+  }
+  if (last) return last
+  throw new Error('Transform failed')
+}

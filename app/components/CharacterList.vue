@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumb } from '~/utils/thumb'
 import type { AnimeCharacter } from '~/utils/types'
 
 const props = defineProps<{ characters?: AnimeCharacter[] }>()
@@ -39,7 +40,7 @@ onMounted(() => {
         @click="preview = char"
       >
         <img
-          :src="char.imageUrl"
+          :src="thumb(char.imageUrl, 80, 30)"
           :alt="char.name"
           width="40"
           height="40"
@@ -73,10 +74,10 @@ onMounted(() => {
       <div class="relative max-w-xs w-full mx-4 animate-in fade-in zoom-in-95 duration-200 cursor-default" @click.stop>
         <div class="relative w-full aspect-[3/4]">
           <img
-            :src="preview.imageUrl"
+            :src="thumb(preview.imageUrl, 320, 30)"
             :alt="preview.name"
-            width="384"
-            height="512"
+            width="320"
+            height="427"
             loading="eager"
             decoding="async"
             class="rounded-xl object-cover shadow-2xl w-full h-full"

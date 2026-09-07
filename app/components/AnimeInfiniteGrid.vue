@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumb } from '~/utils/thumb'
 import type { AnimeCard } from '~/utils/types'
 
 interface PageData {
@@ -144,7 +145,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
+          <img :src="thumb(anime.thumbnail, 200, 30)" :alt="anime.title" width="200" height="267" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
           <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ badge }}
           </div>

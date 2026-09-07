@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { thumb } from '~/utils/thumb'
 import type { SearchResult } from '~/utils/types'
 
 const props = defineProps<{ open: boolean }>()
@@ -87,7 +88,7 @@ onMounted(() => {
             class="flex items-center gap-3 px-2 py-2.5 hover:bg-zinc-800/50 rounded-lg transition-colors"
             @click="emit('close')"
           >
-            <img :src="result.thumbnail" :alt="result.title" width="48" height="64" loading="lazy" decoding="async" sizes="48px" class="w-12 h-16 rounded object-cover shrink-0 [filter:brightness(0.9)]">
+            <img :src="thumb(result.thumbnail, 96, 30)" :alt="result.title" width="48" height="64" loading="lazy" decoding="async" sizes="48px" class="w-12 h-16 rounded object-cover shrink-0 [filter:brightness(0.9)]">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-zinc-100 leading-snug line-clamp-1">{{ result.title }}</p>
               <p class="text-xs text-zinc-400 mt-0.5">{{ result.status }}</p>

@@ -31,7 +31,7 @@ const SOURCE_PRIORITY_GROUPS = [
   ['desudrive'],
 ]
 
-const QUALITY_ORDER = ['1080p', '720p', '480p', '360p']
+const QUALITY_ORDER = ['2160p', '1440p', '1080p', '720p', '480p', '360p']
 
 function normalizeSourceName(name: string): string {
   return name.toLowerCase().trim()

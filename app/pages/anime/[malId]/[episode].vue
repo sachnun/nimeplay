@@ -17,18 +17,12 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   {
     watch: [malId, episodeParam],
     default: () => null,
-    lazy: true,
-    server: true,
   },
 )
 
 const anime = computed(() => pageData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
 const initialStream = computed(() => pageData.value?.initialStream ?? null)
-
-onMounted(() => {
-  if (import.meta.client) import('hls.js/light').catch(() => {})
-})
 
 watchEffect(() => {
   if (!pending.value && !anime.value) navigateTo('/')

@@ -69,7 +69,6 @@ const sealedUrlCache = new Map<string, SealedUrlEntry>()
 function pruneSealedUrlCache(now: number): void {
   for (const [key, entry] of sealedUrlCache) {
     if (entry.expiresAt <= now) sealedUrlCache.delete(key)
-    if (sealedUrlCache.size <= MAX_SEALED_URL_ENTRIES) break
   }
   while (sealedUrlCache.size > MAX_SEALED_URL_ENTRIES) {
     const oldest = sealedUrlCache.keys().next()

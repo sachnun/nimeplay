@@ -59,7 +59,7 @@ const SOURCE_PRIORITY_GROUPS = [
   ['desudrive'],
 ]
 
-const QUALITY_ORDER = ['1080p', '720p', '480p', '360p']
+const QUALITY_ORDER = ['2160p', '1440p', '1080p', '720p', '480p', '360p']
 
 function normalizeName(name: string): string {
   return name.toLowerCase().trim()
@@ -120,14 +120,13 @@ function isHlsUrl(url: string): boolean {
   return /\.m3u8($|\?)/i.test(url) || /\/hls\//i.test(url)
 }
 
-function isKnownHlsIframe(iframeUrl: string): boolean {
-  const lower = iframeUrl.toLowerCase()
-  return lower.includes('vidhide') || lower.includes('odvidhide')
+function isFileUrl(url: string): boolean {
+  return /\.(mp4|mkv|webm)(\?|$)/i.test(url)
 }
 
-async function detectKindFast(url: string, iframeUrl: string): Promise<'hls' | 'file'> {
+async function detectKindFast(url: string): Promise<'hls' | 'file'> {
   if (isHlsUrl(url)) return 'hls'
-  if (isKnownHlsIframe(iframeUrl)) return 'hls'
+  if (isFileUrl(url)) return 'file'
   const detected = await detectStreamKind(url)
   return detected
 }
@@ -143,43 +142,59 @@ export function prepareMirror(dataContent: string, extract: boolean, origin: str
     const extracted = await extractStreamUrl(iframeUrl)
     if (!extracted.url) return emptyPrepareResult(extracted.iframeUrl)
 
-    const kind = await detectKindFast(extracted.url, extracted.iframeUrl)
+    const kind = await detectKindFast(extracted.url)
     const token = await sealStreamToken(extracted.url)
     return { iframeUrl: extracted.iframeUrl, playUrl: proxiedStreamPath(origin, token), kind, ok: true }
   }) as Promise<PrepareResult>
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  const timeout = new Promise<T>((resolve) => {
-    timer = setTimeout(() => resolve(fallback), ms)
-  })
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer) clearTimeout(timer)
-  })
-}
-
 export async function prepareInitialStream(mirrors: MirrorInput[], origin: string): Promise<InitialStream | null> {
-  const candidates = rankCandidates(mirrors, '720p').slice(0, 2)
-  if (candidates.length === 0) return null
-  const attempts = candidates.map(async (candidate) => {
-    try {
-      const result = await prepareMirror(candidate.dataContent, isExtractableSource(candidate.name), origin)
-      if (result?.ok && result.playUrl) {
-        return {
-          dataContent: candidate.dataContent,
-          quality: candidate.quality,
-          name: candidate.name,
-          iframeUrl: result.iframeUrl,
-          playUrl: result.playUrl,
-          kind: result.kind,
-          ok: true as const,
-        }
+  const ranked = rankCandidates(mirrors, '720p')
+  const first = ranked[0]
+  if (!first) return null
+  const second = rankCandidates(mirrors, '720p', first.name)[0]
+  const candidates = second ? [first, second] : [first]
+  return new Promise<InitialStream | null>((resolve) => {
+    let pending = candidates.length
+    let done = false
+    const timer = setTimeout(() => {
+      if (!done) {
+        done = true
+        resolve(null)
       }
-    } catch {}
-    return null
+    }, INITIAL_PREPARE_TIMEOUT_MS)
+    for (const candidate of candidates) {
+      prepareMirror(candidate.dataContent, isExtractableSource(candidate.name), origin).then((result) => {
+        if (done) return
+        if (result?.ok && result.playUrl) {
+          done = true
+          clearTimeout(timer)
+          resolve({
+            dataContent: candidate.dataContent,
+            quality: candidate.quality,
+            name: candidate.name,
+            iframeUrl: result.iframeUrl,
+            playUrl: result.playUrl,
+            kind: result.kind,
+            ok: true as const,
+          })
+        } else {
+          pending -= 1
+          if (pending <= 0) {
+            done = true
+            clearTimeout(timer)
+            resolve(null)
+          }
+        }
+      }).catch(() => {
+        if (done) return
+        pending -= 1
+        if (pending <= 0) {
+          done = true
+          clearTimeout(timer)
+          resolve(null)
+        }
+      })
+    }
   })
-  const results = await withTimeout(Promise.all(attempts), INITIAL_PREPARE_TIMEOUT_MS, null)
-  if (!results) return null
-  return results.find((entry) => entry !== null) ?? null
 }

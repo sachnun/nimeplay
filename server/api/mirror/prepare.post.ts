@@ -28,10 +28,9 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ dataContent: string; extract: boolean }>(event)
+  const body = await readBody<{ dataContent: string; extract: boolean | string }>(event)
   if (!body?.dataContent) return emptyPrepareResult()
-
-  setHeader(event, 'Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
+  const extract = body.extract === true || body.extract === '1' || body.extract === 'true'
   const origin = getRequestURL(event).origin
-  return prepareMirror(body.dataContent, body.extract, origin)
+  return prepareMirror(body.dataContent, extract, origin)
 })

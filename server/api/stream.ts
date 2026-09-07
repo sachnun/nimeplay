@@ -38,7 +38,6 @@ const playlistCache = new Map<string, PlaylistEntry>()
 function prunePlaylistCache(now: number): void {
   for (const [key, entry] of playlistCache) {
     if (entry.expiresAt <= now) playlistCache.delete(key)
-    if (playlistCache.size <= MAX_PLAYLIST_ENTRIES) break
   }
   while (playlistCache.size > MAX_PLAYLIST_ENTRIES) {
     const oldest = playlistCache.keys().next()
@@ -58,11 +57,6 @@ function writePlaylistCache(key: string, body: string, contentType: string): voi
   const now = Date.now()
   playlistCache.set(key, { body, contentType, expiresAt: now + PLAYLIST_CACHE_TTL_MS })
   prunePlaylistCache(now)
-}
-
-function isDirectRedirectHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase()
-  return lower === 'r2.cloudflarestorage.com' || lower.includes('pixeldrain')
 }
 
 function isPlaylistUrl(url: URL): boolean {
@@ -91,10 +85,6 @@ export default defineEventHandler(async (event) => {
 
   if (!['http:', 'https:'].includes(target.protocol)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid stream protocol' })
-  }
-
-  if (isDirectRedirectHost(target.hostname) && !isPlaylistUrl(target)) {
-    return sendRedirect(event, target.toString(), 302)
   }
 
   const cachedPlaylist = isPlaylistUrl(target) ? readPlaylistCache(rawUrl) : null
@@ -129,7 +119,11 @@ export default defineEventHandler(async (event) => {
 
   setResponseStatus(event, res.status)
   setHeader(event, 'Content-Type', contentType || 'application/octet-stream')
-  setHeader(event, 'Cache-Control', 'public, max-age=3600')
+  if (res.status === 206) {
+    setHeader(event, 'Cache-Control', 'no-store')
+  } else {
+    setHeader(event, 'Cache-Control', 'private, max-age=3600')
+  }
   const acceptRanges = res.headers.get('accept-ranges')
   setHeader(event, 'Accept-Ranges', acceptRanges === 'none' ? 'none' : 'bytes')
   const contentLength = Number(res.headers.get('content-length'))

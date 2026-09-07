@@ -96,7 +96,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   const qualityOptions = computed(() => {
-    const qualityOrder = ['1080p', '720p', '480p', '360p']
+    const qualityOrder = ['2160p', '1440p', '1080p', '720p', '480p', '360p']
     const sorted = [...episode.value.mirrors].sort((a, b) => {
       const ai = qualityOrder.indexOf(a.quality)
       const bi = qualityOrder.indexOf(b.quality)
@@ -137,7 +137,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function getHlsCtor(): Promise<any | null> {
     if (!import.meta.client) return Promise.resolve(null)
     if (!hlsCtorPromise) {
-      hlsCtorPromise = import('hls.js/light').then((mod) => mod.default).catch(() => null)
+      hlsCtorPromise = import('hls.js/light').then((mod) => mod.default).catch(() => {
+        hlsCtorPromise = null
+        return null
+      })
     }
     return hlsCtorPromise
   }
@@ -611,7 +614,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   watch(progress, (value) => {
-    if (value >= NEXT_PREFETCH_PROGRESS_PCT) refreshNextPrefetch()
+    if (value >= NEXT_PREFETCH_PROGRESS_PCT) scheduleNextPrefetch()
   })
 
   function setMediaPlaybackState(playing: boolean) {
@@ -674,16 +677,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       })
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         resumeAndAutoplay(video)
-        if (hls) {
-          hls.config.maxBufferLength = 30
-          hls.config.maxMaxBufferLength = 60
-        }
       })
       let firstFragBuffered = false
       hls.on(Hls.Events.FRAG_BUFFERED, () => {
         if (firstFragBuffered) return
         firstFragBuffered = true
         videoLoading.value = false
+        if (hls) {
+          hls.config.maxBufferLength = 30
+          hls.config.maxMaxBufferLength = 60
+        }
       })
       hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal?: boolean }) => {
         if (data.fatal) triggerFallback()
@@ -720,8 +723,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     nextPrefetchedFor = target.num
     nextPrefetchAt = now
+    const cacheKey = `episode-page-${props.malId}-${target.num}`
     const run = () => {
-      $fetch(`/api/anime/${props.malId}/${target.num}`).catch(() => {})
+      $fetch<EpisodePageData>(`/api/anime/${props.malId}/${target.num}`).then((data) => {
+        try {
+          const nuxtApp = useNuxtApp()
+          if (data) (nuxtApp.payload.data as Record<string, unknown>)[cacheKey] = data
+        } catch {}
+      }).catch(() => {})
     }
     if (force) run()
     else if (import.meta.client && 'requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 })

@@ -5,7 +5,7 @@ const route = useRoute()
 const malId = computed(() => Number(route.params.malId) || 0)
 const episodeParam = computed(() => String(route.params.episode || ''))
 
-const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
+const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   () => `episode-page-${malId.value}-${episodeParam.value}`,
   async () => {
     try {
@@ -17,18 +17,18 @@ const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
   {
     watch: [malId, episodeParam],
     default: () => null,
+    lazy: true,
+    server: true,
   },
 )
 
 const anime = computed(() => pageData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
+const initialStream = computed(() => pageData.value?.initialStream ?? null)
 
-if (!anime.value) {
-  await navigateTo('/')
-}
-else if (!episodeData.value) {
-  await navigateTo(`/anime/${malId.value}`)
-}
+onMounted(() => {
+  if (import.meta.client) import('hls.js/light').catch(() => {})
+})
 
 watchEffect(() => {
   if (!pending.value && !anime.value) navigateTo('/')
@@ -48,6 +48,7 @@ watchEffect(() => {
       :episodes="pageData!.episodes"
       :anime-title="anime?.title || ''"
       :anime-thumbnail="anime?.thumbnail || ''"
+      :initial-stream="initialStream"
     />
     <template #fallback>
       <PlayerLoadingShell />

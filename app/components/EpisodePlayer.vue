@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EpisodeData } from '~/utils/types'
+import type { EpisodeData, InitialStream } from '~/utils/types'
 
 const props = defineProps<{
   malId: number
@@ -8,6 +8,7 @@ const props = defineProps<{
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
+  initialStream?: InitialStream | null
 }>()
 
 const {
@@ -69,7 +70,7 @@ const {
 
 <template>
   <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'" :data-tv-nav-scope="showNative && !isPlaying && !showLoading && !showEpisodes && autoNextCountdown === null ? '' : undefined">
-    <video v-show="showNative" ref="videoRef" class="absolute inset-0 w-full h-full object-contain" playsinline />
+    <video v-show="showNative" ref="videoRef" class="absolute inset-0 w-full h-full object-contain" playsinline preload="auto" :poster="animeThumbnail || undefined" />
 
     <div v-if="showNative" class="absolute inset-0 z-10 flex touch-none">
       <div class="w-[30%] h-full" @touchend="handleZoneTouchEnd('left', $event)" @pointerup="handleZonePointerUp('left', $event)" />

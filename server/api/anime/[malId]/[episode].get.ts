@@ -1,4 +1,5 @@
 import { createError, getRouterParam } from 'h3'
+import { prepareInitialStream } from '../../../utils/prepare'
 import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
 import { scrapeEpisode } from '../../../utils/sources'
 
@@ -47,6 +48,11 @@ export default defineEventHandler(async (event) => {
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
+  const origin = getRequestURL(event).origin
+  const initialStream = await prepareInitialStream(scraped.mirrors, origin)
+
+  setHeader(event, 'Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
@@ -57,5 +63,6 @@ export default defineEventHandler(async (event) => {
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },
     episodes: episodeNumbers,
+    initialStream,
   }
 })

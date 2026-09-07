@@ -38,11 +38,22 @@ export interface EpisodeData {
   thumbnail: string
 }
 
+export interface InitialStream {
+  dataContent: string
+  quality: string
+  name: string
+  iframeUrl: string | null
+  playUrl: string | null
+  kind: 'hls' | 'file' | null
+  ok: boolean
+}
+
 export interface EpisodePageData {
   anime: { malId: number; title: string; thumbnail: string }
   episodeNumber: number
   episode: EpisodeData
   episodes: number[]
+  initialStream: InitialStream | null
 }
 
 export interface SearchResult {

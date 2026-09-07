@@ -28,7 +28,42 @@ defineRouteMeta({
   },
 })
 
-const UPSTREAM_TIMEOUT_MS = 10_000
+const UPSTREAM_TIMEOUT_MS = 6_000
+const PLAYLIST_CACHE_TTL_MS = 10_000
+const MAX_PLAYLIST_ENTRIES = 500
+
+type PlaylistEntry = { body: string, contentType: string, expiresAt: number }
+const playlistCache = new Map<string, PlaylistEntry>()
+
+function prunePlaylistCache(now: number): void {
+  for (const [key, entry] of playlistCache) {
+    if (entry.expiresAt <= now) playlistCache.delete(key)
+    if (playlistCache.size <= MAX_PLAYLIST_ENTRIES) break
+  }
+  while (playlistCache.size > MAX_PLAYLIST_ENTRIES) {
+    const oldest = playlistCache.keys().next()
+    if (oldest.done) break
+    playlistCache.delete(oldest.value)
+  }
+}
+
+function readPlaylistCache(key: string): PlaylistEntry | null {
+  const hit = playlistCache.get(key)
+  if (hit && hit.expiresAt > Date.now()) return hit
+  if (hit) playlistCache.delete(key)
+  return null
+}
+
+function writePlaylistCache(key: string, body: string, contentType: string): void {
+  const now = Date.now()
+  playlistCache.set(key, { body, contentType, expiresAt: now + PLAYLIST_CACHE_TTL_MS })
+  prunePlaylistCache(now)
+}
+
+function isDirectRedirectHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase()
+  return lower === 'r2.cloudflarestorage.com' || lower.includes('pixeldrain')
+}
 
 function isPlaylistUrl(url: URL): boolean {
   return url.pathname.toLowerCase().endsWith('.m3u8')
@@ -58,6 +93,17 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid stream protocol' })
   }
 
+  if (isDirectRedirectHost(target.hostname) && !isPlaylistUrl(target)) {
+    return sendRedirect(event, target.toString(), 302)
+  }
+
+  const cachedPlaylist = isPlaylistUrl(target) ? readPlaylistCache(rawUrl) : null
+  if (cachedPlaylist) {
+    setHeader(event, 'Content-Type', cachedPlaylist.contentType)
+    setHeader(event, 'Cache-Control', 'public, max-age=5, stale-while-revalidate=30')
+    return cachedPlaylist.body
+  }
+
   const range = getRequestHeader(event, 'range') || undefined
   const res = await fetch(target, {
     headers: { ...getSpoofHeaders(`${target.origin}/`, 'iframe'), ...(range ? { Range: range } : {}) },
@@ -74,14 +120,16 @@ export default defineEventHandler(async (event) => {
     const body = await res.text()
     const origin = getRequestURL(event).origin
     const rewritten = await rewriteHlsPlaylist(body, target.toString(), origin)
-    setHeader(event, 'Content-Type', contentType || 'application/vnd.apple.mpegurl')
-    setHeader(event, 'Cache-Control', 'no-store')
+    const playlistType = contentType || 'application/vnd.apple.mpegurl'
+    writePlaylistCache(rawUrl, rewritten, playlistType)
+    setHeader(event, 'Content-Type', playlistType)
+    setHeader(event, 'Cache-Control', 'public, max-age=5, stale-while-revalidate=30')
     return rewritten
   }
 
   setResponseStatus(event, res.status)
   setHeader(event, 'Content-Type', contentType || 'application/octet-stream')
-  setHeader(event, 'Cache-Control', 'no-store')
+  setHeader(event, 'Cache-Control', 'public, max-age=3600')
   const acceptRanges = res.headers.get('accept-ranges')
   setHeader(event, 'Accept-Ranges', acceptRanges === 'none' ? 'none' : 'bytes')
   const contentLength = Number(res.headers.get('content-length'))

@@ -2,7 +2,7 @@ import { fetchSkipTimes } from '~/utils/remote'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
 import { useEpisodePlayerResolution } from './player/resolution'
-import type { EpisodeData, SkipTime } from '~/utils/types'
+import type { EpisodeData, EpisodePageData, InitialStream, SkipTime } from '~/utils/types'
 
 interface EpisodePlayerProps {
   malId: number
@@ -11,6 +11,7 @@ interface EpisodePlayerProps {
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
+  initialStream?: InitialStream | null
 }
 
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
@@ -19,6 +20,8 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
 
 const CONTROLS_IDLE_MS = 3000
 const MOBILE_CONTROLS_IDLE_MS = 5000
+const NEXT_PREFETCH_REFRESH_MS = 8 * 60 * 1000
+const NEXT_PREFETCH_PROGRESS_PCT = 80
 const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
@@ -58,8 +61,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   const containerRef = ref<HTMLDivElement | null>(null)
   const videoRef = ref<HTMLVideoElement | null>(null)
+  const initialStream = ref<InitialStream | null>(props.initialStream ?? null)
 
   let hls: any | null = null
+  let hlsCtorPromise: Promise<any> | null = null
   let watchedMarked = false
   let iframeTimer: ReturnType<typeof setTimeout> | null = null
   let autoPlayOnLoad = true
@@ -71,6 +76,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let skipFetched = false
+  let nextPrefetchedFor: number | null = null
+  let nextPrefetchAt = 0
 
   const progressKey = computed(() => `${props.malId}:${currentEpisodeNum.value}`)
 
@@ -127,6 +134,18 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (hls) hls.config.maxBufferLength = length
   }
 
+  function getHlsCtor(): Promise<any | null> {
+    if (!import.meta.client) return Promise.resolve(null)
+    if (!hlsCtorPromise) {
+      hlsCtorPromise = import('hls.js/light').then((mod) => mod.default).catch(() => null)
+    }
+    return hlsCtorPromise
+  }
+
+  function warmHls() {
+    void getHlsCtor()
+  }
+
   async function resetForEpisode() {
     clearAnyTimer(iframeTimer)
     clearAnyTimer(countdownTimer)
@@ -148,6 +167,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     skipFetched = false
     skipTimes.value = []
     showEmbedAlert.value = true
+    nextPrefetchedFor = null
+    nextPrefetchAt = 0
     clearGestureState()
   }
 
@@ -267,6 +288,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     directKind,
     episode,
     iframeSrc,
+    initialStream,
     loadingMessage,
     resolving,
     useIframe,
@@ -313,6 +335,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       resolving.value = false
       return
     }
+    initialStream.value = data.initialStream ?? null
     episode.value = data.episode
     currentEpisodeNum.value = data.episodeNumber
     window.history.replaceState(null, '', `/anime/${props.malId}/${data.episodeNumber}`)
@@ -528,6 +551,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     doMark,
     doSaveProgress,
     fetchSkipTimesIfNeeded,
+    refreshNextPrefetch,
     saveNextEpisodeResume,
     startAutoNextCountdown,
   })
@@ -586,6 +610,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (import.meta.client) void setAutoSkip(value)
   })
 
+  watch(progress, (value) => {
+    if (value >= NEXT_PREFETCH_PROGRESS_PCT) refreshNextPrefetch()
+  })
+
   function setMediaPlaybackState(playing: boolean) {
     if (import.meta.client && 'mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
   }
@@ -632,17 +660,36 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function attachHlsSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    const Hls = (await import('hls.js/light')).default
-    if (Hls.isSupported()) {
+    const Hls = await getHlsCtor()
+    if (Hls && Hls.isSupported()) {
       hls = new Hls({
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
+        startLevel: 0,
+        capLevelToPlayerSize: true,
+        abrEwmaDefaultEstimate: 500000,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 30,
+        manifestLoadingMaxRetry: 1,
+        levelLoadingMaxRetry: 2,
+        fragLoadingMaxRetry: 2,
       })
-      hls.loadSource(url)
-      hls.attachMedia(video)
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        resumeAndAutoplay(video)
+        if (hls) {
+          hls.config.maxBufferLength = 30
+          hls.config.maxMaxBufferLength = 60
+        }
+      })
+      let firstFragBuffered = false
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (firstFragBuffered) return
+        firstFragBuffered = true
+        videoLoading.value = false
+      })
       hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal?: boolean }) => {
         if (data.fatal) triggerFallback()
       })
+      hls.loadSource(url)
+      hls.attachMedia(video)
       return
     }
     if (video.canPlayType('application/vnd.apple.mpegurl')) return attachNativeSource(video, url, onVideoError)
@@ -664,22 +711,58 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     attachNativeSource(video, url, onVideoError)
   }
 
+  function scheduleNextPrefetch(force = false) {
+    const target = nextEpisode.value
+    if (!target) return
+    const now = Date.now()
+    if (nextPrefetchedFor === target.num) {
+      if (!force || now - nextPrefetchAt < NEXT_PREFETCH_REFRESH_MS) return
+    }
+    nextPrefetchedFor = target.num
+    nextPrefetchAt = now
+    const run = () => {
+      $fetch(`/api/anime/${props.malId}/${target.num}`).catch(() => {})
+    }
+    if (force) run()
+    else if (import.meta.client && 'requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 })
+    else setTimeout(run, 2000)
+  }
+
+  function refreshNextPrefetch() {
+    scheduleNextPrefetch(true)
+  }
+
   watch(directUrl, async (url, _, onCleanup) => {
     const video = videoRef.value
     if (!video || !url) return
     loadingMessage.value = 'Memuat video...'
     videoLoading.value = true
     destroyHls()
-    const onCanPlay = () => { videoLoading.value = false }
+    const hideLoading = () => {
+      const firstFrame = videoLoading.value
+      videoLoading.value = false
+      if (firstFrame) scheduleNextPrefetch()
+    }
+    const onFirstProgress = () => {
+      if (video.buffered.length > 0 && video.buffered.end(video.buffered.length - 1) > 0) hideLoading()
+    }
     const onVideoError = () => triggerFallback()
-    video.addEventListener('canplay', onCanPlay, { once: true })
+    video.addEventListener('loadedmetadata', hideLoading, { once: true })
+    video.addEventListener('progress', onFirstProgress)
+    video.addEventListener('loadeddata', hideLoading, { once: true })
+    video.addEventListener('canplay', hideLoading, { once: true })
 
     await attachVideoSource(video, url, directKind.value, onVideoError)
 
     const onReady = () => resumeAndAutoplay(video)
+    video.addEventListener('loadeddata', onReady, { once: true })
     video.addEventListener('canplay', onReady, { once: true })
     onCleanup(() => {
-      video.removeEventListener('canplay', onCanPlay)
+      video.removeEventListener('loadedmetadata', hideLoading)
+      video.removeEventListener('progress', onFirstProgress)
+      video.removeEventListener('loadeddata', hideLoading)
+      video.removeEventListener('canplay', hideLoading)
+      video.removeEventListener('loadeddata', onReady)
       video.removeEventListener('canplay', onReady)
       video.removeEventListener('error', onVideoError)
       destroyHls()
@@ -688,6 +771,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   onMounted(() => {
     isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
+    warmHls()
     getAutoSkip().then((val) => { autoSkip.value = val })
     const video = videoRef.value
     if (video) onBeforeUnmount(registerVideoEvents(video))

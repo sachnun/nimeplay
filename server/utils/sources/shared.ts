@@ -10,7 +10,7 @@ export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): s
 }
 
 const HTML_TIMEOUT_MS = 8000
-const POST_TIMEOUT_MS = 8000
+const POST_TIMEOUT_MS = 5000
 
 export async function fetchHTML(url: string): Promise<string> {
   let lastError: Error | null = null

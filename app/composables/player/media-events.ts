@@ -19,6 +19,7 @@ interface EpisodePlayerMediaEventOptions {
   doMark: () => void | Promise<void>
   doSaveProgress: () => void | Promise<void>
   fetchSkipTimesIfNeeded: () => Promise<void>
+  refreshNextPrefetch: () => void
   saveNextEpisodeResume: () => void | Promise<void>
   startAutoNextCountdown: () => void
 }
@@ -74,6 +75,7 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     options.doMark()
     options.saveNextEpisodeResume()
     clearPlaybackTimers()
+    options.refreshNextPrefetch()
     if (options.isFullscreen.value && options.nextEpisode.value) options.startAutoNextCountdown()
   }
 

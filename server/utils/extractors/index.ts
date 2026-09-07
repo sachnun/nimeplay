@@ -18,7 +18,7 @@ async function fetchIframeHtml(iframeUrl: string): Promise<string> {
   try {
     const res = await fetch(iframeUrl, {
       headers: getSpoofHeaders(iframeUrl, 'iframe'),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     })
     return await res.text()
   } catch {
@@ -57,11 +57,11 @@ export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
 }
 
 export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
-  if (/\.m3u8($|\?)/i.test(url)) return 'hls'
+  if (/\.m3u8($|\?)/i.test(url) || /\/hls\//i.test(url)) return 'hls'
   try {
     const res = await fetch(url, {
       headers: { ...getSpoofHeaders(`${new URL(url).origin}/`, 'cors'), Range: 'bytes=0-15' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3500),
     })
     void res.body?.cancel()
     const contentType = (res.headers.get('content-type') || '').toLowerCase()

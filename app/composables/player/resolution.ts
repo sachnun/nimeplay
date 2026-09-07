@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { EpisodeData } from '~/utils/types'
+import type { EpisodeData, InitialStream } from '~/utils/types'
 import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
@@ -8,6 +8,7 @@ interface EpisodePlayerResolutionOptions {
   directKind: Ref<'hls' | 'file' | null>
   episode: Ref<EpisodeData>
   iframeSrc: Ref<string | null>
+  initialStream: Ref<InitialStream | null>
   loadingMessage: Ref<string>
   resolving: Ref<boolean>
   useIframe: Ref<boolean>
@@ -23,6 +24,7 @@ type PrepareResult = {
 }
   let playbackSession = 0
   let fallbackRunning = false
+  const RACE_TIMEOUT_MS = 4000
 
   function triggerFallback() {
     fallbackFn?.()
@@ -82,12 +84,23 @@ type PrepareResult = {
     return activateExtractedMirror(iframeUrl, prepared)
   }
 
+  function tryInitialStream(candidate: MirrorCandidate, sessionId: number): boolean {
+    const initial = options.initialStream.value
+    if (!initial || !initial.ok || !initial.playUrl) return false
+    if (!isCurrentSession(sessionId)) return false
+    if (initial.dataContent !== candidate.dataContent) return false
+    options.activeQuality.value = initial.quality || candidate.quality
+    options.iframeSrc.value = initial.iframeUrl
+    return activateDirectUrl(initial.playUrl, initial.kind ?? null)
+  }
+
   async function prepareCandidate(candidate: MirrorCandidate) {
     try {
       const shouldExtract = isExtractable(candidate.name)
       const prepared = await $fetch<PrepareResult>('/api/mirror/prepare', {
-        method: 'POST',
-        body: { dataContent: candidate.dataContent, extract: shouldExtract },
+        query: { dataContent: candidate.dataContent, extract: shouldExtract ? '1' : '0' },
+        timeout: RACE_TIMEOUT_MS,
+        retry: 0,
       })
       return { prepared, shouldExtract, iframeUrl: prepared?.iframeUrl }
     } catch {
@@ -95,8 +108,19 @@ type PrepareResult = {
     }
   }
 
+  async function fetchOk(candidate: MirrorCandidate): Promise<{ candidate: MirrorCandidate, result: { prepared: PrepareResult, shouldExtract: boolean, iframeUrl: string | null } }> {
+    const result = await prepareCandidate(candidate)
+    if (!result || !result.iframeUrl) throw new Error('mirror failed')
+    return { candidate, result }
+  }
+
+  function settleOk(promise: Promise<{ candidate: MirrorCandidate, result: { prepared: PrepareResult, shouldExtract: boolean, iframeUrl: string | null } }>): Promise<{ candidate: MirrorCandidate, result: { prepared: PrepareResult, shouldExtract: boolean, iframeUrl: string | null } } | null> {
+    return promise.then((value) => value).catch(() => null)
+  }
+
   async function tryMirror(candidate: MirrorCandidate, sessionId: number): Promise<boolean> {
     if (!isCurrentSession(sessionId)) return false
+    if (tryInitialStream(candidate, sessionId)) return true
     options.activeQuality.value = candidate.quality
     const result = await prepareCandidate(candidate)
     if (!result || !canUsePreparedMirror(sessionId, result.iframeUrl)) return false
@@ -149,10 +173,32 @@ type PrepareResult = {
     return sessionId
   }
 
+  async function raceFirstOk(racers: MirrorCandidate[], sessionId: number): Promise<{ winner: MirrorCandidate, result: { prepared: PrepareResult, shouldExtract: boolean, iframeUrl: string | null } } | null> {
+    if (racers.length === 0 || !isCurrentSession(sessionId)) return null
+    const outcomes = await Promise.all(racers.map((candidate) => settleOk(fetchOk(candidate))))
+    if (!isCurrentSession(sessionId)) return null
+    for (const candidate of racers) {
+      const match = outcomes.find((entry) => entry !== null && entry.candidate.dataContent === candidate.dataContent)
+      if (match) return { winner: match.candidate, result: match.result }
+    }
+    return null
+  }
+
   async function resolveInitialPlayback(startCandidate: MirrorCandidate, candidates: MirrorCandidate[], fallbackIdx: number, sessionId: number) {
-    const initialResolved = await tryMirror(startCandidate, sessionId)
-    if (!isCurrentSession(sessionId) || initialResolved) return { resolved: initialResolved, nextIndex: fallbackIdx }
-    const result = await resolveCandidateList(candidates, fallbackIdx, sessionId)
+    if (tryInitialStream(startCandidate, sessionId)) return { resolved: true, nextIndex: fallbackIdx }
+    if (!isCurrentSession(sessionId)) return { resolved: false, nextIndex: fallbackIdx }
+    const racers = candidates.slice(0, 2)
+    const raced = await raceFirstOk(racers, sessionId)
+    if (raced && isCurrentSession(sessionId)) {
+      options.activeQuality.value = raced.winner.quality
+      const activated = activatePreparedMirror(raced.result.iframeUrl as string, raced.result.prepared, raced.result.shouldExtract)
+      if (activated) {
+        const consumed = candidates.findIndex((entry) => entry.dataContent === raced.winner.dataContent)
+        return { resolved: true, nextIndex: consumed === -1 ? racers.length : consumed + 1 }
+      }
+    }
+    if (!isCurrentSession(sessionId)) return { resolved: false, nextIndex: racers.length }
+    const result = await resolveCandidateList(candidates, racers.length, sessionId)
     return { resolved: result.resolved, nextIndex: result.nextIndex }
   }
 

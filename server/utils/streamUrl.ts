@@ -1,4 +1,6 @@
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
+const SEALED_URL_CACHE_TTL_MS = 30 * 60 * 1000
+const MAX_SEALED_URL_ENTRIES = 2000
 const IV_LENGTH = 12
 const STREAM_SECRET = 'nimeplay::v1::7Kp3wQz9rXe2VmYs8NbT4cHd6FjUgLa0'
 
@@ -61,7 +63,29 @@ export function proxiedStreamPath(origin: string, token: string): string {
   return `${origin}/api/stream?t=${token}`
 }
 
+type SealedUrlEntry = { url: string, expiresAt: number }
+const sealedUrlCache = new Map<string, SealedUrlEntry>()
+
+function pruneSealedUrlCache(now: number): void {
+  for (const [key, entry] of sealedUrlCache) {
+    if (entry.expiresAt <= now) sealedUrlCache.delete(key)
+    if (sealedUrlCache.size <= MAX_SEALED_URL_ENTRIES) break
+  }
+  while (sealedUrlCache.size > MAX_SEALED_URL_ENTRIES) {
+    const oldest = sealedUrlCache.keys().next()
+    if (oldest.done) break
+    sealedUrlCache.delete(oldest.value)
+  }
+}
+
 export async function sealedStreamUrl(origin: string, rawUrl: string, baseUrl?: string): Promise<string> {
   const absolute = new URL(rawUrl, baseUrl).toString()
-  return proxiedStreamPath(origin, await sealStreamToken(absolute, TOKEN_TTL_MS))
+  const key = `${origin}|${absolute}`
+  const now = Date.now()
+  const hit = sealedUrlCache.get(key)
+  if (hit && hit.expiresAt > now) return hit.url
+  const url = proxiedStreamPath(origin, await sealStreamToken(absolute, TOKEN_TTL_MS))
+  sealedUrlCache.set(key, { url, expiresAt: now + SEALED_URL_CACHE_TTL_MS })
+  pruneSealedUrlCache(now)
+  return url
 }

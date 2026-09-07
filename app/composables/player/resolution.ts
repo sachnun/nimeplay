@@ -195,26 +195,40 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     })
   }
 
-  async function resolveInitialPlayback(candidates: MirrorCandidate[], fallbackIdx: number, sessionId: number) {
+  function untried(candidates: MirrorCandidate[], tried: Set<string>) {
+    return candidates.filter((entry) => !tried.has(entry.dataContent))
+  }
+
+  async function resolveCandidateListSkipping(candidates: MirrorCandidate[], tried: Set<string>, sessionId: number) {
+    for (let index = 0; index < candidates.length; index++) {
+      const candidate = candidates[index]
+      if (!candidate || tried.has(candidate.dataContent)) continue
+      tried.add(candidate.dataContent)
+      const result = await resolveCandidateAt(candidates, index, sessionId)
+      if (result.stop) return { resolved: result.resolved }
+    }
+    return { resolved: false }
+  }
+
+  async function resolveInitialPlayback(candidates: MirrorCandidate[], sessionId: number) {
+    const tried = new Set<string>()
     if (tryInitialStream(sessionId)) {
       const initial = options.initialStream.value
-      const consumed = initial ? candidates.findIndex((entry) => entry.dataContent === initial.dataContent) : -1
-      return { resolved: true, nextIndex: consumed === -1 ? fallbackIdx : consumed + 1 }
+      if (initial) tried.add(initial.dataContent)
+      return { resolved: true, remaining: untried(candidates, tried) }
     }
-    if (!isCurrentSession(sessionId)) return { resolved: false, nextIndex: fallbackIdx }
+    if (!isCurrentSession(sessionId)) return { resolved: false, remaining: [] as MirrorCandidate[] }
     const racers = candidates.slice(0, 2)
     const raced = await raceFirstOk(racers, sessionId)
     if (raced && isCurrentSession(sessionId)) {
       options.activeQuality.value = raced.winner.quality
+      tried.add(raced.winner.dataContent)
       const activated = activatePreparedMirror(raced.result.iframeUrl as string, raced.result.prepared, raced.result.shouldExtract)
-      if (activated) {
-        const consumed = candidates.findIndex((entry) => entry.dataContent === raced.winner.dataContent)
-        return { resolved: true, nextIndex: consumed === -1 ? racers.length : consumed + 1 }
-      }
+      if (activated) return { resolved: true, remaining: untried(candidates, tried) }
     }
-    if (!isCurrentSession(sessionId)) return { resolved: false, nextIndex: racers.length }
-    const result = await resolveCandidateList(candidates, racers.length, sessionId)
-    return { resolved: result.resolved, nextIndex: result.nextIndex }
+    if (!isCurrentSession(sessionId)) return { resolved: false, remaining: untried(candidates, tried) }
+    const result = await resolveCandidateListSkipping(candidates, tried, sessionId)
+    return { resolved: result.resolved, remaining: untried(candidates, tried) }
   }
 
   function finishPlaybackResolution(resolved: boolean, sessionId: number) {
@@ -246,10 +260,10 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
-    let fallbackIdx = 1
-    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index })
-    const result = await resolveInitialPlayback(candidates, fallbackIdx, sessionId)
-    fallbackIdx = result.nextIndex
+    const result = await resolveInitialPlayback(candidates, sessionId)
+    const remaining = result.remaining
+    let fallbackIdx = 0
+    installFallbackHandler(remaining, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index })
     finishPlaybackResolution(result.resolved, sessionId)
   }
 

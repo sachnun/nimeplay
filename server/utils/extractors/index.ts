@@ -56,6 +56,19 @@ export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
   return (await fetchIframeHtml(iframeUrl)).length > 100
 }
 
+export async function probeStreamUrl(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      headers: { ...getSpoofHeaders(`${new URL(url).origin}/`, 'cors'), Range: 'bytes=0-15' },
+      signal: AbortSignal.timeout(3500),
+    })
+    void res.body?.cancel()
+    return res.status === 200 || res.status === 206
+  } catch {
+    return false
+  }
+}
+
 export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
   if (/\.m3u8($|\?)/i.test(url) || /\/hls\//i.test(url)) return 'hls'
   try {

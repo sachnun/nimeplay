@@ -1,5 +1,5 @@
 import { cache } from './cache'
-import { detectStreamKind, extractStreamUrl, probeIframeUrl } from './extractors'
+import { detectStreamKind, extractStreamUrl, probeIframeUrl, probeStreamUrl } from './extractors'
 import { resolvemirror } from './sources'
 import { openStreamToken, proxiedStreamPath, sealStreamToken } from './streamUrl'
 
@@ -132,7 +132,7 @@ async function detectKindFast(url: string): Promise<'hls' | 'file'> {
 }
 
 export function prepareMirror(dataContent: string, extract: boolean): Promise<PrepareResult> {
-  return cache.get('prepare', `v2:${extract}:${dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
+  return cache.get('prepare', `v3:${extract}:${dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(dataContent)
     if (!mirrorId) return emptyPrepareResult()
     const iframeUrl = await resolvemirror(mirrorId)
@@ -143,6 +143,8 @@ export function prepareMirror(dataContent: string, extract: boolean): Promise<Pr
     if (!extracted.url) return emptyPrepareResult(extracted.iframeUrl)
 
     const kind = await detectKindFast(extracted.url)
+    const playable = await probeStreamUrl(extracted.url)
+    if (!playable) return emptyPrepareResult(extracted.iframeUrl)
     const token = await sealStreamToken(extracted.url)
     return { iframeUrl: extracted.iframeUrl, playUrl: proxiedStreamPath(token), kind, ok: true }
   }) as Promise<PrepareResult>

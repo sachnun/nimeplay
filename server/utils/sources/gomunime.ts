@@ -205,7 +205,6 @@ export const gomunime: AnimeSource = {
   id: 'gomunime',
   name: 'Gomunime',
   baseUrl: BASE_URL,
-  priority: 2,
   ongoingFresh: scrapeOngoingFresh,
   completedFresh: scrapeCompletedFresh,
   detailFresh: scrapeAnimeDetailFresh,

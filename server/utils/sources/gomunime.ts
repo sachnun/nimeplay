@@ -191,7 +191,6 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     title,
     animeSlug,
     animeTitle: cleanTitle($('.gm-nav-ep a.utama').text() || title),
-    defaultIframeSrc: iframeSrc,
     mirrors,
     episodeNav: parseEpisodeNav($),
     thumbnail: '',

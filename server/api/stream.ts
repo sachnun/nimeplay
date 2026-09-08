@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
 
   const range = getRequestHeader(event, 'range') || undefined
   const res = await fetch(target, {
-    headers: { ...getSpoofHeaders(`${target.origin}/`, 'iframe'), ...(range ? { Range: range } : {}) },
+    headers: upstreamHeadersFor(target.toString(), range),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 

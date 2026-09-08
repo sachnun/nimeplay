@@ -7,20 +7,18 @@ interface EpisodePlayerResolutionOptions {
   directUrl: Ref<string | null>
   directKind: Ref<'hls' | 'file' | null>
   episode: Ref<EpisodeData>
-  iframeSrc: Ref<string | null>
   loadingMessage: Ref<string>
   resolving: Ref<boolean>
-  useIframe: Ref<boolean>
 }
 
-export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
-  let fallbackFn: (() => void) | null = null
 type PrepareResult = {
-  iframeUrl: string | null
   playUrl: string | null
   kind: 'hls' | 'file' | null
   ok: boolean
 }
+
+export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
+  let fallbackFn: (() => void) | null = null
   let playbackSession = 0
   let fallbackRunning = false
 
@@ -38,58 +36,24 @@ type PrepareResult = {
     return sessionId === playbackSession
   }
 
-  function activateIframe(url: string | null) {
-    if (!url) return false
-    options.iframeSrc.value = url
-    options.directUrl.value = null
-    options.directKind.value = null
-    options.useIframe.value = true
-    return true
-  }
-
   function activateDirectUrl(url: string | null | undefined, kind: 'hls' | 'file' | null) {
     if (!url) return false
-    options.useIframe.value = false
     options.directUrl.value = url
     options.directKind.value = kind
     return true
-  }
-
-  function canUseIframeFallback(iframeUrl: string) {
-    return iframeUrl.includes('desustream.info')
-  }
-
-  function activateDefaultIframe() {
-    return activateIframe(options.iframeSrc.value || options.episode.value.defaultIframeSrc)
-  }
-
-  function canUsePreparedMirror(sessionId: number, iframeUrl: string | null | undefined) {
-    return isCurrentSession(sessionId) && Boolean(iframeUrl)
   }
 
   function resultForCandidate(index: number, resolved: boolean) {
     return { resolved, nextIndex: index + 1 }
   }
 
-  function activateExtractedMirror(iframeUrl: string, prepared: { ok?: boolean; playUrl?: string | null; kind?: 'hls' | 'file' | null }) {
-    if (activateDirectUrl(prepared.playUrl, prepared.kind ?? null)) return true
-    return canUseIframeFallback(iframeUrl) && activateIframe(iframeUrl)
-  }
-
-  function activatePreparedMirror(iframeUrl: string, prepared: PrepareResult, shouldExtract: boolean) {
-    options.iframeSrc.value = iframeUrl
-    if (!shouldExtract) return prepared.ok === true && activateIframe(iframeUrl)
-    return activateExtractedMirror(iframeUrl, prepared)
-  }
-
   async function prepareCandidate(candidate: MirrorCandidate) {
     try {
-      const shouldExtract = isExtractable(candidate.name)
       const prepared = await $fetch<PrepareResult>('/api/mirror/prepare', {
         method: 'POST',
-        body: { dataContent: candidate.dataContent, extract: shouldExtract },
+        body: { dataContent: candidate.dataContent },
       })
-      return { prepared, shouldExtract, iframeUrl: prepared?.iframeUrl }
+      return { prepared }
     } catch {
       return null
     }
@@ -97,10 +61,11 @@ type PrepareResult = {
 
   async function tryMirror(candidate: MirrorCandidate, sessionId: number): Promise<boolean> {
     if (!isCurrentSession(sessionId)) return false
-    options.activeQuality.value = candidate.quality
     const result = await prepareCandidate(candidate)
-    if (!result || !canUsePreparedMirror(sessionId, result.iframeUrl)) return false
-    return activatePreparedMirror(result.iframeUrl as string, result.prepared, result.shouldExtract)
+    if (!result || !isCurrentSession(sessionId)) return false
+    const resolved = activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
+    if (resolved) options.activeQuality.value = candidate.quality
+    return resolved
   }
 
   async function resolveCandidateAt(candidates: MirrorCandidate[], index: number, sessionId: number) {
@@ -123,7 +88,6 @@ type PrepareResult = {
   function resetForFallbackAttempt() {
     options.resolving.value = true
     options.loadingMessage.value = 'Mencoba sumber video lain...'
-    options.useIframe.value = false
     options.directUrl.value = null
     options.directKind.value = null
   }
@@ -132,7 +96,7 @@ type PrepareResult = {
     if (manual) return [startCandidate]
     return [
       startCandidate,
-      ...buildFallbackOrder(options.episode.value.mirrors, startCandidate.quality, startCandidate.name),
+      ...buildFallbackOrder(options.episode.value.mirrors, startCandidate.quality, startCandidate.dataContent),
     ]
   }
 
@@ -142,7 +106,6 @@ type PrepareResult = {
     options.loadingMessage.value = seamless ? 'Mengganti kualitas...' : 'Menyiapkan player...'
     if (!seamless) {
       options.resolving.value = true
-      options.useIframe.value = false
       options.directUrl.value = null
       options.directKind.value = null
     }
@@ -158,7 +121,6 @@ type PrepareResult = {
 
   function finishPlaybackResolution(resolved: boolean, sessionId: number) {
     if (!isCurrentSession(sessionId)) return
-    if (!resolved) activateDefaultIframe()
     fallbackRunning = false
     options.resolving.value = false
   }
@@ -173,7 +135,6 @@ type PrepareResult = {
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
           setFallbackIdx(result.nextIndex)
           if (!isCurrentSession(sessionId)) return
-          if (!result.resolved) activateDefaultIframe()
           options.resolving.value = false
         } finally {
           if (isCurrentSession(sessionId)) fallbackRunning = false
@@ -193,7 +154,6 @@ type PrepareResult = {
   }
 
   return {
-    activateIframe,
     invalidatePlaybackSession,
     playWithFallback,
     triggerFallback,

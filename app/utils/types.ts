@@ -30,7 +30,6 @@ export interface AnimeDetail {
 
 export interface EpisodeData {
   title: string
-  defaultIframeSrc: string
   mirrors: {
     quality: string
     sources: { name: string; dataContent: string }[]

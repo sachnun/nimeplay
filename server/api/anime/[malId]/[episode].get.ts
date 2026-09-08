@@ -68,7 +68,6 @@ export default defineEventHandler(async (event) => {
     episodeNumber,
     episode: {
       title: scraped.title || resolved.episodeTitle,
-      defaultIframeSrc: scraped.defaultIframeSrc,
       mirrors: scraped.mirrors,
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },

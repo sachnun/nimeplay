@@ -1,5 +1,4 @@
 type PrepareResult = {
-  iframeUrl: string | null
   playUrl: string | null
   kind: 'hls' | 'file' | null
   ok: boolean
@@ -7,15 +6,15 @@ type PrepareResult = {
 
 const MIRROR_PREPARE_TTL = 10 * 60 * 1000
 
-function emptyResult(iframeUrl: string | null = null): PrepareResult {
-  return { iframeUrl, playUrl: null, kind: null, ok: false }
+function emptyResult(): PrepareResult {
+  return { playUrl: null, kind: null, ok: false }
 }
 
 defineRouteMeta({
   openAPI: {
     tags: ['Mirror'],
-    summary: 'Resolve mirror embed',
-    description: 'Opens a mirror token, resolves the embedded player and optionally extracts the direct stream URL (sealed behind a stream token).',
+    summary: 'Resolve mirror to direct stream',
+    description: 'Opens a mirror token, resolves the embedded page and extracts the direct stream URL sealed behind a stream token. Direct streams only, no iframe fallback.',
     requestBody: {
       required: true,
       content: {
@@ -25,35 +24,33 @@ defineRouteMeta({
             required: ['dataContent'],
             properties: {
               dataContent: { type: 'string', description: 'Mirror token from the episode data attribute' },
-              extract: { type: 'boolean', description: 'Also extract the direct stream URL' },
             },
           },
         },
       },
     },
     responses: {
-      '200': { description: 'Resolved iframe/play URL and stream kind' },
+      '200': { description: 'Direct play URL and stream kind' },
     },
   },
 })
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ dataContent: string; extract: boolean }>(event)
+  const body = await readBody<{ dataContent: string }>(event)
   if (!body?.dataContent) return emptyResult()
 
-  return cache.get('prepare', `${body.extract}:${body.dataContent}`, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
+  return cache.get('prepare', body.dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(body.dataContent)
     if (!mirrorId) return emptyResult()
-    const iframeUrl = await resolvemirror(mirrorId)
-    if (!iframeUrl) return emptyResult()
-    if (!body.extract) return { ...emptyResult(iframeUrl), ok: await probeIframeUrl(iframeUrl) }
+    const embedUrl = await resolvemirror(mirrorId)
+    if (!embedUrl) return emptyResult()
 
-    const extracted = await extractStreamUrl(iframeUrl)
-    if (!extracted.url) return emptyResult(extracted.iframeUrl)
+    const directUrl = await extractStreamUrl(embedUrl)
+    if (!directUrl) return emptyResult()
 
-    const kind = await detectStreamKind(extracted.url)
-    const token = await sealStreamToken(extracted.url)
+    const kind = await detectStreamKind(directUrl)
+    const token = await sealStreamToken(directUrl)
     const origin = getRequestURL(event).origin
-    return { iframeUrl: extracted.iframeUrl, playUrl: proxiedStreamPath(origin, token), kind, ok: true }
+    return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
   }) as Promise<PrepareResult>
 })

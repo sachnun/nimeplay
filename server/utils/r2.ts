@@ -5,8 +5,6 @@ const MAL_CDN = 'https://cdn.myanimelist.net/images/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 interface R2HttpMetadata {
   contentType?: string
 }
@@ -31,18 +29,11 @@ export function r2Bucket(): R2BucketLike | null {
   return env?.R2 ?? env?.POSTERS ?? null
 }
 
-/**
- * Valid media key pattern: <folder>/<subfolder>/<file>
- * e.g. posters/1506/117717.jpg, characters/14/587281.webp, voiceactors/1/87350.jpg
- */
 export function isValidMediaKey(key: string): boolean {
   if (!key || key.includes('..')) return false
   return /^(posters|characters|voiceactors)\/[a-zA-Z0-9_/.-]+$/i.test(key)
 }
 
-/**
- * Normalizes full MAL URL or relative path into a clean `/r2/<key>` format.
- */
 export function toR2Url(url: string | null | undefined, type: 'posters' | 'characters' | 'voiceactors'): string {
   if (!url) return ''
   if (url.startsWith('/r2/')) return url
@@ -81,15 +72,7 @@ export async function hasCachedMedia(key: string): Promise<boolean> {
   const bucket = r2Bucket()
   if (!bucket) return false
   const head = await bucket.head(key).catch(() => null)
-  if (head) return true
-  if (key.startsWith('posters/')) {
-    const sub = key.slice(8)
-    const leg1 = await bucket.head(`cdn.myanimelist.net/images/anime/${sub}`).catch(() => null)
-    if (leg1) return true
-    const leg2 = await bucket.head(sub).catch(() => null)
-    if (leg2) return true
-  }
-  return false
+  return head !== null
 }
 
 export interface MediaObject {
@@ -101,19 +84,7 @@ export interface MediaObject {
 export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   const bucket = r2Bucket()
   if (!bucket) return null
-
-  // 1. Direct key
-  let object = await bucket.head(key).then(h => h ? bucket.get(key) : null).catch(() => null)
-
-  // 2. Legacy fallback keys
-  if (!object && key.startsWith('posters/')) {
-    const sub = key.slice(8)
-    object = await bucket.get(`cdn.myanimelist.net/images/anime/${sub}`)
-    if (!object) {
-      object = await bucket.get(sub)
-    }
-  }
-
+  const object = await bucket.get(key).catch(() => null)
   if (!object) return null
   return {
     body: object.body ?? null,
@@ -127,8 +98,6 @@ export async function storeMedia(key: string, data: ArrayBuffer, contentType: st
   if (!bucket) return
   await bucket.put(key, data, { httpMetadata: { contentType } })
 }
-
-const MIRROR_CONCURRENCY = 15
 
 export async function mirrorMediaItem(r2Path: string): Promise<boolean> {
   const key = r2Path.startsWith('/r2/') ? r2Path.slice(4) : r2Path
@@ -155,32 +124,15 @@ export async function mirrorAnimeMedia(posterPath: string | null, characters: { 
     if (c.voiceActor?.imageUrl && c.voiceActor.imageUrl.startsWith('/r2/')) tasks.push(c.voiceActor.imageUrl)
   }
   if (tasks.length === 0) return
-  let idx = 0
-  const workers = Array.from({ length: Math.min(MIRROR_CONCURRENCY, tasks.length) }, async () => {
-    while (idx < tasks.length) {
-      const item = tasks[idx++]
-      if (!item) break
-      await mirrorMediaItem(item)
-    }
-  })
-  await Promise.all(workers)
+  await Promise.all(tasks.map(item => mirrorMediaItem(item)))
 }
 
-export async function fetchRemoteMedia(
-  url: string,
-  attempt = 0,
-): Promise<{ contentType: string, bytes: ArrayBuffer }> {
+export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
   const response = await fetch(url, {
     headers: getSpoofHeaders(MAL_REFERER, 'cors'),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  if (!response.ok) {
-    if (attempt < 2 && (response.status === 403 || response.status === 429 || response.status >= 500)) {
-      await sleep(500 * (attempt + 1))
-      return fetchRemoteMedia(url, attempt + 1)
-    }
-    throw new Error(`HTTP ${response.status}`)
-  }
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const contentType = response.headers.get('content-type') ?? 'image/jpeg'
   return { contentType, bytes: await response.arrayBuffer() }
 }

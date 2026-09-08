@@ -38,18 +38,13 @@ async function extractKnownHost(iframeUrl: string, html: string): Promise<string
 
 async function extractFallbackHost(iframeUrl: string, html: string): Promise<string | null> {
   const mp4Url = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)?.[1]
-  const candidates = [
-    () => extractVidhide(iframeUrl, html),
-    ...(mp4Url ? [async () => mp4Url] : []),
-    () => extractDesuDrive(iframeUrl, html),
-  ]
-  for (const candidate of candidates) {
-    try {
-      const value = await candidate()
-      if (value) return value
-    } catch {}
+  if (mp4Url) return mp4Url
+  try {
+    return await extractDesuDrive(iframeUrl, html)
   }
-  return null
+  catch {
+    return null
+  }
 }
 
 export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
@@ -66,11 +61,9 @@ export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
     void res.body?.cancel()
     const contentType = (res.headers.get('content-type') || '').toLowerCase()
     if (contentType.includes('mpegurl')) return 'hls'
-    const head = new Uint8Array(await res.arrayBuffer())
-    let prefix = ''
-    for (const byte of head) prefix += String.fromCharCode(byte)
-    if (prefix.startsWith('#EXTM3U')) return 'hls'
-  } catch {}
+  }
+  catch {
+  }
   return 'file'
 }
 

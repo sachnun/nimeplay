@@ -54,13 +54,10 @@ export const anime = sqliteTable('anime', {
   trailerId: text('trailer_id'),
   characters: jsonText<MalCharacter[]>()('characters').notNull().default(sql`'[]'`),
   sourceUrl: text('source_url'),
-  /** Parsed date of the newest episode, derived from the Otakudesu detail page. */
   latestEpisodeAt: integer('latest_episode_at', { mode: 'timestamp_ms' }),
-  /** Position in the Otakudesu ongoing list at the last scrape (upstream order). */
   ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
   metadataSyncedAt: integer('metadata_synced_at', { mode: 'timestamp_ms' }),
-  /* Bumped only when a detail refresh actually adds new episode rows. Drives recency-first ongoing order. */
   lastNewEpisodeAt: integer('last_new_episode_at', { mode: 'timestamp_ms' }),
   metadataAttempts: integer('metadata_attempts').notNull().default(0),
   metadataLastError: text('metadata_last_error'),

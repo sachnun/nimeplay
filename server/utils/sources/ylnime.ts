@@ -46,6 +46,7 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
 }
 
 async function scrapeOngoingFresh(page: number): Promise<ListResult> {
+  if (page > 1) return { anime: [], totalPages: 1 }
   const html = await fetchHTML(`${BASE_URL}/ongoing.php`)
   const $ = cheerio.load(html)
   return { anime: parseCards($), totalPages: 1 }

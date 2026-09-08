@@ -56,12 +56,6 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
-/**
- * Strict site-title vs MAL-title match. Requires:
- * 1. At least one significant shared word.
- * 2. Season markers to agree: an explicit season on one side must match the
- *    other side's marker; a missing marker counts as season 1.
- */
 const TITLE_STOPWORDS = new Set(['the', 'and', 'for', 'episode', 'movie', 'special', 'ova', 'end'])
 
 function titleWords(value: string): Set<string> {
@@ -95,11 +89,6 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / longest
 }
 
-/**
- * Detect romaji-style abbreviations: the site title must split into
- * consecutive word-start prefixes of the MAL title, e.g.
- * "watamote" -> "wa"(Watashi) + "mote"(Motenai).
- */
 function isAbbreviation(siteTitle: string, malTitle: string): boolean {
   const site = normalizeTitle(siteTitle)
   if (site.length < 4 || site.length > 20) return false
@@ -131,58 +120,37 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
 
   const siteSeason = seasonNumber(siteTitle)
   const malSeason = seasonNumber(malTitle)
-  // Explicit, conflicting season markers are always disqualifying —
-  // even high edit-distance similarity must not override this.
   if (siteSeason !== null && malSeason !== null && siteSeason !== malSeason) return false
 
   if (similarity(siteNorm, malNorm) >= 0.9) return true
 
   if (!hasOverlap) return isAbbreviation(siteTitle, malTitle)
 
-  if (siteSeason !== null && malSeason !== null) return true // same explicit season
+  if (siteSeason !== null && malSeason !== null) return true
   if (malSeason === null && siteSeason !== null && siteSeason > 1 && similarity(siteNorm, malNorm) < 0.9) return false
   if (siteSeason === null && malSeason !== null && malSeason > 1) return false
   return true
 }
 
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
-  // MAL's search breaks on punctuation like "!" and falls back to a generic
-  // popular-anime list, so strip it and drop season/sequel noise — the strict
-  // title matcher filters the candidates afterwards.
   const cleaned = query
     .replace(/[!?:,.'"“”‘’]/g, ' ')
-    .replace(/\s+(season|part|ova|movie|ond)\s*\d+\b/gi, '')
-    .replace(/\s+\d+(st|nd|rd|th)\s+season/gi, '')
+    .replace(/\s+sub\s+indo.*/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-  // MAL throttles aggressively under load; retry with backoff instead of
-  // treating a failed request as "no results".
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(cleaned)}`)
-    if (html) {
-      const entries = new Map<number, string>()
-      // Result rows wrap their title in <strong>; other anchors on the page
-      // (sidebar "Top Anime", images) don't.
-      const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\/[^"]*"[^>]*>\s*<strong>([^<]+)<\/strong>/g
-      let match: RegExpExecArray | null
-      while ((match = pattern.exec(html)) !== null) {
-        const id = Number(match[1])
-        if (!entries.has(id)) entries.set(id, decodeEntities(match[2] ?? '').trim())
-        if (entries.size >= 8) break
-      }
-      return [...entries].map(([id, entryTitle]) => ({ id, title: entryTitle }))
-    }
-    await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)))
+  const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(cleaned)}`)
+  if (!html) return []
+  const entries = new Map<number, string>()
+  const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\/[^"]*"[^>]*>\s*<strong>([^<]+)<\/strong>/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(html)) !== null) {
+    const id = Number(match[1])
+    if (!entries.has(id)) entries.set(id, decodeEntities(match[2] ?? '').trim())
+    if (entries.size >= 8) break
   }
-  throw new Error(`MAL search unavailable for "${query}"`)
+  return [...entries].map(([id, entryTitle]) => ({ id, title: entryTitle }))
 }
 
-/**
- * Rank a MAL candidate against the site title: normalized edit-distance
- * similarity, plus a bonus for an exact normalized match and a small
- * penalty for titles much longer than the site title (movies and spinoffs
- * sharing a base name, e.g. "One Piece" vs "One Piece Film: Z").
- */
 function matchScore(siteTitle: string, malTitle: string): number {
   const siteNorm = normalizeTitle(siteTitle)
   const malNorm = normalizeTitle(malTitle)
@@ -192,7 +160,6 @@ function matchScore(siteTitle: string, malTitle: string): number {
   return score
 }
 
-/** Words that only carry a season/sequel marker, not franchise identity. */
 const MARKER_WORDS = new Set([
   'season', 'part', 'first', 'second', 'third', 'fourth', 'fifth',
   'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
@@ -203,23 +170,12 @@ function isMarkerWord(word: string): boolean {
   return MARKER_WORDS.has(word) || /^\d+(?:st|nd|rd|th)?$/.test(word)
 }
 
-/** Number of shared words that are not season/sequel markers. */
 function contentOverlap(siteTitle: string, malTitle: string): number {
   const siteWords = [...titleWords(siteTitle)].filter(word => !isMarkerWord(word))
   const malWords = new Set([...titleWords(malTitle)].filter(word => !isMarkerWord(word)))
   return siteWords.filter(word => malWords.has(word)).length
 }
 
-/**
- * Pick the best matching entry from MAL search results. `titlesMatch` is
- * only a pass/fail filter; MAL often lists movies and spinoffs before the
- * actual series (e.g. "One Piece Film: Z" before "One Piece"), so first
- * match wins is wrong — score every passing candidate instead.
- *
- * Candidates that share a real (non-marker) word with the site title are
- * preferred: marker-only overlaps ("Season 3" matching "Shingeki no
- * Kyojin Season 3") are how wrong franchises get picked.
- */
 export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
   const passing = entries.filter(entry => titlesMatch(siteTitle, entry.title))
   if (passing.length === 0) return []
@@ -241,10 +197,6 @@ const WORD_SEASONS: Record<string, number> = {
   sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
 }
 
-/**
- * Extract an explicit season/part marker from a title, e.g.
- * "5th Season", "Season 2", "S3", "Part 2", "III", "Third".
- */
 export function seasonNumber(title: string): number | null {
   const lower = title.toLowerCase()
   const digit = /(?:(\d+)\s*(?:st|nd|rd|th)?\s*season)|(?:season\s*(\d+))|(?:\bpart\s*(\d+))|(?:\bs\s*(\d+)\b)/.exec(lower)
@@ -255,7 +207,6 @@ export function seasonNumber(title: string): number | null {
   }
   const ordinal = /\b(\d+)(?:st|nd|rd|th)\b/.exec(lower)
   if (ordinal) return Number(ordinal[1])
-  // Sequel titles on MAL often end with a bare number: "... Slave 2", "... Nouka 2".
   const trailingNumber = /\s(\d{1,2})$/.exec(lower.trim())
   if (trailingNumber) return Number(trailingNumber[1])
   const roman = /\b(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)\b/.exec(lower)
@@ -266,7 +217,6 @@ export function seasonNumber(title: string): number | null {
 }
 
 function fullSizeImage(dataSrc: string): string {
-  // Drop the r/42x62/ resize prefix to get the original image.
   return dataSrc.replace(/\/r\/\d+x\d+\//, '/')
 }
 
@@ -281,8 +231,6 @@ function parseCharacters(html: string): MalCharacter[] {
   const sections = html.split('h3_characters_voice_actors').slice(1)
   const result: CharacterChunk[] = []
 
-  // Map character id -> image. On MAL the character's image anchor (class
-  // "fw-n") sits in the cell BEFORE the name heading, keyed by the same id.
   const images = new Map<string, string>()
   const imgPattern = /href="https:\/\/myanimelist\.net\/character\/(\d+)\/[^"]*" class="fw-n">\s*<img[^>]*data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/characters\/[^"]*)"/g
   let imgMatch: RegExpExecArray | null
@@ -291,7 +239,6 @@ function parseCharacters(html: string): MalCharacter[] {
   }
 
   for (const section of sections) {
-    // Cut at the next character entry so people links don't bleed across entries.
     const end = section.indexOf('h3_characters_voice_actors')
     const chunk = end === -1 ? section.slice(0, 3000) : section.slice(0, end)
 
@@ -319,7 +266,6 @@ function parseCharacters(html: string): MalCharacter[] {
   return result
 }
 
-/** Extract a sidebar info field (e.g. "Source:", "Studios:") as plain text. */
 function parseInfoField(html: string, label: string): string {
   const marker = `<span class="dark_text">${label}</span>`
   const start = html.indexOf(marker)
@@ -330,7 +276,6 @@ function parseInfoField(html: string, label: string): string {
 }
 
 function parseGenres(html: string): string[] {
-  // MAL renders genre links with relative hrefs, e.g. <a href="/anime/genre/1/Action">Action</a>
   const names = new Set<string>()
   const pattern = /href="\/anime\/genre\/\d+\/[^"]*"[^>]*>([^<]+)</g
   let match: RegExpExecArray | null
@@ -344,7 +289,6 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
   const html = await fetchPage(`${MAL_BASE}/anime/${malId}`)
   if (!html) return null
 
-  // Canonical URL slug, e.g. /anime/40028/Shingeki_no_Kyojin:_The_Final_Season
   const canonicalMatch = /<link rel="canonical" href="https:\/\/myanimelist\.net\/anime\/\d+\/([^"]+)"/.exec(html)?.[1]
   const title = canonicalMatch ? decodeURIComponent(canonicalMatch.replace(/_/g, ' ')) : ''
   const posterMatch = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1] ?? null

@@ -2,10 +2,10 @@ import type { H3Event } from 'h3'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
-import { fetchMalAnime, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
+import { fetchMalAnime, rankMalAnimeMatches, searchMalAnimeEntries } from './mal'
 import { mirrorAnimeMedia } from './r2'
 import { toR2Url } from './r2'
-import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
+import { getSources, scrapeAnimeDetailFresh } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
@@ -16,12 +16,8 @@ const CATALOG_META_BUDGET = 10
 const ONGOING_PAGES = 6
 const COMPLETED_PAGES = 3
 const FRESH_BUDGET = 12
-const SYNC_WALL_MS = 25000
-const METADATA_MAX_ERROR_LEN = 500
-const METADATA_RETRY_BASE_MS = 60 * 60 * 1000
-const METADATA_RETRY_CAP_MS = 24 * 60 * 60 * 1000
+const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
@@ -29,22 +25,6 @@ function chunkValues<T>(values: T[], size: number): T[][] {
   return chunks
 }
 
-function retryDelaysSec(): { d1: number, d2: number, d3: number, d4: number, d5: number, cap: number } {
-  const base = Math.max(1, Math.round(METADATA_RETRY_BASE_MS / 1000))
-  const cap = Math.max(base, Math.round(METADATA_RETRY_CAP_MS / 1000))
-  return {
-    d1: Math.min(base, cap),
-    d2: Math.min(base * 2, cap),
-    d3: Math.min(base * 4, cap),
-    d4: Math.min(base * 8, cap),
-    d5: Math.min(base * 16, cap),
-    cap: cap,
-  }
-}
-
-const WRITES_PAUSED = false
-
-const animeRunning = new Map<number, boolean>()
 let catalogSyncRunning = false
 let lastCatalogSync = 0
 
@@ -53,19 +33,12 @@ interface CatalogStats {
   finishedAt: string
   durationMs: number
   sourcesRegistered: Record<string, number>
-  flipRefreshed: number
   freshRefreshed: number
-  failedPages: number
   metadataPending: number
   metadataResolved: number
-  deferredByBackoff: number
 }
 
 let lastCatalogStats: CatalogStats | null = null
-
-export function getLastCatalogStats(): CatalogStats | null {
-  return lastCatalogStats
-}
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
@@ -93,33 +66,14 @@ function normalizeStatus(raw: string): string {
   return 'ONGOING'
 }
 
-function parseOdYear(value: string | null | undefined): number | null {
-  if (!value) return null
-  const match = value.match(/(\d{4})/)
-  if (!match) return null
-  const year = Number(match[1])
-  return year >= 1990 && year <= 2100 ? year : null
-}
-
-function truncateError(message: string): string {
-  return message.length > METADATA_MAX_ERROR_LEN ? message.slice(0, METADATA_MAX_ERROR_LEN) : message
-}
-
-async function recordMetadataFailure(slug: string, message: string): Promise<void> {
+async function recordFailure(slug: string, message: string): Promise<void> {
   try {
-    const delays = retryDelaysSec()
     await db()
       .update(anime)
       .set({
         metadataAttempts: sql`${anime.metadataAttempts} + 1`,
-        metadataLastError: truncateError(message),
-        metadataRetryAt: sql`cast((strftime('%s', 'now') + case
-          when coalesce(${anime.metadataAttempts}, 0) + 1 >= 6 then ${delays.cap}
-          when coalesce(${anime.metadataAttempts}, 0) + 1 = 5 then ${delays.d5}
-          when coalesce(${anime.metadataAttempts}, 0) + 1 = 4 then ${delays.d4}
-          when coalesce(${anime.metadataAttempts}, 0) + 1 = 3 then ${delays.d3}
-          when coalesce(${anime.metadataAttempts}, 0) + 1 = 2 then ${delays.d2}
-          else ${delays.d1} end) * 1000 as integer)`,
+        metadataLastError: message.slice(0, 500),
+        metadataRetryAt: new Date(Date.now() + RETRY_MS),
       })
       .where(eq(anime.slug, slug))
   }
@@ -128,73 +82,14 @@ async function recordMetadataFailure(slug: string, message: string): Promise<voi
   }
 }
 
-export async function getPendingMetadataStats(): Promise<{ count: number, oldestUpdatedAt: string | null, oldestAgeMs: number | null }> {
+export async function getCatalogHealth() {
   const [row] = await db()
-    .select({
-      count: sql<number>`count(*)`,
-      oldest: sql<number | null>`min(${anime.updatedAt})`,
-    })
-    .from(anime)
-    .where(isNull(anime.malId))
-  const count = row?.count ?? 0
-  const oldestMs = row?.oldest ?? null
-  return {
-    count,
-    oldestUpdatedAt: oldestMs ? new Date(oldestMs).toISOString() : null,
-    oldestAgeMs: oldestMs ? Date.now() - oldestMs : null,
-  }
-}
-
-export interface MetadataFailure {
-  slug: string
-  title: string
-  attempts: number
-  lastError: string | null
-  retryAt: string | null
-  updatedAt: string | null
-}
-
-export async function getMetadataFailures(limit = 20): Promise<{ total: number, failures: MetadataFailure[] }> {
-  const countQuery = db()
     .select({ count: sql<number>`count(*)` })
     .from(anime)
-    .where(sql`${anime.metadataAttempts} > 0`)
-  const rowsQuery = db()
-    .select({
-      slug: anime.slug,
-      title: anime.title,
-      attempts: anime.metadataAttempts,
-      lastError: anime.metadataLastError,
-      retryAt: anime.metadataRetryAt,
-      updatedAt: anime.updatedAt,
-    })
-    .from(anime)
-    .where(sql`${anime.metadataAttempts} > 0`)
-    .orderBy(sql`${anime.metadataAttempts} desc`)
-    .limit(Math.max(1, Math.min(100, limit)))
-  const [[countRow], rows] = await Promise.all([countQuery, rowsQuery])
-  return {
-    total: countRow?.count ?? 0,
-    failures: rows.map((row: any) => ({
-      slug: row.slug,
-      title: row.title,
-      attempts: row.attempts ?? 0,
-      lastError: row.lastError,
-      retryAt: row.retryAt ? row.retryAt.toISOString() : null,
-      updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
-    })),
-  }
-}
-
-export async function getCatalogHealth() {
-  const [pending, failures] = await Promise.all([
-    getPendingMetadataStats(),
-    getMetadataFailures(20),
-  ])
+    .where(isNull(anime.malId))
   return {
     checkedAt: new Date().toISOString(),
-    pendingMetadata: pending,
-    metadataFailures: failures,
+    pendingMetadata: row?.count ?? 0,
     lastCatalogSync: lastCatalogStats,
     config: {
       ongoingPages: ONGOING_PAGES,
@@ -202,7 +97,6 @@ export async function getCatalogHealth() {
       catalogMetaBudget: CATALOG_META_BUDGET,
       catalogSyncMs: CATALOG_SYNC_MS,
       freshBudget: FRESH_BUDGET,
-      wallMs: SYNC_WALL_MS,
     },
   }
 }
@@ -303,209 +197,106 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
   await mirrorAnimeMedia(poster, characters)
 }
 
-async function stealFromOwner(slug: string, ownerSlug: string, malId: number): Promise<boolean> {
-  if (ownerSlug === slug) return false
-  const mine = splitSource(slug).source.priority
-  const theirs = splitSource(ownerSlug).source.priority
-  if (mine >= theirs) return false
-  await db().update(anime).set({ malId: null, metadataSyncedAt: null }).where(eq(anime.slug, ownerSlug))
-  console.log(`[metadata] ${slug} takes mal_id ${malId} from ${ownerSlug}`)
-  return true
-}
-
-async function stealIfPreferred(slug: string, malId: number, knownOwnerSlug?: string | null): Promise<boolean> {
-  if (knownOwnerSlug !== undefined) {
-    if (!knownOwnerSlug) return false
-    return stealFromOwner(slug, knownOwnerSlug, malId)
-  }
-  const [owner] = await db().select({ slug: anime.slug }).from(anime).where(eq(anime.malId, malId)).limit(1)
-  if (!owner) return false
-  return stealFromOwner(slug, owner.slug, malId)
-}
-
-export async function resolveMetadata(slug: string, title: string): Promise<boolean> {
-  let entries: { id: number, title: string }[] = []
-  try {
-    entries = await searchMalAnimeEntries(title)
-  }
-  catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    await recordMetadataFailure(slug, `MAL search unavailable: ${message}`)
-    console.warn(`[metadata] failed ${slug}:`, message)
-    return false
-  }
-
-  const ranked = rankMalAnimeMatches(title, entries)
-  if (ranked.length === 0) {
+async function resolveMetadata(slug: string, title: string): Promise<boolean> {
+  const entries = await searchMalAnimeEntries(title)
+  const [candidate] = rankMalAnimeMatches(title, entries)
+  if (!candidate) {
     const top = entries[0]?.title ?? '-'
-    await recordMetadataFailure(slug, `no MAL title matches "${title}" (top: "${top}")`)
+    const reason = `no MAL title matches "${title}" (top: "${top}")`
+    await recordFailure(slug, reason)
     console.warn(`[metadata] no MAL title matches "${title}" (top: "${top}")`)
     return false
   }
 
-  let lastReason = 'no usable MAL candidate'
-  let odYear: number | null | undefined
-  const loadOdYear = async (): Promise<number | null> => {
-    if (odYear !== undefined) return odYear
-    try {
-      const detail = await scrapeAnimeDetailFresh(slug)
-      odYear = parseOdYear(detail?.releaseDate ?? null)
-    }
-    catch {
-      odYear = null
-    }
-    return odYear
+  const mal = await fetchMalAnime(candidate.id)
+  if (!mal) {
+    const reason = `MAL fetch returned empty for id ${candidate.id}`
+    await recordFailure(slug, reason)
+    console.warn(`[metadata] failed ${slug}: ${reason}`)
+    return false
   }
 
-  for (const candidate of ranked.slice(0, 4)) {
-    let mal = null
-    try {
-      mal = await fetchMalAnime(candidate.id)
-    }
-    catch (error) {
-      lastReason = error instanceof Error ? error.message : String(error)
-      continue
-    }
-    if (!mal) {
-      lastReason = `MAL fetch returned empty for id ${candidate.id}`
-      continue
-    }
-
-    try {
-      const [owner] = await db()
-        .select({ slug: anime.slug })
-        .from(anime)
-        .where(eq(anime.malId, mal.malId))
-        .limit(1)
-      if (owner && owner.slug !== slug) {
-        const expectedYear = await loadOdYear()
-        const siteSeason = seasonNumber(title)
-        const candidateSeason = seasonNumber(candidate.title)
-        const yearMismatch = expectedYear != null && mal.year != null && expectedYear !== mal.year
-        const looksLikeSequel = siteSeason != null && siteSeason > 1
-        if (yearMismatch && (looksLikeSequel || candidateSeason != null)) {
-          lastReason = `mal_id ${mal.malId} owned by ${owner.slug}, year mismatch OD ${expectedYear} vs MAL ${mal.year}, trying next candidate`
-          console.warn(`[metadata] sequel guard ${slug}: ${lastReason}`)
-          continue
-        }
-        if (await stealIfPreferred(slug, mal.malId, owner.slug)) {
-          await applyMalMetadata(slug, mal)
-          return true
-        }
-        lastReason = `mal_id ${mal.malId} already owned by a preferred row ${owner.slug}`
-        await recordMetadataFailure(slug, lastReason)
-        console.warn(`[metadata] mal_id ${mal.malId} already owned by a preferred row, skipping ${slug}`)
-        return false
-      }
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      lastReason = message
-      continue
-    }
-
-    try {
-      await applyMalMetadata(slug, mal)
-      return true
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('UNIQUE constraint failed') && await stealIfPreferred(slug, mal.malId)) {
-        await applyMalMetadata(slug, mal)
-        return true
-      }
-      if (message.includes('UNIQUE constraint failed')) {
-        lastReason = `mal_id ${mal.malId} already owned by a preferred row`
-        await recordMetadataFailure(slug, lastReason)
-        console.warn(`[metadata] mal_id ${mal.malId} already owned by a preferred row, skipping ${slug}`)
-        return false
-      }
-      throw error
-    }
+  const [owner] = await db()
+    .select({ slug: anime.slug })
+    .from(anime)
+    .where(eq(anime.malId, mal.malId))
+    .limit(1)
+  if (owner && owner.slug !== slug) {
+    const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
+    await recordFailure(slug, reason)
+    console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
+    return false
   }
 
-  await recordMetadataFailure(slug, lastReason)
-  console.warn(`[metadata] failed ${slug}: ${lastReason}`)
-  return false
+  try {
+    await applyMalMetadata(slug, mal)
+    return true
+  }
+  catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    await recordFailure(slug, reason)
+    console.warn(`[metadata] failed ${slug}: ${reason}`)
+    return false
+  }
 }
 
 export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {
-  try {
-    const detail = await scrapeAnimeDetailFresh(slug)
-    if (detail) {
-      const status = normalizeStatus(detail.status)
-      const latestEpisodeAt = detail.episodes
-        .map(entry => parseEpisodeDate(entry.date))
-        .filter((date): date is Date => date !== null)
-        .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-      const [beforeRow] = await db()
-        .select({ max: sql<number | null>`max(${episodes.number})` })
-        .from(episodes)
-        .where(eq(episodes.animeSlug, slug))
-      const maxBefore = Number(beforeRow?.max ?? 0)
-      await upsertEpisodes(slug, detail.episodes)
-      const maxInDetail = detail.episodes.reduce((max, entry) => {
-        const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
-        return parsed != null && parsed > max ? parsed : max
-      }, 0)
-      const maxAfter = Math.max(maxBefore, maxInDetail)
-      await db()
-        .update(anime)
-        .set({
-          title: detail.title || title,
-          status,
-          ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
-          ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-          ...(maxAfter > maxBefore ? { lastNewEpisodeAt: new Date() } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(anime.slug, slug))
-    }
+  const detail = await scrapeAnimeDetailFresh(slug)
+  if (detail) {
+    const status = normalizeStatus(detail.status)
+    const latestEpisodeAt = detail.episodes
+      .map(entry => parseEpisodeDate(entry.date))
+      .filter((date): date is Date => date !== null)
+      .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
+    const [beforeRow] = await db()
+      .select({ max: sql<number | null>`max(${episodes.number})` })
+      .from(episodes)
+      .where(eq(episodes.animeSlug, slug))
+    const maxBefore = Number(beforeRow?.max ?? 0)
+    await upsertEpisodes(slug, detail.episodes)
+    const maxInDetail = detail.episodes.reduce((max, entry) => {
+      const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
+      return parsed != null && parsed > max ? parsed : max
+    }, 0)
+    const maxAfter = Math.max(maxBefore, maxInDetail)
+    await db()
+      .update(anime)
+      .set({
+        title: detail.title || title,
+        status,
+        ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
+        ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+        ...(maxAfter > maxBefore ? { lastNewEpisodeAt: new Date() } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(anime.slug, slug))
   }
-  catch (error) {
-    console.warn(`[refresh] detail failed ${slug}:`, error instanceof Error ? error.message : error)
-  }
-  if (refreshMetadata) {
-    try {
-      await resolveMetadata(slug, title)
-    }
-    catch (error) {
-      console.warn(`[refresh] metadata failed ${slug}:`, error instanceof Error ? error.message : error)
-    }
-  }
+  if (refreshMetadata) await resolveMetadata(slug, title)
 }
 
 export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
-  if (WRITES_PAUSED) return
-  if (animeRunning.get(malId)) return
-  animeRunning.set(malId, true)
   const task = (async () => {
-    try {
-      const [row] = await db()
-        .select({
-          slug: anime.slug,
-          title: anime.title,
-          status: anime.status,
-          updatedAt: anime.updatedAt,
-          metadataSyncedAt: anime.metadataSyncedAt,
-          episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
-        })
-        .from(anime)
-        .where(eq(anime.malId, malId))
-        .limit(1)
-      if (!row) return
+    const [row] = await db()
+      .select({
+        slug: anime.slug,
+        title: anime.title,
+        status: anime.status,
+        updatedAt: anime.updatedAt,
+        metadataSyncedAt: anime.metadataSyncedAt,
+        episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
+      })
+      .from(anime)
+      .where(eq(anime.malId, malId))
+      .limit(1)
+    if (!row) return
 
-      const now = Date.now()
-      const stale = !row.updatedAt || now - row.updatedAt.getTime() > DETAIL_REFRESH_MS
-      const needsMetadata = !row.metadataSyncedAt || now - row.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
-      const hasEpisodes = Number(row.episodeCount) > 0
+    const now = Date.now()
+    const stale = !row.updatedAt || now - row.updatedAt.getTime() > DETAIL_REFRESH_MS
+    const needsMetadata = !row.metadataSyncedAt || now - row.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
+    const hasEpisodes = Number(row.episodeCount) > 0
 
-      if ((row.status === 'ONGOING' && stale) || !hasEpisodes) {
-        await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
-      }
-    }
-    finally {
-      animeRunning.delete(malId)
+    if ((row.status === 'ONGOING' && stale) || !hasEpisodes) {
+      await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
   waitUntil(event, task)
@@ -526,7 +317,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     client.insert(anime).values(chunk).onConflictDoUpdate({
       target: anime.slug,
       set: {
-        day: sql`excluded.day`,
+        day: sql`coalesce(excluded.day, ${anime.day})`,
         latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
         ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
       },
@@ -535,81 +326,17 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
   await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
 }
 
-async function refreshFlipCandidates(ongoingSlugs: Set<string>, deadlineMs: number): Promise<number> {
-  const completedSlugs: string[] = []
-  for (const source of getSources()) {
-    for (let page = 1; page <= COMPLETED_PAGES; page++) {
-      try {
-        const result = await source.completedFresh(page)
-        if (result.anime.length === 0) break
-        for (const card of result.anime) {
-          completedSlugs.push(`${source.id}:${card.slug}`)
-        }
-      }
-      catch (error) {
-        console.warn(`[catalog] ${source.id} completed page ${page} failed, continuing:`, error instanceof Error ? error.message : error)
-      }
-      await sleep(250)
-    }
-  }
-  if (completedSlugs.length === 0) return 0
-
-  const statusResults = await Promise.all(chunkValues([...new Set(completedSlugs)], BIND_CHUNK_SIZE).map(chunk =>
-    db()
-      .select({ slug: anime.slug, title: anime.title, status: anime.status })
-      .from(anime)
-      .where(inArray(anime.slug, chunk)),
-  ))
-  const statusRows = statusResults.flat()
-  const flips = statusRows.filter(row => row.status === 'ONGOING')
-  let refreshed = 0
-  for (const row of flips) {
-    if (Date.now() > deadlineMs) break
-    try {
-      await refreshAnimeBySlug(row.slug, row.title, false)
-      refreshed++
-    }
-    catch (error) {
-      console.warn(`[catalog] flip refresh failed ${row.slug}:`, error instanceof Error ? error.message : error)
-    }
-  }
-
-  try {
-    const dbOngoing = await db()
-      .select({ slug: anime.slug, title: anime.title })
-      .from(anime)
-      .where(eq(anime.status, 'ONGOING'))
-      .limit(500)
-    for (const row of dbOngoing) {
-      if (refreshed >= 12 || Date.now() > deadlineMs) break
-      if (!ongoingSlugs.has(row.slug) && !flips.some(item => item.slug === row.slug)) {
-        try {
-          await refreshAnimeBySlug(row.slug, row.title, false)
-          refreshed++
-        }
-        catch (error) {
-          console.warn(`[catalog] disappeared refresh failed ${row.slug}:`, error instanceof Error ? error.message : error)
-        }
-      }
-      if (refreshed >= 12) break
-    }
-  }
-  catch (error) {
-    console.warn('[catalog] disappeared scan failed, continuing:', error instanceof Error ? error.message : error)
-  }
-  if (flips.length > 0 || refreshed > 0) {
-    console.log(`[catalog] flip fast path: ${flips.length} completed hits, ${refreshed} refreshed`)
-  }
-  return refreshed
-}
-
 async function refreshFreshEpisodes(
   cards: { slug: string, title: string, episode: string }[],
-  deadlineMs: number,
 ): Promise<number> {
-  const wanted = cards
-    .map(card => ({ slug: card.slug, title: card.title, episode: episodeNumber(card.episode) }))
-    .filter(item => item.episode != null)
+  const bySlug = new Map<string, { slug: string, title: string, episode: number }>()
+  for (const card of cards) {
+    const parsed = episodeNumber(card.episode)
+    if (parsed == null) continue
+    const current = bySlug.get(card.slug)
+    if (!current || parsed > current.episode) bySlug.set(card.slug, { slug: card.slug, title: card.title, episode: parsed })
+  }
+  const wanted = [...bySlug.values()]
   if (wanted.length === 0) return 0
   const dbMax = new Map<string, number>()
   const maxResults = await Promise.all(chunkValues(wanted, BIND_CHUNK_SIZE).map(chunk =>
@@ -626,15 +353,10 @@ async function refreshFreshEpisodes(
   }
   let refreshed = 0
   for (const item of wanted) {
-    if (refreshed >= FRESH_BUDGET || Date.now() > deadlineMs) break
-    if (item.episode != null && item.episode > (dbMax.get(item.slug) ?? 0)) {
-      try {
-        await refreshAnimeBySlug(item.slug, item.title, false)
-        refreshed++
-      }
-      catch (error) {
-        console.warn(`[catalog] fresh refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
-      }
+    if (refreshed >= FRESH_BUDGET) break
+    if (item.episode > (dbMax.get(item.slug) ?? 0)) {
+      await refreshAnimeBySlug(item.slug, item.title, false)
+      refreshed++
     }
   }
   if (refreshed > 0) {
@@ -645,70 +367,33 @@ async function refreshFreshEpisodes(
 
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
-  const deadlineMs = startedAt.getTime() + SYNC_WALL_MS
   const sourcesRegistered: Record<string, number> = {}
-  let failedPages = 0
-  const ongoingSlugs = new Set<string>()
   let ongoingRank = 0
   const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
   for (const source of getSources()) {
-    try {
-      const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
-      for (let page = 1; page <= ONGOING_PAGES; page++) {
-        try {
-          const result = await source.ongoingFresh(page)
-          if (result.anime.length === 0) break
-          for (const card of result.anime) {
-            ongoingRank++
-            cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
-            ongoingSlugs.add(`${source.id}:${card.slug}`)
-          }
-        }
-        catch (error) {
-          failedPages++
-          console.warn(`[catalog] ${source.id} ongoing page ${page} failed, continuing:`, error instanceof Error ? error.message : error)
-        }
-        await sleep(250)
+    const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
+    for (let page = 1; page <= ONGOING_PAGES; page++) {
+      const result = await source.ongoingFresh(page)
+      if (result.anime.length === 0) break
+      for (const card of result.anime) {
+        ongoingRank++
+        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
       }
-      await registerOngoingCards(cards)
-      allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
-      sourcesRegistered[source.id] = cards.length
-      console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
     }
-    catch (error) {
-      console.warn(`[catalog] ${source.id} ongoing sync failed:`, error instanceof Error ? error.message : error)
-    }
+    await registerOngoingCards(cards)
+    allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
+    sourcesRegistered[source.id] = cards.length
+    console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 
-  let flipRefreshed = 0
-  try {
-    flipRefreshed = await refreshFlipCandidates(ongoingSlugs, deadlineMs)
-  }
-  catch (error) {
-    console.warn('[catalog] flip pass failed, continuing to metadata:', error instanceof Error ? error.message : error)
-  }
-
-  let freshRefreshed = 0
-  try {
-    freshRefreshed = await refreshFreshEpisodes(
-      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
-      deadlineMs,
-    )
-  }
-  catch (error) {
-    console.warn('[catalog] fresh pass failed, continuing to metadata:', error instanceof Error ? error.message : error)
-  }
+  const freshRefreshed = await refreshFreshEpisodes(
+    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
+  )
 
   const now = new Date()
-  const retryReady = or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))
-  const eligibleWhere = and(isNull(anime.malId), retryReady)
-  const [totalResult, eligibleResult] = await Promise.all([
-    db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId)),
-    db().select({ count: sql<number>`count(*)` }).from(anime).where(eligibleWhere),
-  ])
-  const totalPending = totalResult[0]?.count ?? 0
-  const eligibleTotal = eligibleResult[0]?.count ?? 0
-  const deferredByBackoff = Math.max(0, totalPending - eligibleTotal)
+  const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
+  const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
+  const totalPending = totalResult?.count ?? 0
 
   const pending = await db()
     .select({ slug: anime.slug, title: anime.title })
@@ -716,20 +401,13 @@ async function syncOngoingCatalog(): Promise<void> {
     .where(eligibleWhere)
     .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, asc(anime.updatedAt))
     .limit(CATALOG_META_BUDGET)
-  console.log(`[catalog] ${totalPending} rows need MAL metadata, ${deferredByBackoff} deferred by backoff, processing ${pending.length}`)
+  console.log(`[catalog] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
   let resolved = 0
   for (const row of pending) {
-    if (Date.now() > deadlineMs) break
-    try {
-      if (await resolveMetadata(row.slug, row.title)) {
-        resolved++
-        console.log(`[catalog] metadata resolved: ${row.slug}`)
-      }
+    if (await resolveMetadata(row.slug, row.title)) {
+      resolved++
+      console.log(`[catalog] metadata resolved: ${row.slug}`)
     }
-    catch (error) {
-      console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error)
-    }
-    await sleep(600)
   }
 
   lastCatalogStats = {
@@ -737,17 +415,13 @@ async function syncOngoingCatalog(): Promise<void> {
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
     sourcesRegistered,
-    flipRefreshed,
     freshRefreshed,
-    failedPages,
     metadataPending: totalPending,
     metadataResolved: resolved,
-    deferredByBackoff,
   }
 }
 
 export function scheduleCatalogSync(event: H3Event): void {
-  if (WRITES_PAUSED) return
   const now = Date.now()
   if (catalogSyncRunning || now - lastCatalogSync < CATALOG_SYNC_MS) return
   lastCatalogSync = now

@@ -54,9 +54,9 @@ export function isVidhide(url: string): boolean {
   return lower.includes('vidhide') || lower.includes('odvidhide')
 }
 
-export async function extractVidhide(iframeUrl: string, html: string): Promise<string | null> {
+export async function extractVidhide(embedUrl: string, html: string): Promise<string | null> {
   const { hls4, hls2 } = extractHls(html)
-  const parsed = new URL(iframeUrl)
+  const parsed = new URL(embedUrl)
   const origin = `${parsed.protocol}//${parsed.host}`
   if (hls4) return hls4.startsWith('http') ? hls4 : `${origin}${hls4}`
   if (hls2) return hls2

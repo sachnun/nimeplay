@@ -1,6 +1,6 @@
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
-import { isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
+import { asHttpUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -9,6 +9,8 @@ type HostExtractor = {
 
 const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isVidhide, extract: extractVidhide },
+  { matches: isAnimeverse, extract: extractAnimeverse },
+  { matches: isPixeldrain, extract: extractPixeldrain },
   { matches: isDesuStreamHd, extract: extractDesuStream },
   { matches: isDesuDrive, extract: extractDesuDrive },
   { matches: isMoeplay, extract: extractMoeplay },
@@ -40,11 +42,11 @@ async function extractKnownHost(embedUrl: string, html: string): Promise<string 
 }
 
 async function extractFallbackHost(embedUrl: string, html: string): Promise<string | null> {
-  const mp4Url = html.match(/<source\s+[^>]*src="([^"]*googlevideo[^"]*)"/)?.[1]
+  const mp4Url = asHttpUrl(html.match(/<source\s+[^>]*src="([^"]*googlevideo[^"]*)"/)?.[1], embedUrl)
   if (mp4Url) return mp4Url
-  const ogVideo = html.match(/og:video[^>]+content="([^"]+)"/)?.[1]
+  const ogVideo = asHttpUrl(html.match(/og:video[^>]+content="([^"]+)"/)?.[1], embedUrl)
   if (ogVideo) return ogVideo
-  const jwFile = html.match(/file:\s*'([^']+)'/)?.[1]
+  const jwFile = asHttpUrl(html.match(/file:\s*'([^']+)'/)?.[1], embedUrl)
   if (jwFile) return jwFile
   try {
     return await extractDesuDrive(embedUrl, html)
@@ -71,8 +73,9 @@ export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
 }
 
 export async function extractStreamUrl(embedUrl: string): Promise<string | null> {
-  if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(embedUrl)) return embedUrl
+  if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(embedUrl)) return asHttpUrl(embedUrl)
   const html = await fetchEmbedHtml(embedUrl)
   if (!html) return null
-  return (await extractKnownHost(embedUrl, html)) ?? (await extractFallbackHost(embedUrl, html))
+  const direct = (await extractKnownHost(embedUrl, html)) ?? (await extractFallbackHost(embedUrl, html))
+  return asHttpUrl(direct)
 }

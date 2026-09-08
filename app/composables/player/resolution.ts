@@ -61,10 +61,11 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
 
   async function tryMirror(candidate: MirrorCandidate, sessionId: number): Promise<boolean> {
     if (!isCurrentSession(sessionId)) return false
-    options.activeQuality.value = candidate.quality
     const result = await prepareCandidate(candidate)
     if (!result || !isCurrentSession(sessionId)) return false
-    return activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
+    const resolved = activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
+    if (resolved) options.activeQuality.value = candidate.quality
+    return resolved
   }
 
   async function resolveCandidateAt(candidates: MirrorCandidate[], index: number, sessionId: number) {

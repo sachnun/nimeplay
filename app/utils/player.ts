@@ -13,6 +13,7 @@ const SOURCE_PRIORITY_GROUPS = [
   ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],
   ['desudrive'],
   ['moeplay', 'yourupload', 'yuplod'],
+  ['filedon'],
 ]
 
 const QUALITY_ORDER = ['1080p', '720p', '480p', '360p']

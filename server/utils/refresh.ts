@@ -2,7 +2,7 @@ import type { H3Event } from 'h3'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { db } from './db'
-import { fetchMalAnime, rankMalAnimeMatches, searchMalAnimeEntries } from './mal'
+import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { mirrorAnimeMedia } from './r2'
 import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh } from './sources'
@@ -64,6 +64,14 @@ function normalizeStatus(raw: string): string {
   const value = raw.toLowerCase()
   if (value.includes('completed') || value.includes('finished')) return 'COMPLETED'
   return 'ONGOING'
+}
+
+function parseOdYear(value: string | null | undefined): number | null {
+  if (!value) return null
+  const match = value.match(/(\d{4})/)
+  if (!match) return null
+  const year = Number(match[1])
+  return year >= 1990 && year <= 2100 ? year : null
 }
 
 async function recordFailure(slug: string, message: string): Promise<void> {
@@ -198,9 +206,17 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
 }
 
 async function resolveMetadata(slug: string, title: string): Promise<boolean> {
-  const entries = await searchMalAnimeEntries(title)
-  const [candidate] = rankMalAnimeMatches(title, entries)
-  if (!candidate) {
+  const merged = new Map<number, { id: number, title: string }>()
+  for (const variant of malSearchVariants(title)) {
+    const batch = await searchMalAnimeEntries(variant)
+    for (const entry of batch) {
+      if (!merged.has(entry.id)) merged.set(entry.id, entry)
+    }
+    if (merged.size >= 15) break
+  }
+  const entries = [...merged.values()].slice(0, 15)
+  const ranked = rankMalAnimeMatches(title, entries)
+  if (ranked.length === 0) {
     const top = entries[0]?.title ?? '-'
     const reason = `no MAL title matches "${title}" (top: "${top}")`
     await recordFailure(slug, reason)
@@ -208,36 +224,89 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
     return false
   }
 
-  const mal = await fetchMalAnime(candidate.id)
-  if (!mal) {
-    const reason = `MAL fetch returned empty for id ${candidate.id}`
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] failed ${slug}: ${reason}`)
-    return false
+  let odYear: number | null | undefined
+  const loadOdYear = async (): Promise<number | null> => {
+    if (odYear !== undefined) return odYear
+    try {
+      const detail = await scrapeAnimeDetailFresh(slug)
+      odYear = parseOdYear(detail?.releaseDate ?? null)
+    }
+    catch {
+      odYear = null
+    }
+    return odYear
+  }
+  let yearFallback: { mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>, diff: number } | null = null
+
+  for (const candidate of ranked.slice(0, 6)) {
+    const mal = await fetchMalAnime(candidate.id)
+    if (!mal) {
+      const reason = `MAL fetch returned empty for id ${candidate.id}`
+      await recordFailure(slug, reason)
+      console.warn(`[metadata] failed ${slug}: ${reason}`)
+      continue
+    }
+
+    const siteSeason = seasonNumber(title)
+    const candidateSeason = seasonNumber(candidate.title)
+    if (siteSeason !== null && siteSeason > 1 && candidateSeason === null && mal.year !== null) {
+      const expectedYear = await loadOdYear()
+      if (expectedYear !== null && Math.abs(expectedYear - mal.year) > 1) {
+        if (!yearFallback || Math.abs(expectedYear - mal.year) < yearFallback.diff) {
+          yearFallback = { mal, diff: Math.abs(expectedYear - mal.year) }
+        }
+        continue
+      }
+    }
+
+    const [owner] = await db()
+      .select({ slug: anime.slug })
+      .from(anime)
+      .where(eq(anime.malId, mal.malId))
+      .limit(1)
+    if (owner && owner.slug !== slug) {
+      const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
+      await recordFailure(slug, reason)
+      console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
+      return false
+    }
+
+    try {
+      await applyMalMetadata(slug, mal)
+      return true
+    }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      await recordFailure(slug, reason)
+      console.warn(`[metadata] failed ${slug}: ${reason}`)
+      return false
+    }
   }
 
-  const [owner] = await db()
-    .select({ slug: anime.slug })
-    .from(anime)
-    .where(eq(anime.malId, mal.malId))
-    .limit(1)
-  if (owner && owner.slug !== slug) {
-    const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
-    return false
+  if (yearFallback) {
+    const [owner] = await db()
+      .select({ slug: anime.slug })
+      .from(anime)
+      .where(eq(anime.malId, yearFallback.mal.malId))
+      .limit(1)
+    if (!owner || owner.slug === slug) {
+      try {
+        await applyMalMetadata(slug, yearFallback.mal)
+        return true
+      }
+      catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        await recordFailure(slug, reason)
+        console.warn(`[metadata] failed ${slug}: ${reason}`)
+        return false
+      }
+    }
   }
 
-  try {
-    await applyMalMetadata(slug, mal)
-    return true
-  }
-  catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] failed ${slug}: ${reason}`)
-    return false
-  }
+  const reason = `no usable MAL candidate for "${title}"`
+  await recordFailure(slug, reason)
+  console.warn(`[metadata] failed ${slug}: ${reason}`)
+  return false
 }
 
 export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {

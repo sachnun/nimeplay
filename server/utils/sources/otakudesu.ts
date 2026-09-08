@@ -223,7 +223,6 @@ export const otakudesu: AnimeSource = {
   id: 'otakudesu',
   name: 'Otakudesu',
   baseUrl: BASE_URL,
-  priority: 2,
   ongoingFresh: (page) => scrapeAnimeListFresh('ongoing-anime', page),
   completedFresh: (page) => scrapeAnimeListFresh('complete-anime', page),
   detailFresh: scrapeAnimeDetailFresh,

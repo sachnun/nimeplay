@@ -54,6 +54,27 @@ export function parseEpisodeDate(raw: string): Date | null {
   const lower = value.toLowerCase()
   if (lower === 'hari ini') return new Date()
   if (lower === 'kemarin') return new Date(Date.now() - 86_400_000)
+
+  const relativeMatch = lower.match(/^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu)\w*\s+lalu$/)
+  if (relativeMatch) {
+    const num = Number(relativeMatch[1])
+    const unit = relativeMatch[2]
+    const msMap: Record<string, number> = {
+      min: 60 * 1000,
+      minute: 60 * 1000,
+      menit: 60 * 1000,
+      hour: 3600 * 1000,
+      jam: 3600 * 1000,
+      day: 86400 * 1000,
+      hari: 86400 * 1000,
+      week: 7 * 86400 * 1000,
+      minggu: 7 * 86400 * 1000,
+    }
+    const ms = unit ? msMap[unit] ?? 0 : 0
+    const delta = ms * num
+    return new Date(Date.now() - delta)
+  }
+
   const match = value.match(/^(\d{1,2})\s+([A-Za-z]+),?\s*(\d{4})?$/)
   if (!match) return null
   const day = Number(match[1])

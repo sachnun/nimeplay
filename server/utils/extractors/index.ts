@@ -1,6 +1,7 @@
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
+import { isPuterin, extractPuterin } from './puterin'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -17,6 +18,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isYuplod, extract: extractYuplod },
   { matches: isYourupload, extract: extractYourupload },
   { matches: isFiledon, extract: extractFiledon },
+  { matches: isPuterin, extract: extractPuterin },
 ]
 
 async function fetchEmbedHtml(embedUrl: string): Promise<string> {

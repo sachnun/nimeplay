@@ -46,7 +46,6 @@ export interface AnimeSource {
   id: string
   name: string
   baseUrl: string
-  priority: number
   ongoingFresh(page: number): Promise<ListResult>
   completedFresh(page: number): Promise<ListResult>
   detailFresh(slug: string): Promise<ScrapedAnimeDetail | null>

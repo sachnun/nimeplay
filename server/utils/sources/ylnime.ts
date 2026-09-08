@@ -183,7 +183,6 @@ export const ylnime: AnimeSource = {
   id: 'ylnime',
   name: 'YLnime',
   baseUrl: BASE_URL,
-  priority: 1,
   ongoingFresh: scrapeOngoingFresh,
   completedFresh: scrapeCompletedFresh,
   detailFresh: scrapeAnimeDetailFresh,

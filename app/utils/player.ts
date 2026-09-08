@@ -7,8 +7,8 @@ export type MirrorCandidate = {
 }
 
 const SOURCE_PRIORITY_GROUPS = [
-  ['puterin', 'putarin'],
   ['animeverse'],
+  ['puterin', 'putarin'],
   ['pixeldrain'],
   ['vidhide'],
   ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],

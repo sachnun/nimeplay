@@ -89,17 +89,46 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / longest
 }
 
-function isAbbreviation(siteTitle: string, malTitle: string): boolean {
-  const site = normalizeTitle(siteTitle)
-  if (site.length < 4 || site.length > 20) return false
-  const words = titleWords(malTitle)
-  if (words.size < 2) return false
+function phoneticNormalize(value: string): string {
+  return value.toLowerCase().split('ou').join('o').split('oo').join('o').split('skirt').join('suka').split('ph').join('f').split('dungeon').join('danjon')
+}
 
+function matchWords(value: string): string[] {
+  return phoneticNormalize(value).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(word => word.length >= 2 && !TITLE_STOPWORDS.has(word))
+}
+
+function tokenJaccard(siteTitle: string, malTitle: string): number {
+  const siteTokens = matchWords(siteTitle)
+  const malSet = new Set(matchWords(malTitle))
+  if (siteTokens.length === 0 || malSet.size === 0) return 0
+  const seen = new Set<string>()
+  let inter = 0
+  for (const token of siteTokens) {
+    if (!seen.has(token) && malSet.has(token)) {
+      inter++
+      seen.add(token)
+    }
+  }
+  return inter / Math.max(siteTokens.length, malSet.size)
+}
+
+function isAbbreviation(siteTitle: string, malTitle: string): boolean {
+  return isAbbrevOnBase(stripSeasonMarker(siteTitle), stripSeasonMarker(malTitle))
+}
+
+function isAbbrevOnBase(siteBase: string, malBase: string): boolean {
+  const site = normalizeTitle(phoneticNormalize(siteBase))
+  const words = matchWords(malBase).map(word => normalizeTitle(phoneticNormalize(word))).filter(word => word.length >= 2)
+  if (site.length < 3 || site.length > 24 || words.length === 0) return false
   function walk(pos: number, used: number): boolean {
-    if (pos === site.length) return used >= 2
+    if (pos === site.length) return used >= 1
+    if (used > 5) return false
     for (const word of words) {
-      for (let take = Math.min(word.length, site.length - pos); take >= 2; take--) {
-        if (word.startsWith(site.slice(pos, pos + take))) {
+      const maxTake = Math.min(word.length, site.length - pos)
+      for (let take = maxTake; take >= 2; take--) {
+        const chunk = site.slice(pos, pos + take)
+        const head = word.slice(0, take)
+        if (word.startsWith(chunk) || similarity(head, chunk) >= 0.75) {
           if (walk(pos + take, used + 1)) return true
         }
       }
@@ -109,27 +138,65 @@ function isAbbreviation(siteTitle: string, malTitle: string): boolean {
   return walk(0, 0)
 }
 
+export function stripSeasonMarker(title: string): string {
+  return title
+    .replace(/\s*:\s*sono\s+\w+\s*$/i, '')
+    .replace(/\s*:\s*\w+\s+no\s+(shou|hen|ki|maku)\b.*$/i, '')
+    .replace(/\s+(season\s*\d+|\d+\s*(st|nd|rd|th)?\s*season|S\d+)\s*$/i, '')
+    .replace(/\s+part\s*\d+\s*$/i, '')
+    .replace(/\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(\s+season)?\s*$/i, '')
+    .replace(/\s+(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)\s*$/i, '')
+    .replace(/\s+\d{1,2}\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function baseScore(siteBase: string, malBase: string): number {
+  const siteNorm = normalizeTitle(siteBase)
+  const malNorm = normalizeTitle(malBase)
+  if (!siteNorm || !malNorm) return 0
+  if (siteNorm === malNorm) return 1.5
+  const sim = similarity(siteNorm, malNorm)
+  const siteTokens = matchWords(siteBase)
+  const malSet = new Set(matchWords(malBase))
+  let inter = 0
+  for (const token of siteTokens) {
+    if (malSet.has(token)) inter++
+  }
+  const jac = inter / Math.max(1, Math.max(siteTokens.length, malSet.size))
+  let score = sim * 0.7 + jac * 0.8
+  if (isAbbrevOnBase(siteBase, malBase)) score += 0.6
+  if (sim >= 0.8) score += 0.3
+  return score
+}
+
+const SPINOFF_HINTS = ['recap', 'special', 'movie', 'ova', 'ona', 'mini anime', 'bonus stage', 'additional time']
+
+function hasSpinoffPenalty(siteTitle: string, malTitle: string): boolean {
+  const site = siteTitle.toLowerCase()
+  const mal = malTitle.toLowerCase()
+  return SPINOFF_HINTS.some(hint => mal.includes(hint) && !site.includes(hint))
+}
+
 export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   const siteNorm = normalizeTitle(siteTitle)
   const malNorm = normalizeTitle(malTitle)
   if (siteNorm === malNorm) return true
-
-  const siteWords = titleWords(siteTitle)
-  const malWords = titleWords(malTitle)
-  const hasOverlap = [...siteWords].some(word => malWords.has(word))
-
   const siteSeason = seasonNumber(siteTitle)
   const malSeason = seasonNumber(malTitle)
   if (siteSeason !== null && malSeason !== null && siteSeason !== malSeason) return false
-
-  if (similarity(siteNorm, malNorm) >= 0.9) return true
-
-  if (!hasOverlap) return isAbbreviation(siteTitle, malTitle)
-
-  if (siteSeason !== null && malSeason !== null) return true
-  if (malSeason === null && siteSeason !== null && siteSeason > 1 && similarity(siteNorm, malNorm) < 0.9) return false
+  if (similarity(siteNorm, malNorm) >= 0.8) return true
+  const siteBase = stripSeasonMarker(siteTitle)
+  const malBase = stripSeasonMarker(malTitle)
+  const score = baseScore(siteBase, malBase)
+  let adjusted = score
+  if (siteSeason !== null && malSeason !== null && siteSeason === malSeason) adjusted += 0.6
+  if (siteSeason !== null && siteSeason > 1 && malSeason === null) adjusted -= 0.5
   if (siteSeason === null && malSeason !== null && malSeason > 1) return false
-  return true
+  if (hasSpinoffPenalty(siteTitle, malTitle)) adjusted -= 0.4
+  if (adjusted >= 0.75) return true
+  if (tokenJaccard(siteBase, malBase) >= 0.5 && adjusted >= 0.55) return true
+  return isAbbrevOnBase(siteBase, malBase) && adjusted >= 0.4
 }
 
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
@@ -146,7 +213,7 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
   while ((match = pattern.exec(html)) !== null) {
     const id = Number(match[1])
     if (!entries.has(id)) entries.set(id, decodeEntities(match[2] ?? '').trim())
-    if (entries.size >= 8) break
+    if (entries.size >= 15) break
   }
   return [...entries].map(([id, entryTitle]) => ({ id, title: entryTitle }))
 }
@@ -154,9 +221,15 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
 function matchScore(siteTitle: string, malTitle: string): number {
   const siteNorm = normalizeTitle(siteTitle)
   const malNorm = normalizeTitle(malTitle)
+  const siteSeason = seasonNumber(siteTitle)
+  const malSeason = seasonNumber(malTitle)
   let score = similarity(siteNorm, malNorm)
   if (siteNorm === malNorm) score += 1
-  score -= Math.max(0, malNorm.length - siteNorm.length) / 100
+  score += tokenJaccard(stripSeasonMarker(siteTitle), stripSeasonMarker(malTitle)) * 0.5
+  score -= Math.max(0, malNorm.length - siteNorm.length) / 150
+  if (siteSeason !== null && malSeason !== null && siteSeason === malSeason) score += 0.6
+  if (siteSeason !== null && siteSeason > 1 && malSeason === null) score -= 0.3
+  if (hasSpinoffPenalty(siteTitle, malTitle)) score -= 0.4
   return score
 }
 
@@ -179,7 +252,7 @@ function contentOverlap(siteTitle: string, malTitle: string): number {
 export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
   const passing = entries.filter(entry => titlesMatch(siteTitle, entry.title))
   if (passing.length === 0) return []
-  const content = passing.filter(entry => contentOverlap(siteTitle, entry.title) > 0)
+  const content = passing.filter(entry => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(entry.title)) > 0 || tokenJaccard(siteTitle, entry.title) >= 0.3)
   const pool = content.length > 0 ? content : passing
   return [...pool].sort((a, b) => matchScore(siteTitle, b.title) - matchScore(siteTitle, a.title))
 }
@@ -195,6 +268,36 @@ const ROMAN_SEASONS: Record<string, number> = {
 const WORD_SEASONS: Record<string, number> = {
   first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
   sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+}
+const JP_SEASONS: Record<string, number> = {
+  ichi: 1, ni: 2, san: 3, yon: 4, shi: 4, go: 5, roku: 6, nana: 7, shichi: 7, hachi: 8, kyuu: 9, ku: 9, juu: 10,
+}
+
+export function malSearchVariants(title: string): string[] {
+  const variants: string[] = []
+  const push = (value: string) => {
+    const cleaned = value.replace(/\s+/g, ' ').trim()
+    if (cleaned && !variants.includes(cleaned)) variants.push(cleaned)
+  }
+  push(title)
+  const seasonMatch = title.match(/(.+?)\s+Season\s+(\d+)\s*$/i)
+  if (seasonMatch?.[1] && seasonMatch[2]) {
+    const base = seasonMatch[1].trim()
+    const num = Number(seasonMatch[2])
+    const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth']
+    const romans = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+    if (ordinals[num - 1]) push(`${base} ${ordinals[num - 1]}`)
+    if (romans[num]) push(`${base} ${romans[num]}`)
+    push(`${base} ${num}`)
+  }
+  const partMatch = title.match(/(.+?)\s+Part\s+(\d+)\s*$/i)
+  if (partMatch?.[1] && partMatch[2]) {
+    const base = partMatch[1].trim()
+    const num = Number(partMatch[2])
+    const romans = ['', '', 'II', 'III', 'IV', 'V', 'VI']
+    if (romans[num]) push(`${base} ${romans[num]}`)
+  }
+  return variants.slice(0, 4)
 }
 
 export function seasonNumber(title: string): number | null {
@@ -213,6 +316,10 @@ export function seasonNumber(title: string): number | null {
   if (roman?.[1] !== undefined && roman[1] in ROMAN_SEASONS) return ROMAN_SEASONS[roman[1]]!
   const word = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b/.exec(lower)
   if (word?.[1] !== undefined && word[1] in WORD_SEASONS) return WORD_SEASONS[word[1]]!
+  const sono = /sono\s+(ichi|ni|san|yon|shi|go|roku|nana|shichi|hachi|kyuu|ku|juu)\b/.exec(lower)
+  if (sono?.[1] !== undefined && sono[1] in JP_SEASONS) return JP_SEASONS[sono[1]]!
+  const shou = /\b(ichi|ni|san|yon|shi|go|roku|nana|shichi|hachi|kyuu|ku|juu)\s+no\s+(shou|hen|ki|maku)\b/.exec(lower)
+  if (shou?.[1] !== undefined && shou[1] in JP_SEASONS) return JP_SEASONS[shou[1]]!
   return null
 }
 

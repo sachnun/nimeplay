@@ -1,5 +1,9 @@
 import { createError, getRouterParam } from 'h3'
+import { eq } from 'drizzle-orm'
+import { anime } from '../../../database/schema'
+import { db } from '../../../utils/db'
 import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
+import { refreshAnimeBySlug } from '../../../utils/refresh'
 import { scrapeEpisode } from '../../../utils/sources'
 
 defineRouteMeta({
@@ -38,7 +42,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id or episode number' })
   }
 
-  const resolved = await resolveEpisode(malId, episodeNumber)
+  let resolved = await resolveEpisode(malId, episodeNumber)
+  if (!resolved) {
+    const [row] = await db().select({ slug: anime.slug, title: anime.title }).from(anime).where(eq(anime.malId, malId)).limit(1)
+    if (row) {
+      try {
+        await refreshAnimeBySlug(row.slug, row.title, false)
+      }
+      catch (error) {
+        console.warn(`[episode] on-demand refresh failed ${malId}:`, error instanceof Error ? error.message : error)
+      }
+      resolved = await resolveEpisode(malId, episodeNumber)
+    }
+  }
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([

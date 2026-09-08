@@ -132,7 +132,6 @@ export default defineEventHandler(async (event) => {
 
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
   return cache.get('metadata', cacheKey, METADATA_TTL, async () => {
-    // Database first — metadata is synced from MyAnimeList by the scraper.
     const row = await lookupInDb({ ...body, title })
     if (row?.malId && (row.synopsis || (row.characters?.length ?? 0) > 0)) {
       if (body?.idOnly === true) return { malId: row.malId }
@@ -150,7 +149,6 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Fallback: live MyAnimeList fetch for titles not yet synced.
     let resolvedMalId = malId ?? row?.malId ?? null
     if (!resolvedMalId) {
       resolvedMalId = await searchMalAnime(japaneseTitle || title)

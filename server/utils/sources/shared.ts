@@ -13,16 +13,12 @@ const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
 
 export async function fetchHTML(url: string): Promise<string> {
-  let lastError: Error | null = null
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(url, {
-      headers: getSpoofHeaders(url, 'navigate'),
-      signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
-    })
-    if (res.ok) return await res.text()
-    lastError = new Error(`Failed to fetch ${url}: ${res.status}`)
-  }
-  throw lastError!
+  const res = await fetch(url, {
+    headers: getSpoofHeaders(url, 'navigate'),
+    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
+  })
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  return await res.text()
 }
 
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
@@ -52,12 +48,6 @@ const ID_MONTHS: Record<string, number> = {
   des: 11,
 }
 
-/**
- * Parse an Indonesian date into a UTC midnight Date. Accepts the detail-page
- * format ("7 Agustus,2026") and the list-page format ("24 Agu", year
- * implied). "Hari ini"/"Kemarin" map to today/yesterday. Returns null for
- * anything unparseable.
- */
 export function parseEpisodeDate(raw: string): Date | null {
   const value = raw.trim()
   if (!value) return null

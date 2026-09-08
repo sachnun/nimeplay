@@ -5,7 +5,6 @@ import { posterSrc } from './r2'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
 
-// API response shapes — mirrored by `app/utils/types.ts`.
 export interface Genre {
   name: string
   slug: string
@@ -64,22 +63,14 @@ export interface AnimeDetail {
 const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
 
-/** Listing responses are read-heavy and slow-changing; keep them out of D1. */
 const LIST_TTL_MS = 3 * 60 * 1000
 const GENRE_TTL_MS = 10 * 60 * 1000
 const GENRE_PAGE_TTL_MS = 3 * 60 * 1000
 const DETAIL_TTL_MS = 2 * 60 * 1000
 const SEARCH_TTL_MS = 60 * 1000
 
-
-/**
- * Every public entry point requires MAL metadata to exist: rows still waiting
- * for their MyAnimeList match stay hidden from listings, search, and detail
- * routes (strict completeness, no fallback).
- */
 const METADATA_READY = sql`${anime.malId} is not null`
 
-/** "summer 2026" -> "Summer 2026" (MAL premiered format). */
 function formatSeason(season: string | null): string {
   if (!season) return ''
   return season.replace(/(^|\s)\S/g, part => part.toUpperCase())
@@ -95,7 +86,6 @@ function chunkValues<T>(values: T[], size: number): T[][] {
   return chunks
 }
 
-/** Season rank within a year: winter < spring < summer < fall. */
 const SEASON_RANK = sql`case
   when ${anime.season} like 'winter%' then 1
   when ${anime.season} like 'spring%' then 2
@@ -103,7 +93,6 @@ const SEASON_RANK = sql`case
   when ${anime.season} like 'fall%' then 4
   else 0 end`
 
-/** Numeric year parsed from the tail of "summer 2026"-style season strings. */
 const SEASON_YEAR = sql`case
   when length(${anime.season}) >= 4 and substr(${anime.season}, -4) glob '[0-9][0-9][0-9][0-9]'
   then cast(substr(${anime.season}, -4) as integer)
@@ -299,7 +288,6 @@ async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
   }
 }
 
-/** Resolve an episode by MAL id + episode number (URL scheme: /anime/{malId}/{episode}). */
 export async function resolveEpisode(
   malId: number,
   number: number,
@@ -378,7 +366,7 @@ async function getGenreAnimePageFresh(
     .leftJoin(allGenres, eq(allGenres.id, allAnimeGenres.genreId))
     .where(filter)
     .groupBy(anime.slug)
-    .orderBy(sql`${anime.rating} desc nulls first`, desc(anime.updatedAt))
+    .orderBy(sql`${anime.rating} desc nulls last`, desc(anime.updatedAt))
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 

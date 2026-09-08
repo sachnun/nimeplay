@@ -9,7 +9,6 @@ function binding(): D1 {
   return value as D1
 }
 
-/** Singleton Drizzle client backed by the Cloudflare D1 binding. */
 export function db() {
   return drizzle(binding(), { schema })
 }

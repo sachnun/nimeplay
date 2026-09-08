@@ -47,7 +47,6 @@ export interface AnimeSource {
   id: string
   name: string
   baseUrl: string
-  /** Lower wins when two sources match the same MyAnimeList entry. */
   priority: number
   ongoingFresh(page: number): Promise<ListResult>
   completedFresh(page: number): Promise<ListResult>

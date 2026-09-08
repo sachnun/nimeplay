@@ -28,8 +28,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const currentEpisodeNum = ref(props.episodeNumber)
   const directUrl = ref<string | null>(null)
   const directKind = ref<'hls' | 'file' | null>(null)
-  const iframeSrc = ref<string | null>(null)
-  const useIframe = ref(false)
   const activeQuality = ref('720p')
   const resolving = ref(true)
   const videoLoading = ref(true)
@@ -41,7 +39,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showControls = ref(true)
   const isTouchDevice = ref(false)
   const showEpisodes = ref(false)
-  const showEmbedAlert = ref(true)
   const currentTime = ref(0)
   const duration = ref(0)
   const buffered = ref(0)
@@ -61,7 +58,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   let hls: any | null = null
   let watchedMarked = false
-  let iframeTimer: ReturnType<typeof setTimeout> | null = null
   let autoPlayOnLoad = true
   let resumeTime = 0
   let lastSavedTime = 0
@@ -103,9 +99,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   const activeQualityLabel = computed(() => qualityOptions.value.find((opt) => opt.quality === activeQuality.value)?.label ?? 'HD')
-  const showNative = computed(() => !!directUrl.value && !useIframe.value)
-  const showIframe = computed(() => useIframe.value && !!iframeSrc.value)
-  const showEmpty = computed(() => !showNative.value && !showIframe.value && !resolving.value)
+  const showNative = computed(() => !!directUrl.value)
+  const showEmpty = computed(() => !showNative.value && !resolving.value)
   const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value))
   const controlsVisible = computed(() => !speedBoost.value && (showControls.value || !isPlaying.value))
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
@@ -128,10 +123,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function resetForEpisode() {
-    clearAnyTimer(iframeTimer)
     clearAnyTimer(countdownTimer)
     resetPlaybackTracking()
-    iframeTimer = null
     countdownTimer = null
     lastSavedTime = 0
     resumeTime = await savedResumeTime()
@@ -147,7 +140,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
     skipFetched = false
     skipTimes.value = []
-    showEmbedAlert.value = true
     clearGestureState()
   }
 
@@ -211,8 +203,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function clearWatchTimers() {
     clearWatchedTimer()
-    clearAnyTimer(iframeTimer)
-    iframeTimer = null
   }
 
   async function doMark() {
@@ -257,7 +247,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   const {
-    activateIframe,
     invalidatePlaybackSession,
     playWithFallback,
     triggerFallback,
@@ -266,10 +255,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     directUrl,
     directKind,
     episode,
-    iframeSrc,
     loadingMessage,
     resolving,
-    useIframe,
   })
 
   function switchQuality(opt: { dataContent: string; quality: string; name: string }) {
@@ -297,8 +284,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
     directKind.value = null
-    useIframe.value = false
-    iframeSrc.value = null
     autoPlayOnLoad = shouldAutoPlay
     resumeTime = 0
     destroyHls()
@@ -563,24 +548,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   watch(progressKey, resetForEpisode, { immediate: true })
 
-  function activateEpisodeFallback(value: EpisodeData) {
-    if (value.defaultIframeSrc) activateIframe(value.defaultIframeSrc)
-    resolving.value = false
-  }
-
   function loadEpisodeSource(value: EpisodeData) {
     const def = findDefaultMirror(value)
-    if (!def) return activateEpisodeFallback(value)
+    if (!def) {
+      resolving.value = false
+      return
+    }
     void playWithFallback(def, false)
   }
 
   watch(episode, loadEpisodeSource, { immediate: true })
-
-  watch(showIframe, (shown) => {
-    if (iframeTimer) clearTimeout(iframeTimer)
-    iframeTimer = null
-    if (shown && !watchedMarked) iframeTimer = setTimeout(doMark, 30_000)
-  })
 
   watch(autoSkip, (value) => {
     if (import.meta.client) void setAutoSkip(value)
@@ -740,7 +717,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       doSaveProgress()
       destroyHls()
       invalidatePlaybackSession()
-      clearAnyTimer(iframeTimer)
       clearAnyTimer(countdownTimer)
       clearAnyTimer(idleTimer)
       clearAnyTimer(volumeTimer)
@@ -777,7 +753,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     handleZoneTouchEnd,
     handleZoneTap,
     hideVolumeControl,
-    iframeSrc,
     isFullscreen,
     isMuted,
     isPlaying,
@@ -795,10 +770,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     seekIndicator,
     seekIndicatorKey,
     showControls,
-    showEmbedAlert,
     showEmpty,
     showEpisodes,
-    showIframe,
     showLoading,
     showNative,
     showVolume,
@@ -811,7 +784,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     toggleMute,
     togglePlay,
     toggleQuality,
-    useIframe,
     videoRef,
     volume,
     volumeIndicator,

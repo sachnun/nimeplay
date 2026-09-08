@@ -1,6 +1,6 @@
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
-import { isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon } from './hosts'
+import { isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -11,13 +11,16 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isVidhide, extract: extractVidhide },
   { matches: isDesuStreamHd, extract: extractDesuStream },
   { matches: isDesuDrive, extract: extractDesuDrive },
+  { matches: isMoeplay, extract: extractMoeplay },
+  { matches: isYuplod, extract: extractYuplod },
+  { matches: isYourupload, extract: extractYourupload },
   { matches: isFiledon, extract: extractFiledon },
 ]
 
-async function fetchIframeHtml(iframeUrl: string): Promise<string> {
+async function fetchEmbedHtml(embedUrl: string): Promise<string> {
   try {
-    const res = await fetch(iframeUrl, {
-      headers: getSpoofHeaders(iframeUrl, 'iframe'),
+    const res = await fetch(embedUrl, {
+      headers: getSpoofHeaders(embedUrl, 'iframe'),
       signal: AbortSignal.timeout(8000),
     })
     return await res.text()
@@ -26,36 +29,36 @@ async function fetchIframeHtml(iframeUrl: string): Promise<string> {
   }
 }
 
-async function extractKnownHost(iframeUrl: string, html: string): Promise<string | null> {
-  const extractor = HOST_EXTRACTORS.find((c) => c.matches(iframeUrl))
+async function extractKnownHost(embedUrl: string, html: string): Promise<string | null> {
+  const extractor = HOST_EXTRACTORS.find((c) => c.matches(embedUrl))
   if (!extractor) return null
   try {
-    return await extractor.extract(iframeUrl, html)
+    return await extractor.extract(embedUrl, html)
   } catch {
     return null
   }
 }
 
-async function extractFallbackHost(iframeUrl: string, html: string): Promise<string | null> {
-  const mp4Url = html.match(/<source\s+src="([^"]*googlevideo[^"]*)"/)?.[1]
+async function extractFallbackHost(embedUrl: string, html: string): Promise<string | null> {
+  const mp4Url = html.match(/<source\s+[^>]*src="([^"]*googlevideo[^"]*)"/)?.[1]
   if (mp4Url) return mp4Url
+  const ogVideo = html.match(/og:video[^>]+content="([^"]+)"/)?.[1]
+  if (ogVideo) return ogVideo
+  const jwFile = html.match(/file:\s*'([^']+)'/)?.[1]
+  if (jwFile) return jwFile
   try {
-    return await extractDesuDrive(iframeUrl, html)
+    return await extractDesuDrive(embedUrl, html)
   }
   catch {
     return null
   }
 }
 
-export async function probeIframeUrl(iframeUrl: string): Promise<boolean> {
-  return (await fetchIframeHtml(iframeUrl)).length > 100
-}
-
 export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
   if (/\.m3u8($|\?)/i.test(url)) return 'hls'
   try {
     const res = await fetch(url, {
-      headers: { ...getSpoofHeaders(`${new URL(url).origin}/`, 'cors'), Range: 'bytes=0-15' },
+      headers: upstreamHeadersFor(url, 'bytes=0-15'),
       signal: AbortSignal.timeout(5000),
     })
     void res.body?.cancel()
@@ -67,9 +70,9 @@ export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
   return 'file'
 }
 
-export async function extractStreamUrl(iframeUrl: string): Promise<{ url: string | null; iframeUrl: string }> {
-  if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(iframeUrl)) return { url: iframeUrl, iframeUrl }
-  const html = await fetchIframeHtml(iframeUrl)
-  const url = (await extractKnownHost(iframeUrl, html)) ?? (await extractFallbackHost(iframeUrl, html))
-  return { url, iframeUrl }
+export async function extractStreamUrl(embedUrl: string): Promise<string | null> {
+  if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(embedUrl)) return embedUrl
+  const html = await fetchEmbedHtml(embedUrl)
+  if (!html) return null
+  return (await extractKnownHost(embedUrl, html)) ?? (await extractFallbackHost(embedUrl, html))
 }

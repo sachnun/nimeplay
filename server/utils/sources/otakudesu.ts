@@ -145,7 +145,6 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     title,
     animeSlug: parseEpisodeAnimeSlug($),
     animeTitle: $('.cukder .infozingle p span').first().text().replace('Credit:', '').trim(),
-    defaultIframeSrc: $('.responsive-embed-stream iframe').attr('src') || '',
     mirrors: await parseEpisodeMirrors($),
     episodeNav: parseEpisodeNav($),
     thumbnail: $('.cukder img').attr('src') || '',

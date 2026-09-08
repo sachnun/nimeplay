@@ -29,7 +29,6 @@ export interface EpisodeData {
   title: string
   animeSlug: string
   animeTitle: string
-  defaultIframeSrc: string
   mirrors: {
     quality: string
     sources: { name: string; dataContent: string }[]

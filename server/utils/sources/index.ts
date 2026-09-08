@@ -1,6 +1,7 @@
 import { cache } from '../cache'
 import { otakudesu } from './otakudesu'
 import { ylnime } from './ylnime'
+import { gomunime } from './gomunime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 
 const EPISODE_TTL = 30 * 60 * 1000
@@ -9,6 +10,7 @@ const MIRROR_TTL = 10 * 60 * 1000
 export const sources: Record<string, AnimeSource> = {
   otakudesu,
   ylnime,
+  gomunime,
 }
 
 export function getSources(): AnimeSource[] {

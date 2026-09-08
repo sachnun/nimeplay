@@ -1,6 +1,7 @@
 import { getSpoofHeaders } from '../spoof'
 import { isVidhide, extractVidhide } from './vidhide'
 import { isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon } from './hosts'
+import { isPuterin, extractPuterin } from './puterin'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -12,6 +13,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isDesuStreamHd, extract: extractDesuStream },
   { matches: isDesuDrive, extract: extractDesuDrive },
   { matches: isFiledon, extract: extractFiledon },
+  { matches: isPuterin, extract: extractPuterin },
 ]
 
 async function fetchIframeHtml(iframeUrl: string): Promise<string> {

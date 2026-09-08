@@ -7,6 +7,8 @@ export type MirrorCandidate = {
 }
 
 const EXTRACTABLE = [
+  'puterin',
+  'putarin',
   'vidhide',
   'ondesuhd',
   'desudesuhd',
@@ -26,6 +28,7 @@ const EXTRACTABLE = [
 ]
 
 const SOURCE_PRIORITY_GROUPS = [
+  ['puterin', 'putarin'],
   ['vidhide'],
   ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],
   ['desudrive'],

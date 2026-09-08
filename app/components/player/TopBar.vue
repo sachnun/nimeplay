@@ -7,7 +7,6 @@ const props = defineProps<{
   episodeCount: number
   currentEpisodeNum: number
   controlsVisible: boolean
-  showIframe: boolean
   showEpisodes: boolean
   qualityCount: number
   activeQualityLabel: string
@@ -32,9 +31,9 @@ function goBack() {
 <template>
   <div
     class="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent transition-opacity duration-300 pointer-events-none"
-    :class="controlsVisible || showIframe ? 'opacity-100' : 'opacity-0'"
+    :class="controlsVisible ? 'opacity-100' : 'opacity-0'"
   >
-    <div class="flex items-center gap-3" :class="controlsVisible || showIframe ? 'pointer-events-auto' : 'pointer-events-none'">
+    <div class="flex items-center gap-3" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
       <button type="button" class="group/back flex items-center gap-3 min-w-0 cursor-pointer text-left" @click="goBack">
         <div class="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-white/15 group-hover/back:bg-white/25 transition-colors">
           <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">

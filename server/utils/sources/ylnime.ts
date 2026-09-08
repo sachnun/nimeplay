@@ -169,7 +169,6 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     title,
     animeSlug: series,
     animeTitle,
-    defaultIframeSrc: '',
     mirrors,
     episodeNav: [],
     thumbnail: '',

@@ -1,4 +1,5 @@
 import { getSpoofHeaders } from './spoof'
+import { cleanSynopsis } from './synopsis'
 
 const MAL_BASE = 'https://myanimelist.net'
 const FETCH_TIMEOUT_MS = 8000
@@ -415,7 +416,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     malId,
     title,
     poster: posterMatch && posterMatch.includes('/images/anime/') ? fullSizeImage(posterMatch) : null,
-    synopsis: synopsisMatch ? decodeEntities(synopsisMatch.replaceAll('\\n', '\n')) : '',
+    synopsis: synopsisMatch ? cleanSynopsis(decodeEntities(synopsisMatch.replaceAll('\\n', '\n'))) : '',
     score: scoreMatch ? Number(scoreMatch) : null,
     rank: rankMatch ? Number(rankMatch) : null,
     popularity: popularityMatch ? Number(popularityMatch) : null,

@@ -4,6 +4,7 @@ import { db } from './db'
 import { posterSrc } from './r2'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
+import { cleanSynopsis } from './synopsis'
 
 export interface Genre {
   name: string
@@ -279,7 +280,7 @@ async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
     source: row.source ?? '',
     genres: genreRows,
     thumbnail: posterSrc(row.poster),
-    synopsis: row.synopsis ?? '',
+    synopsis: cleanSynopsis(row.synopsis ?? ''),
     season: row.season ?? '',
     episodes: episodeRows.map(entry => ({
       number: entry.number,

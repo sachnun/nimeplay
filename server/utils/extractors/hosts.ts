@@ -188,6 +188,7 @@ export async function extractPixeldrain(embedUrl: string, html: string): Promise
 
 export function upstreamRefererFor(url: string): string | null {
   if (url.includes('vidcache.net')) return 'https://www.yourupload.com/'
+  if (url.toLowerCase().includes('nekoclouds.com')) return 'https://nekoclouds.com/'
   return null
 }
 

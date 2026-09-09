@@ -171,10 +171,10 @@ async function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio
   const sources = $ul.find('a[data-content]').map((_, a) => ({
     name: $(a).text().trim(),
     dataContent: $(a).attr('data-content') || '',
-  })).get()
+  })).get().filter((source) => source.name && source.dataContent)
   return Promise.all(sources.map(async (source) => ({
     ...source,
-    dataContent: source.dataContent ? await sealStreamToken(`otakudesu:${source.dataContent}`) : '',
+    dataContent: await sealStreamToken(`otakudesu:${source.dataContent}`),
   })))
 }
 

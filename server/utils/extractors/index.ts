@@ -1,4 +1,5 @@
 import { getSpoofHeaders } from '../spoof'
+import { isNekoclouds, extractNekoclouds } from './nekoclouds'
 import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
@@ -9,6 +10,7 @@ type HostExtractor = {
 }
 
 const HOST_EXTRACTORS: HostExtractor[] = [
+  { matches: isNekoclouds, extract: extractNekoclouds },
   { matches: isVidhide, extract: extractVidhide },
   { matches: isAnimeverse, extract: extractAnimeverse },
   { matches: isPixeldrain, extract: extractPixeldrain },

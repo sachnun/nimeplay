@@ -3,6 +3,7 @@ import { desc, eq, sql } from 'drizzle-orm'
 import { db } from '../../utils/db'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
+import { cleanSynopsis } from '../../utils/synopsis'
 
 defineRouteMeta({
   openAPI: {
@@ -102,7 +103,7 @@ function toMetadataPayload(source: {
   const supporting = source.characters.filter(c => c.role !== 'Main')
   return {
     malId: source.malId,
-    synopsisEn: stripHtml(source.synopsis),
+    synopsisEn: cleanSynopsis(stripHtml(source.synopsis)),
     background: '',
     malScore: source.score !== null ? Number(source.score) : null,
     malRank: source.rank,

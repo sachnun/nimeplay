@@ -1,7 +1,8 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ className?: string; message?: string }>(), {
+withDefaults(defineProps<{ className?: string; message?: string; title?: string | null }>(), {
   className: 'fixed inset-0 bg-black z-50',
   message: 'Memuat...',
+  title: null,
 })
 
 type Block = [number, number]
@@ -189,7 +190,8 @@ onMounted(() => {
     <div class="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-white/15 animate-pulse" />
-        <div class="h-4 w-48 bg-white/10 rounded animate-pulse" />
+        <h1 v-if="title" class="text-sm md:text-base font-semibold text-white/90 truncate">{{ title }}</h1>
+        <div v-else class="h-4 w-48 bg-white/10 rounded animate-pulse" />
       </div>
     </div>
 

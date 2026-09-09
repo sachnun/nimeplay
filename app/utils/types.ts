@@ -44,6 +44,13 @@ export interface InitialSource {
   dataContent: string
 }
 
+export interface EpisodeMetaData {
+  anime: { malId: number; title: string; thumbnail: string }
+  episodeNumber: number
+  episodeTitle: string
+  episodes: number[]
+}
+
 export interface EpisodePageData {
   anime: { malId: number; title: string; thumbnail: string }
   episodeNumber: number

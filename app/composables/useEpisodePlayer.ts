@@ -684,8 +684,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     attachNativeSource(video, url, onVideoError)
   }
 
-  watch(directUrl, async (url, _, onCleanup) => {
-    const video = videoRef.value
+  watch([directUrl, videoRef], async ([url, video], _, onCleanup) => {
     if (!video || !url) return
     loadingMessage.value = 'Memuat video...'
     videoLoading.value = true
@@ -694,14 +693,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const onVideoError = () => triggerFallback()
     video.addEventListener('canplay', onCanPlay, { once: true })
 
-    await attachVideoSource(video, url, directKind.value, onVideoError)
+    await attachVideoSource(video as HTMLVideoElement, url as string, directKind.value, onVideoError)
 
-    const onReady = () => resumeAndAutoplay(video)
-    video.addEventListener('canplay', onReady, { once: true })
+    const current = video as HTMLVideoElement
+    if (current.readyState >= 3) videoLoading.value = false
+    const onReady = () => resumeAndAutoplay(current)
+    current.addEventListener('canplay', onReady, { once: true })
     onCleanup(() => {
-      video.removeEventListener('canplay', onCanPlay)
-      video.removeEventListener('canplay', onReady)
-      video.removeEventListener('error', onVideoError)
+      current.removeEventListener('canplay', onCanPlay)
+      current.removeEventListener('canplay', onReady)
+      current.removeEventListener('error', onVideoError)
       destroyHls()
     })
   })

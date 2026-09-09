@@ -98,16 +98,6 @@ const SEASON_YEAR = sql`case
   then cast(substr(${anime.season}, -4) as integer)
   else 0 end`
 
-const DAY_ORDER = sql`case ${anime.day}
-  when 'Senin' then 1
-  when 'Selasa' then 2
-  when 'Rabu' then 3
-  when 'Kamis' then 4
-  when 'Jumat' then 5
-  when 'Sabtu' then 6
-  when 'Minggu' then 7
-  else 8 end`
-
 export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number): Promise<{ anime: AnimeCard[], totalPages: number }> {
   return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>
 }
@@ -119,7 +109,7 @@ async function listAnimePageFresh(
   const filter = and(eq(anime.status, status), METADATA_READY)
 
   const orderBy = status === 'ONGOING'
-    ? [asc(DAY_ORDER), sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.malId)]
+    ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
 
   const countQuery = db()

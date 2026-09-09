@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ className?: string; message?: string; title?: string | null; malId?: number | null; controlsSkeleton?: boolean }>(), {
+const props = withDefaults(defineProps<{ className?: string; message?: string; title?: string | null; malId?: number | null; controlsSkeleton?: boolean; header?: boolean }>(), {
   className: 'fixed inset-0 bg-black z-50',
   message: 'Memuat...',
   title: null,
   malId: null,
   controlsSkeleton: true,
+  header: true,
 })
 
 const router = useRouter()
@@ -201,15 +202,15 @@ onMounted(() => {
 
 <template>
   <div :class="className">
-    <div class="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
-      <div class="flex items-center gap-3">
+    <div v-if="header" class="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+      <div class="flex items-center gap-3 min-w-0">
         <button v-if="malId" type="button" class="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 transition-colors cursor-pointer" aria-label="Kembali" @click="goBack">
           <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
         <div v-else class="w-9 h-9 rounded-full bg-white/15 animate-pulse" />
-        <h1 v-if="title" class="text-sm md:text-base font-semibold text-white/90 truncate">{{ title }}</h1>
+        <h1 v-if="title" class="min-w-0 flex-1 text-sm md:text-base font-semibold text-white/90 truncate">{{ title.replace('Subtitle Indonesia', '').trim() }}</h1>
         <div v-else class="h-4 w-48 bg-white/10 rounded animate-pulse" />
       </div>
     </div>

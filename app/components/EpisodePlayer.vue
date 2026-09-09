@@ -77,7 +77,7 @@ const {
     </div>
 
     <div v-if="showLoading" class="absolute inset-0 z-10" @dblclick="toggleFullscreen">
-      <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="loadingMessage" :title="episode.title" :mal-id="malId" :controls-skeleton="false" />
+      <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="loadingMessage" :header="false" :controls-skeleton="false" />
     </div>
 
     <div v-if="showEmpty" class="absolute inset-0 flex items-center justify-center text-zinc-500">Stream tidak tersedia</div>

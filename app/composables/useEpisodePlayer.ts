@@ -616,7 +616,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function updatePlayingState(playing: boolean) {
-    if (playing) resetIdle()
+    if (playing) {
+      if (directUrl.value) videoLoading.value = false
+      resetIdle()
+    }
     else showPausedControls()
     setMediaPlaybackState(playing)
   }
@@ -689,18 +692,22 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage.value = 'Memuat video...'
     videoLoading.value = true
     destroyHls()
-    const onCanPlay = () => { videoLoading.value = false }
+    const onFirstFrame = () => { videoLoading.value = false }
     const onVideoError = () => triggerFallback()
-    video.addEventListener('canplay', onCanPlay, { once: true })
+    video.addEventListener('canplay', onFirstFrame, { once: true })
+    video.addEventListener('loadeddata', onFirstFrame, { once: true })
+    video.addEventListener('playing', onFirstFrame, { once: true })
 
     await attachVideoSource(video as HTMLVideoElement, url as string, directKind.value, onVideoError)
 
     const current = video as HTMLVideoElement
-    if (current.readyState >= 3) videoLoading.value = false
+    if (current.readyState >= 2 || !current.paused) videoLoading.value = false
     const onReady = () => resumeAndAutoplay(current)
     current.addEventListener('canplay', onReady, { once: true })
     onCleanup(() => {
-      current.removeEventListener('canplay', onCanPlay)
+      current.removeEventListener('canplay', onFirstFrame)
+      current.removeEventListener('loadeddata', onFirstFrame)
+      current.removeEventListener('playing', onFirstFrame)
       current.removeEventListener('canplay', onReady)
       current.removeEventListener('error', onVideoError)
       destroyHls()

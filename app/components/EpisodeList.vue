@@ -8,29 +8,31 @@ const props = defineProps<{
 }>()
 
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
+const reversedEpisodes = computed(() => [...props.episodes].reverse())
 
 async function refreshEpisodeStatuses() {
-  const entries = await Promise.all(
-    props.episodes.map(async (number) => {
-      const key = progressKey(props.malId, number)
-      return [key, await getEpisodeStatus(key)] as const
-    }),
-  )
-  episodeStatuses.value = Object.fromEntries(entries)
+  episodeStatuses.value = await getEpisodeStatusMap(props.malId)
 }
 
 onMounted(() => {
   void refreshEpisodeStatuses()
 
   const onVisibility = () => {
-    if (document.visibilityState === 'visible') refreshEpisodeStatuses()
+    if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
   }
   document.addEventListener('visibilitychange', onVisibility)
   onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
 })
 
-function episodeStatus(number: number) {
-  return episodeStatuses.value[progressKey(props.malId, number)] ?? 'unstarted'
+watch(() => props.malId, () => {
+  void refreshEpisodeStatuses()
+})
+
+function episodeClass(number: number) {
+  const status = episodeStatuses.value[progressKey(props.malId, number)] ?? 'unstarted'
+  if (status === 'completed') return 'bg-white/10 text-white/35 opacity-50'
+  if (status === 'in_progress') return 'bg-white/10 text-white/50 opacity-75'
+  return 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'
 }
 
 </script>
@@ -38,13 +40,13 @@ function episodeStatus(number: number) {
 <template>
   <p v-if="episodes.length === 0" class="text-zinc-500 text-sm">No episodes available yet.</p>
   <div v-else :class="scrollable ? 'max-h-[320px] overflow-y-auto pr-1 scrollbar-thin' : ''">
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
       <NuxtLink
-        v-for="number in [...episodes].reverse()"
+        v-for="number in reversedEpisodes"
         :key="number"
         :to="`/anime/${malId}/${number}`"
-        class="relative text-sm py-2 rounded text-center backdrop-blur transition-colors"
-        :class="episodeStatus(number) === 'completed' ? 'bg-white/10 text-white/35 opacity-50' : episodeStatus(number) === 'in_progress' ? 'bg-white/10 text-white/50 opacity-75' : 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'"
+        class="relative text-sm py-2 rounded text-center transition-colors"
+        :class="episodeClass(number)"
       >
         {{ number }}
       </NuxtLink>

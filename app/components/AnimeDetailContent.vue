@@ -20,7 +20,6 @@ const infoItems = computed(() => [
   { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
 const posterOpen = ref(false)
-const showTrailerBackground = ref(false)
 const router = useRouter()
 
 function goBack() {
@@ -45,25 +44,11 @@ watch(posterOpen, (open) => {
 })
 
 onMounted(() => {
-  const { $runIdle } = useNuxtApp()
-  let cancelTrailerIdle: (() => void) | null = null
-
-  const stopTrailerWatch = watch(() => data.value?.trailerEmbedUrl, (url, _, onCleanup) => {
-    showTrailerBackground.value = false
-    cancelTrailerIdle?.()
-    cancelTrailerIdle = null
-    if (!url) return
-    cancelTrailerIdle = $runIdle(() => { showTrailerBackground.value = true }, 3000)
-    onCleanup(() => cancelTrailerIdle?.())
-  }, { immediate: true })
-
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape') closePoster()
   }
   window.addEventListener('keydown', onKey)
   onBeforeUnmount(() => {
-    stopTrailerWatch()
-    cancelTrailerIdle?.()
     window.removeEventListener('keydown', onKey)
     document.body.style.overflow = ''
   })
@@ -72,10 +57,9 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen relative overflow-hidden">
-    <div class="absolute inset-0 z-0">
-      <img :src="thumbnail" alt="" width="1200" height="1600" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-110 blur-3xl opacity-15 pointer-events-none">
+    <div class="absolute inset-0 z-0 overflow-hidden">
+      <img :src="thumbnail" alt="" aria-hidden="true" width="400" height="533" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-105 blur-xl opacity-15 pointer-events-none transform-gpu will-change-transform [contain:strict]">
     </div>
-    <LazyTrailerBackground v-if="showTrailerBackground" :trailer-embed-url="data?.trailerEmbedUrl" />
     <div class="absolute inset-0 z-[1] bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.35)_15%,rgba(0,0,0,0.55)_30%,rgba(0,0,0,0.75)_45%,rgba(0,0,0,0.9)_60%,rgba(0,0,0,1)_75%)] lg:bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.3)_15%,rgba(0,0,0,0.45)_30%,rgba(0,0,0,0.6)_45%,rgba(0,0,0,0.8)_60%,rgba(0,0,0,0.95)_75%,rgba(0,0,0,1)_85%)]" />
 
     <div class="relative z-10">

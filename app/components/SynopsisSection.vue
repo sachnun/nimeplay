@@ -5,17 +5,18 @@ const props = defineProps<{
   loading: boolean
 }>()
 
-const lang = ref<'id' | 'en'>(props.synopsisId ? 'id' : 'en')
+const lang = ref<'id' | 'en'>('en')
 const expanded = ref(false)
 const clamped = ref(false)
 const textRef = ref<HTMLParagraphElement | null>(null)
 
-const hasId = computed(() => !!props.synopsisId)
-const hasEn = computed(() => !!props.synopsisEn)
-const hasBoth = computed(() => hasId.value && hasEn.value)
-const text = computed(() => lang.value === 'id' && hasId.value ? props.synopsisId : props.synopsisEn)
+const hasId = computed(() => !!props.synopsisId?.trim())
+const hasEn = computed(() => !!props.synopsisEn?.trim())
+const text = computed(() => lang.value === 'id' ? (props.synopsisId || props.synopsisEn) : (props.synopsisEn || props.synopsisId))
 
 function switchLang(newLang: 'id' | 'en') {
+  if (newLang === 'id' && !hasId.value) return
+  if (newLang === 'en' && !hasEn.value) return
   lang.value = newLang
   expanded.value = false
 }
@@ -35,18 +36,20 @@ watch([text, expanded, () => props.loading], () => {
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
-      <div v-if="hasBoth" class="flex items-center text-xs text-zinc-500">
+      <div v-if="hasId || hasEn" class="flex items-center text-xs text-zinc-500">
         <button
-          class="transition-colors cursor-pointer"
-          :class="lang === 'id' ? 'text-zinc-200 font-semibold' : 'text-zinc-500 hover:text-zinc-400'"
+          :disabled="!hasId"
+          class="transition-colors"
+          :class="!hasId ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'id' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
           @click="switchLang('id')"
         >
           ID
         </button>
         <span class="mx-1.5 text-zinc-600">|</span>
         <button
-          class="transition-colors cursor-pointer"
-          :class="lang === 'en' ? 'text-zinc-200 font-semibold' : 'text-zinc-500 hover:text-zinc-400'"
+          :disabled="!hasEn"
+          class="transition-colors"
+          :class="!hasEn ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'en' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
           @click="switchLang('en')"
         >
           EN

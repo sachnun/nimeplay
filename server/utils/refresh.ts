@@ -417,7 +417,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     client.insert(anime).values(chunk).onConflictDoUpdate({
       target: anime.slug,
       set: {
-        status: sql`coalesce(${anime.status}, excluded.status)`,
+        status: sql`excluded.status`,
         day: sql`coalesce(excluded.day, ${anime.day})`,
         latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
         ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,

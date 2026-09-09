@@ -1,5 +1,6 @@
 import { getSpoofHeaders } from '../spoof'
 import { isNekoclouds, extractNekoclouds } from './nekoclouds'
+import { isOdcloud, extractOdcloud } from './odcloud'
 import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
@@ -11,6 +12,7 @@ type HostExtractor = {
 
 const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isNekoclouds, extract: extractNekoclouds },
+  { matches: isOdcloud, extract: extractOdcloud },
   { matches: isVidhide, extract: extractVidhide },
   { matches: isAnimeverse, extract: extractAnimeverse },
   { matches: isPixeldrain, extract: extractPixeldrain },
@@ -52,6 +54,8 @@ async function extractFallbackHost(embedUrl: string, html: string): Promise<stri
   if (ogVideo) return ogVideo
   const jwFile = asHttpUrl(html.match(/file:\s*'([^']+)'/)?.[1], embedUrl)
   if (jwFile) return jwFile
+  const jwFileDouble = asHttpUrl(html.match(/file:\s*"([^"]+)"/)?.[1], embedUrl)
+  if (jwFileDouble) return jwFileDouble
   try {
     return await extractDesuDrive(embedUrl, html)
   }

@@ -16,6 +16,7 @@ export function asHttpUrl(value: string | null | undefined, base?: string): stri
 }
 
 const HD_PATTERNS = [
+  'desustream.',
   '/ondesu/new/hd/',
   '/desudesu/new/hd/',
   '/otakustream/new/',
@@ -29,6 +30,9 @@ export function isDesuStreamHd(url: string): boolean {
 }
 
 export async function extractDesuStream(embedUrl: string, html: string): Promise<string | null> {
+  const lazyUrl = html.match(/videoURL\s*=\s*"([^"]+)"/)?.[1] ?? html.match(/videoURL\s*=\s*'([^']+)'/)?.[1]
+  const resolvedLazy = asHttpUrl(lazyUrl, embedUrl)
+  if (resolvedLazy) return resolvedLazy
   const sourceMatch = html.match(/<source\s+[^>]*src="([^"]+)"/)?.[1]
   const resolvedSource = asHttpUrl(sourceMatch, embedUrl)
   if (resolvedSource) return resolvedSource

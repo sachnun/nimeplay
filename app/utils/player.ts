@@ -9,11 +9,11 @@ export type MirrorCandidate = {
 const SOURCE_PRIORITY_GROUPS = [
   ['animeverse', 'nekoclouds'],
   ['puterin', 'putarin'],
-  ['pixeldrain'],
-  ['vidhide'],
+  ['pixeldrain', 'pdrain', 'odcdn', 'odstream', 'odcloud', 'arcg', 'archive'],
+  ['vidhide', 'filelions'],
   ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],
   ['desudrive'],
-  ['moeplay', 'yourupload', 'yuplod'],
+  ['moeplay', 'yourupload', 'yuplod', 'mp4upload', 'mp4load'],
   ['filedon'],
 ]
 

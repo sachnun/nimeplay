@@ -118,7 +118,7 @@ const {
     </div>
 
     <PlayerTopBar
-      :episode="episode"
+      :title="episode.title"
       :mal-id="malId"
       :episode-count="episodes.length"
       :current-episode-num="currentEpisodeNum"

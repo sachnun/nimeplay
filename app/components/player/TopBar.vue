@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import type { EpisodeData } from '~/utils/types'
-
 const props = defineProps<{
-  episode: EpisodeData
+  title: string
   malId: number
   episodeCount: number
   currentEpisodeNum: number
@@ -41,7 +39,7 @@ function goBack() {
           </svg>
         </div>
         <h1 class="text-sm md:text-base font-semibold text-white/90 truncate">
-          {{ episode.title.replace('Subtitle Indonesia', '').trim() }}
+          {{ title.replace('Subtitle Indonesia', '').trim() }}
         </h1>
       </button>
       <div class="flex-1" />

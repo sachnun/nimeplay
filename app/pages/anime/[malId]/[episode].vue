@@ -57,6 +57,8 @@ function pendingNavigate(epNum: number) {
   router.replace(`/anime/${malId.value}/${epNum}`)
 }
 
+const showPendingEpisodes = ref(false)
+
 watchEffect(() => {
   if (pending.value) return
   if (!pageData.value && !metaData.value) router.replace('/')
@@ -71,13 +73,32 @@ onMounted(() => {
 
 <template>
   <div v-if="pending || !pageData || !episodeData" class="fixed inset-0 bg-black z-50">
-    <PlayerLoadingShell class-name="absolute inset-0 bg-black" :title="headerTitle" :mal-id="malId" :controls-skeleton="false" />
+    <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="'Menyiapkan player...'" :header="false" :controls-skeleton="false" />
+    <PlayerTopBar
+      :title="headerTitle"
+      :mal-id="malId"
+      :episode-count="metaData?.episodes.length || 0"
+      :current-episode-num="pendingEpisodeNum"
+      :controls-visible="true"
+      :show-episodes="showPendingEpisodes"
+      :quality-count="0"
+      :active-quality-label="'HD'"
+      @toggle-episodes="showPendingEpisodes = !showPendingEpisodes"
+    />
     <PlayerBottomControls
       :current-episode-num="pendingEpisodeNum"
       :disabled="true"
       :episode-count="metaData?.episodes.length || 0"
       :next-episode="pendingNext"
       :prev-episode="pendingPrev"
+      @navigate="pendingNavigate"
+    />
+    <PlayerEpisodeDrawer
+      v-if="showPendingEpisodes && (metaData?.episodes.length || 0) > 1"
+      :mal-id="malId"
+      :episodes="metaData?.episodes || []"
+      :current-episode-number="pendingEpisodeNum"
+      @close="showPendingEpisodes = false"
       @navigate="pendingNavigate"
     />
   </div>

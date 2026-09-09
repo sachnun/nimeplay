@@ -1,5 +1,6 @@
 import type { Ref } from 'vue'
-import type { EpisodeData } from '~/utils/types'
+import { preloadHls } from '~/utils/hls'
+import type { EpisodeData, InitialSource } from '~/utils/types'
 import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
@@ -9,6 +10,7 @@ interface EpisodePlayerResolutionOptions {
   episode: Ref<EpisodeData>
   loadingMessage: Ref<string>
   resolving: Ref<boolean>
+  initialSource?: Ref<InitialSource | null>
   onExhausted?: (tried: string[]) => void
 }
 
@@ -57,6 +59,10 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {
+    const initial = options.initialSource?.value
+    if (initial && initial.dataContent === candidate.dataContent && initial.playUrl && initial.kind) {
+      return { prepared: { playUrl: initial.playUrl, kind: initial.kind, ok: true } satisfies PrepareResult }
+    }
     try {
       const prepared = await $fetch<PrepareResult>('/api/mirror/prepare', {
         method: 'POST',
@@ -156,6 +162,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   }
 
   async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
+    if (import.meta.client) preloadHls()
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1

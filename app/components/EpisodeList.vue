@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { preloadHls } from '~/utils/hls'
 import type { WatchProgressStatus } from '~/utils/storage'
 
 const props = defineProps<{
@@ -9,9 +10,23 @@ const props = defineProps<{
 
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
 const reversedEpisodes = computed(() => [...props.episodes].reverse())
+const prefetched = new Set<number>()
+let hlsPreloaded = false
 
 async function refreshEpisodeStatuses() {
   episodeStatuses.value = await getEpisodeStatusMap(props.malId)
+}
+
+function prefetchEpisode(number: number) {
+  if (!import.meta.client || prefetched.has(number)) return
+  prefetched.add(number)
+  $fetch(`/api/anime/${props.malId}/${number}`).catch(() => {
+    prefetched.delete(number)
+  })
+  if (!hlsPreloaded) {
+    hlsPreloaded = true
+    preloadHls()
+  }
 }
 
 onMounted(() => {
@@ -25,6 +40,7 @@ onMounted(() => {
 })
 
 watch(() => props.malId, () => {
+  prefetched.clear()
   void refreshEpisodeStatuses()
 })
 
@@ -47,6 +63,9 @@ function episodeClass(number: number) {
         :to="`/anime/${malId}/${number}`"
         class="relative text-sm py-2 rounded text-center transition-colors"
         :class="episodeClass(number)"
+        @mouseenter="prefetchEpisode(number)"
+        @focus="prefetchEpisode(number)"
+        @touchstart.passive="prefetchEpisode(number)"
       >
         {{ number }}
       </NuxtLink>

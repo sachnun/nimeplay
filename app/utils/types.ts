@@ -37,11 +37,19 @@ export interface EpisodeData {
   thumbnail: string
 }
 
+export interface InitialSource {
+  playUrl: string
+  kind: 'hls' | 'file'
+  quality: string
+  dataContent: string
+}
+
 export interface EpisodePageData {
   anime: { malId: number; title: string; thumbnail: string }
   episodeNumber: number
   episode: EpisodeData
   episodes: number[]
+  initialSource?: InitialSource | null
 }
 
 export interface SearchResult {

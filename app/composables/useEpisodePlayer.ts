@@ -1,8 +1,9 @@
 import { fetchSkipTimes } from '~/utils/remote'
+import { loadHls, preloadHls } from '~/utils/hls'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
 import { useEpisodePlayerResolution } from './player/resolution'
-import type { EpisodeData, SkipTime } from '~/utils/types'
+import type { EpisodeData, EpisodePageData, InitialSource, SkipTime } from '~/utils/types'
 
 interface EpisodePlayerProps {
   malId: number
@@ -11,6 +12,7 @@ interface EpisodePlayerProps {
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
+  initialSource?: InitialSource | null
 }
 
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
@@ -249,6 +251,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     clearIdleTimer()
   }
 
+  const initialSource = ref<InitialSource | null>(props.initialSource ?? null)
+
   const {
     invalidatePlaybackSession,
     playWithFallback,
@@ -260,6 +264,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     episode,
     loadingMessage,
     resolving,
+    initialSource,
     onExhausted: (tried) => {
       void autoRefreshUpstream(tried)
     },
@@ -272,6 +277,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       const data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${currentEpisodeNum.value}?refresh=1`)
       if (!data) return false
       suppressEpisodeWatch = true
+      initialSource.value = data.initialSource ?? null
       episode.value = data.episode
       const start = buildFallbackOrder(data.episode.mirrors, '720p').find((candidate) => !exclude.includes(candidate.dataContent)) ?? null
       if (!start) return false
@@ -333,6 +339,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       resolving.value = false
       return
     }
+    initialSource.value = data.initialSource ?? null
     episode.value = data.episode
     currentEpisodeNum.value = data.episodeNumber
     window.history.replaceState(null, '', `/anime/${props.malId}/${data.episodeNumber}`)
@@ -584,7 +591,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   watch(progressKey, resetForEpisode, { immediate: true })
 
   function loadEpisodeSource(value: EpisodeData) {
-    if (suppressEpisodeWatch) return
+    if (!import.meta.client || suppressEpisodeWatch) return
     const def = findDefaultMirror(value)
     if (!def) {
       void autoRefreshUpstream([])
@@ -645,7 +652,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function attachHlsSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    const Hls = (await import('hls.js/light')).default
+    const Hls = (await loadHls()).default
     if (Hls.isSupported()) {
       hls = new Hls({
         maxBufferLength: 60,
@@ -699,9 +706,21 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     })
   })
 
+  function prefetchNextEpisode() {
+    const target = nextEpisode.value
+    if (!target || !import.meta.client) return
+    const run = () => {
+      $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${target.num}`).catch(() => {})
+    }
+    if ('requestIdleCallback' in window) (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback(run, { timeout: 2000 })
+    else setTimeout(run, 1500)
+  }
+
   onMounted(() => {
     isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
     getAutoSkip().then((val) => { autoSkip.value = val })
+    preloadHls()
+    prefetchNextEpisode()
     const video = videoRef.value
     if (video) onBeforeUnmount(registerVideoEvents(video))
 

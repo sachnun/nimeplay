@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EpisodeData } from '~/utils/types'
+import type { EpisodeData, InitialSource } from '~/utils/types'
 
 const props = defineProps<{
   malId: number
@@ -8,6 +8,7 @@ const props = defineProps<{
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
+  initialSource?: InitialSource | null
 }>()
 
 const {

@@ -74,6 +74,18 @@ export default defineEventHandler(async (event) => {
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
+  const defaultCandidate = selectDefaultCandidate(scraped.mirrors)
+  let initialSource: { playUrl: string, kind: 'hls' | 'file', quality: string, dataContent: string } | null = null
+  if (defaultCandidate && !refresh) {
+    try {
+      const cached = await peekPreparedResult(defaultCandidate.dataContent)
+      if (cached?.ok && cached.playUrl && cached.kind) {
+        initialSource = { playUrl: cached.playUrl, kind: cached.kind, quality: defaultCandidate.quality, dataContent: defaultCandidate.dataContent }
+      }
+    }
+    catch {}
+  }
+
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
@@ -83,5 +95,6 @@ export default defineEventHandler(async (event) => {
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },
     episodes: episodeNumbers,
+    initialSource,
   }
 })

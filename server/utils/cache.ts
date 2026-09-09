@@ -38,6 +38,13 @@ export const cache = {
     pruneTable(table, now)
     return value
   },
+  peek(namespace: string, key: string | number): Promise<unknown> | undefined {
+    const table = tables.get(namespace)
+    if (!table) return undefined
+    const hit = table.get(String(key))
+    if (!hit || hit.expiresAt <= Date.now()) return undefined
+    return hit.value
+  },
   delete(namespace: string, key: string | number): void {
     tables.get(namespace)?.delete(String(key))
   },

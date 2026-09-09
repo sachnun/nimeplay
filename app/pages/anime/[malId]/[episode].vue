@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { preloadHls } from '~/utils/hls'
 import type { EpisodePageData } from '~/utils/types'
 
 const route = useRoute()
+const router = useRouter()
 const malId = computed(() => Number(route.params.malId) || 0)
 const episodeParam = computed(() => String(route.params.episode || ''))
 
-const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
+const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   () => `episode-page-${malId.value}-${episodeParam.value}`,
   async () => {
     try {
@@ -22,35 +24,31 @@ const { data: pageData, pending } = await useAsyncData<EpisodePageData | null>(
 
 const anime = computed(() => pageData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
-
-if (!anime.value) {
-  await navigateTo('/')
-}
-else if (!episodeData.value) {
-  await navigateTo(`/anime/${malId.value}`)
-}
+const initialSource = computed(() => pageData.value?.initialSource ?? null)
 
 watchEffect(() => {
-  if (!pending.value && !anime.value) navigateTo('/')
-  else if (!pending.value && !episodeData.value) navigateTo(`/anime/${malId.value}`)
+  if (pending.value) return
+  if (!anime.value) router.replace('/')
+  else if (!episodeData.value) router.replace(`/anime/${malId.value}`)
   if (pageData.value?.episode.title) useHead({ title: pageData.value.episode.title })
+})
+
+onMounted(() => {
+  preloadHls()
 })
 </script>
 
 <template>
   <PlayerLoadingShell v-if="pending || !pageData || !episodeData" />
-  <ClientOnly v-else>
-    <EpisodePlayer
-      :key="`${malId}-${episodeParam}`"
-      :mal-id="malId"
-      :episode-number="Number(episodeParam) || pageData!.episodeNumber"
-      :episode="episodeData!"
-      :episodes="pageData!.episodes"
-      :anime-title="anime?.title || ''"
-      :anime-thumbnail="anime?.thumbnail || ''"
-    />
-    <template #fallback>
-      <PlayerLoadingShell />
-    </template>
-  </ClientOnly>
+  <EpisodePlayer
+    v-else
+    :key="`${malId}-${episodeParam}`"
+    :mal-id="malId"
+    :episode-number="Number(episodeParam) || pageData!.episodeNumber"
+    :episode="episodeData!"
+    :episodes="pageData!.episodes"
+    :anime-title="anime?.title || ''"
+    :anime-thumbnail="anime?.thumbnail || ''"
+    :initial-source="initialSource"
+  />
 </template>

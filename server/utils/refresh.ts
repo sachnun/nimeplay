@@ -12,11 +12,13 @@ import { parseEpisodeDate } from './sources/shared'
 const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
 const CATALOG_SYNC_MS = 10 * 60 * 1000
+const SYNC_WALL_MS = 25000
 const CATALOG_META_BUDGET = 20
 const ONGOING_PAGES = 6
 const COMPLETED_PAGES = 3
 const FRESH_BUDGET = 24
 const UNKNOWN_BUDGET = 10
+const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
 
@@ -24,6 +26,34 @@ function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
   for (let i = 0; i < values.length; i += size) chunks.push(values.slice(i, i + size))
   return chunks
+}
+
+function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promise<T | null> {
+  return task.then(
+    value => value,
+    (error: unknown) => {
+      onError(error)
+      return null
+    },
+  )
+}
+
+async function runBatches<T>(
+  items: T[],
+  deadline: number,
+  limit: number,
+  label: string,
+  run: (item: T) => Promise<unknown>,
+): Promise<number> {
+  let done = 0
+  for (let i = 0; i < items.length && Date.now() < deadline; i += limit) {
+    const results = await Promise.all(items.slice(i, i + limit).map(item => attempt(
+      run(item),
+      error => console.warn(`[catalog] ${label} failed:`, error instanceof Error ? error.message : error),
+    )))
+    done += results.filter(result => result !== null).length
+  }
+  return done
 }
 
 let catalogSyncRunning = false
@@ -76,20 +106,21 @@ function parseOdYear(value: string | null | undefined): number | null {
   return year >= 1990 && year <= 2100 ? year : null
 }
 
-async function recordFailure(slug: string, message: string): Promise<void> {
-  try {
-    await db()
-      .update(anime)
-      .set({
-        metadataAttempts: sql`${anime.metadataAttempts} + 1`,
-        metadataLastError: message.slice(0, 500),
-        metadataRetryAt: new Date(Date.now() + RETRY_MS),
-      })
-      .where(eq(anime.slug, slug))
-  }
-  catch (error) {
-    console.warn(`[metadata] record failure failed ${slug}:`, error instanceof Error ? error.message : error)
-  }
+function recordFailure(slug: string, message: string): Promise<void> {
+  return db()
+    .update(anime)
+    .set({
+      metadataAttempts: sql`${anime.metadataAttempts} + 1`,
+      metadataLastError: message.slice(0, 500),
+      metadataRetryAt: new Date(Date.now() + RETRY_MS),
+    })
+    .where(eq(anime.slug, slug))
+    .then(
+      () => {},
+      error => {
+        console.warn(`[metadata] record failure failed ${slug}:`, error instanceof Error ? error.message : error)
+      },
+    )
 }
 
 export async function getCatalogHealth() {
@@ -228,16 +259,12 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   }
 
   let odYear: number | null | undefined
-  const loadOdYear = async (): Promise<number | null> => {
-    if (odYear !== undefined) return odYear
-    try {
-      const detail = await scrapeAnimeDetailFresh(slug)
-      odYear = parseOdYear(detail?.releaseDate ?? null)
-    }
-    catch {
-      odYear = null
-    }
-    return odYear
+  const loadOdYear = (): Promise<number | null> => {
+    if (odYear !== undefined) return Promise.resolve(odYear)
+    return scrapeAnimeDetailFresh(slug).then(
+      detail => odYear = parseOdYear(detail?.releaseDate ?? null),
+      () => odYear = null,
+    )
   }
   let yearFallback: { mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>, diff: number } | null = null
 
@@ -274,16 +301,16 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
       return false
     }
 
-    try {
-      await applyMalMetadata(slug, mal)
-      return true
-    }
-    catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      await recordFailure(slug, reason)
-      console.warn(`[metadata] failed ${slug}: ${reason}`)
-      return false
-    }
+    return applyMalMetadata(slug, mal).then(
+      () => true,
+      error => {
+        const reason = error instanceof Error ? error.message : String(error)
+        return recordFailure(slug, reason).then(() => {
+          console.warn(`[metadata] failed ${slug}: ${reason}`)
+          return false
+        })
+      },
+    )
   }
 
   if (yearFallback) {
@@ -293,16 +320,16 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
       .where(eq(anime.malId, yearFallback.mal.malId))
       .limit(1)
     if (!owner || owner.slug === slug) {
-      try {
-        await applyMalMetadata(slug, yearFallback.mal)
-        return true
-      }
-      catch (error) {
-        const reason = error instanceof Error ? error.message : String(error)
-        await recordFailure(slug, reason)
-        console.warn(`[metadata] failed ${slug}: ${reason}`)
-        return false
-      }
+      return applyMalMetadata(slug, yearFallback.mal).then(
+        () => true,
+        error => {
+          const reason = error instanceof Error ? error.message : String(error)
+          return recordFailure(slug, reason).then(() => {
+            console.warn(`[metadata] failed ${slug}: ${reason}`)
+            return false
+          })
+        },
+      )
     }
   }
 
@@ -402,6 +429,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
 
 async function refreshFreshEpisodes(
   cards: { slug: string, title: string, episode: string }[],
+  deadline: number,
 ): Promise<number> {
   const bySlug = new Map<string, { slug: string, title: string, episode: number }>()
   for (const card of cards) {
@@ -425,19 +453,10 @@ async function refreshFreshEpisodes(
       dbMax.set((row as { slug: string }).slug, Number((row as { max: number | null }).max ?? 0))
     }
   }
-  let refreshed = 0
-  for (const item of wanted) {
-    if (refreshed >= FRESH_BUDGET) break
-    if (item.episode > (dbMax.get(item.slug) ?? 0)) {
-      try {
-        await refreshAnimeBySlug(item.slug, item.title, false)
-        refreshed++
-      }
-      catch (error) {
-        console.warn(`[catalog] fresh refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
-      }
-    }
-  }
+  const todo = wanted
+    .filter(item => item.episode > (dbMax.get(item.slug) ?? 0))
+    .slice(0, FRESH_BUDGET)
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
   if (refreshed > 0) {
     console.log(`[catalog] fresh episodes: ${refreshed} refreshed`)
   }
@@ -446,6 +465,7 @@ async function refreshFreshEpisodes(
 
 async function refreshUnknownSlugs(
   cards: { slug: string, title: string }[],
+  deadline: number,
 ): Promise<number> {
   const unique = [...new Map(cards.map(card => [card.slug, card])).values()]
   if (unique.length === 0) return 0
@@ -460,19 +480,8 @@ async function refreshUnknownSlugs(
   for (const rows of results) {
     for (const row of rows) withEpisodes.add(row.slug)
   }
-  let refreshed = 0
-  for (const item of unique) {
-    if (refreshed >= UNKNOWN_BUDGET) break
-    if (!withEpisodes.has(item.slug)) {
-      try {
-        await refreshAnimeBySlug(item.slug, item.title, false)
-        refreshed++
-      }
-      catch (error) {
-        console.warn(`[catalog] unknown refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
-      }
-    }
-  }
+  const todo = unique.filter(item => !withEpisodes.has(item.slug)).slice(0, UNKNOWN_BUDGET)
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
   if (refreshed > 0) {
     console.log(`[catalog] unknown episodes: ${refreshed} refreshed`)
   }
@@ -481,55 +490,53 @@ async function refreshUnknownSlugs(
 
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
+  const deadline = startedAt.getTime() + SYNC_WALL_MS
   const sourcesRegistered: Record<string, number> = {}
-  let ongoingRank = 0
   const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
+  let ongoingRank = 0
   for (const source of getSources()) {
     const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
-    for (let page = 1; page <= ONGOING_PAGES; page++) {
-      try {
-        const result = await source.ongoingFresh(page)
-        if (result.anime.length === 0) break
+    const first = await attempt(
+      source.ongoingFresh(1),
+      error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
+    )
+    if (first !== null && first.anime.length > 0) {
+      for (const card of first.anime) {
+        ongoingRank++
+        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
+      }
+      const pages: number[] = []
+      for (let page = 2; page <= Math.min(ONGOING_PAGES, first.totalPages); page++) pages.push(page)
+      const restResults = await Promise.all(pages.map(page => attempt(
+        source.ongoingFresh(page),
+        error => console.warn(`[catalog] ${source.id} ongoing page ${page} failed:`, error instanceof Error ? error.message : error),
+      )))
+      for (const result of restResults) {
+        if (result === null) continue
         for (const card of result.anime) {
           ongoingRank++
           cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
         }
-        if (page >= result.totalPages) break
-      }
-      catch (error) {
-        console.warn(`[catalog] ${source.id} ongoing page ${page} failed, continuing:`, error instanceof Error ? error.message : error)
       }
     }
-    try {
-      await registerOngoingCards(cards)
-    }
-    catch (error) {
-      console.warn(`[catalog] ${source.id} register failed, continuing:`, error instanceof Error ? error.message : error)
-    }
+    await attempt(
+      registerOngoingCards(cards),
+      error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
+    )
     allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
     sourcesRegistered[source.id] = cards.length
     console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 
-  let freshRefreshed = 0
-  try {
-    freshRefreshed = await refreshFreshEpisodes(
-      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
-    )
-  }
-  catch (error) {
-    console.warn('[catalog] fresh pass failed, continuing:', error instanceof Error ? error.message : error)
-  }
+  const freshRefreshed = await refreshFreshEpisodes(
+    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
+    deadline,
+  )
 
-  let unknownRefreshed = 0
-  try {
-    unknownRefreshed = await refreshUnknownSlugs(
-      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
-    )
-  }
-  catch (error) {
-    console.warn('[catalog] unknown pass failed, continuing:', error instanceof Error ? error.message : error)
-  }
+  const unknownRefreshed = await refreshUnknownSlugs(
+    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
+    deadline,
+  )
 
   const now = new Date()
   const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
@@ -545,14 +552,14 @@ async function syncOngoingCatalog(): Promise<void> {
   console.log(`[catalog] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
   let resolved = 0
   for (const row of pending) {
-    try {
-      if (await resolveMetadata(row.slug, row.title)) {
-        resolved++
-        console.log(`[catalog] metadata resolved: ${row.slug}`)
-      }
-    }
-    catch (error) {
-      console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error)
+    if (Date.now() > deadline) break
+    const ok = await attempt(
+      resolveMetadata(row.slug, row.title),
+      error => console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error),
+    )
+    if (ok) {
+      resolved++
+      console.log(`[catalog] metadata resolved: ${row.slug}`)
     }
   }
 

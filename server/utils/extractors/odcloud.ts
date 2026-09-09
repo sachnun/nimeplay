@@ -1,4 +1,4 @@
-import { asHttpUrl } from './hosts'
+import { asHttpUrl, isPlaceholderStreamUrl } from './hosts'
 import { getSpoofHeaders } from '../spoof'
 
 export function isOdcloud(url: string): boolean {
@@ -18,7 +18,7 @@ function parseOdcloudHtml(html: string, base?: string): string | null {
   ]
   for (const candidate of candidates) {
     const resolved = asHttpUrl(candidate, base)
-    if (resolved) return resolved
+    if (resolved && !isPlaceholderStreamUrl(resolved)) return resolved
   }
   return null
 }

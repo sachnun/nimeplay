@@ -1,3 +1,5 @@
+import { isPlaceholderStreamUrl } from '../../utils/extractors/hosts'
+
 type PrepareResult = {
   playUrl: string | null
   kind: 'hls' | 'file' | null
@@ -43,12 +45,12 @@ export default defineEventHandler(async (event) => {
 
   const result = await cache.get('prepare', body.dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(body.dataContent)
-    if (!mirrorId) return emptyResult()
+    if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyResult()
     const embedUrl = await resolvemirror(mirrorId)
-    if (!embedUrl) return emptyResult()
+    if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyResult()
 
     const directUrl = await extractStreamUrl(embedUrl)
-    if (!directUrl) return emptyResult()
+    if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyResult()
 
     const kind = await detectStreamKind(directUrl)
     const token = await sealStreamToken(directUrl)

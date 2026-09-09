@@ -15,6 +15,32 @@ export function asHttpUrl(value: string | null | undefined, base?: string): stri
   }
 }
 
+const PLACEHOLDER_PATTERNS = [
+  'novideo',
+  'bigbuckbunny',
+  'big_buck_bunny',
+  'mov_bbb',
+  'bbb.mp4',
+  'test-videos',
+  'sample-videos',
+  'samplelib.com',
+  'gtv-videos-bucket/sample',
+  'w3schools.com/html/mov_',
+  'w3schools.com/html/movie.mp4',
+  'blank.mp4',
+  'empty.mp4',
+  'deleted.mp4',
+  'missing.mp4',
+  'notfound.mp4',
+  '404.mp4',
+]
+
+export function isPlaceholderStreamUrl(value: string | null | undefined): boolean {
+  if (!value) return false
+  const lower = value.toLowerCase()
+  return PLACEHOLDER_PATTERNS.some((pattern) => lower.includes(pattern))
+}
+
 const HD_PATTERNS = [
   'desustream.',
   '/ondesu/new/hd/',
@@ -32,18 +58,20 @@ export function isDesuStreamHd(url: string): boolean {
 export async function extractDesuStream(embedUrl: string, html: string): Promise<string | null> {
   const lazyUrl = html.match(/videoURL\s*=\s*"([^"]+)"/)?.[1] ?? html.match(/videoURL\s*=\s*'([^']+)'/)?.[1]
   const resolvedLazy = asHttpUrl(lazyUrl, embedUrl)
-  if (resolvedLazy) return resolvedLazy
+  if (resolvedLazy && !isPlaceholderStreamUrl(resolvedLazy)) return resolvedLazy
   const sourceMatch = html.match(/<source\s+[^>]*src="([^"]+)"/)?.[1]
   const resolvedSource = asHttpUrl(sourceMatch, embedUrl)
-  if (resolvedSource) return resolvedSource
+  if (resolvedSource && !isPlaceholderStreamUrl(resolvedSource)) return resolvedSource
   const sourceSingle = html.match(/<source\s+[^>]*src='([^']+)'/)?.[1]
   const resolvedSingle = asHttpUrl(sourceSingle, embedUrl)
-  if (resolvedSingle) return resolvedSingle
+  if (resolvedSingle && !isPlaceholderStreamUrl(resolvedSingle)) return resolvedSingle
   const playerjsDouble = html.match(/file:\s*"(https?:\/\/[^"]+)"/)?.[1]
   const resolvedDouble = asHttpUrl(playerjsDouble)
-  if (resolvedDouble) return resolvedDouble
+  if (resolvedDouble && !isPlaceholderStreamUrl(resolvedDouble)) return resolvedDouble
   const playerjsSingle = html.match(/file:\s*'([^']+)'/)?.[1]
-  return asHttpUrl(playerjsSingle)
+  const resolvedSingle2 = asHttpUrl(playerjsSingle)
+  if (resolvedSingle2 && !isPlaceholderStreamUrl(resolvedSingle2)) return resolvedSingle2
+  return null
 }
 
 export function isDesuDrive(url: string): boolean {
@@ -57,7 +85,9 @@ export async function extractDesuDrive(_embedUrl: string, html: string): Promise
     const raw = match[1]
     if (!raw) return null
     const data = JSON.parse(raw)
-    return asHttpUrl(data.file)
+    const resolved = asHttpUrl(data.file)
+    if (resolved && isPlaceholderStreamUrl(resolved)) return null
+    return resolved
   } catch {
     return null
   }
@@ -102,7 +132,7 @@ function parseMoeplayHtml(html: string, base?: string): string | null {
   ]
   for (const candidate of candidates) {
     const resolved = asHttpUrl(candidate, base)
-    if (resolved) return resolved
+    if (resolved && !isPlaceholderStreamUrl(resolved)) return resolved
   }
   return null
 }
@@ -121,7 +151,7 @@ function parseYouruploadHtml(html: string, base?: string): string | null {
   ]
   for (const candidate of candidates) {
     const resolved = asHttpUrl(candidate, base)
-    if (resolved) return resolved
+    if (resolved && !isPlaceholderStreamUrl(resolved)) return resolved
   }
   return null
 }

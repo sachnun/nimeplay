@@ -125,3 +125,19 @@ export async function getContinueWatching(): Promise<WatchProgress[]> {
 export async function getEpisodeStatus(key: string): Promise<WatchProgressStatus> {
   return getProgressStatus(await getProgress(key))
 }
+
+export async function getEpisodeStatusMap(malId: number): Promise<Record<string, WatchProgressStatus>> {
+  if (!import.meta.client) return {}
+  try {
+    const all = await getAllProgress()
+    const map: Record<string, WatchProgressStatus> = {}
+    for (const p of all) {
+      if (p.malId !== malId) continue
+      const ratio = getProgressRatio(p)
+      map[progressKey(p.malId, p.episodeNumber)] = ratio >= COMPLETED_PROGRESS_THRESHOLD ? 'completed' : ratio > 0 ? 'in_progress' : 'unstarted'
+    }
+    return map
+  } catch {
+    return {}
+  }
+}

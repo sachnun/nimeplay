@@ -429,8 +429,13 @@ async function refreshFreshEpisodes(
   for (const item of wanted) {
     if (refreshed >= FRESH_BUDGET) break
     if (item.episode > (dbMax.get(item.slug) ?? 0)) {
-      await refreshAnimeBySlug(item.slug, item.title, false)
-      refreshed++
+      try {
+        await refreshAnimeBySlug(item.slug, item.title, false)
+        refreshed++
+      }
+      catch (error) {
+        console.warn(`[catalog] fresh refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
+      }
     }
   }
   if (refreshed > 0) {
@@ -459,8 +464,13 @@ async function refreshUnknownSlugs(
   for (const item of unique) {
     if (refreshed >= UNKNOWN_BUDGET) break
     if (!withEpisodes.has(item.slug)) {
-      await refreshAnimeBySlug(item.slug, item.title, false)
-      refreshed++
+      try {
+        await refreshAnimeBySlug(item.slug, item.title, false)
+        refreshed++
+      }
+      catch (error) {
+        console.warn(`[catalog] unknown refresh failed ${item.slug}:`, error instanceof Error ? error.message : error)
+      }
     }
   }
   if (refreshed > 0) {
@@ -490,19 +500,36 @@ async function syncOngoingCatalog(): Promise<void> {
         console.warn(`[catalog] ${source.id} ongoing page ${page} failed, continuing:`, error instanceof Error ? error.message : error)
       }
     }
-    await registerOngoingCards(cards)
+    try {
+      await registerOngoingCards(cards)
+    }
+    catch (error) {
+      console.warn(`[catalog] ${source.id} register failed, continuing:`, error instanceof Error ? error.message : error)
+    }
     allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
     sourcesRegistered[source.id] = cards.length
     console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 
-  const freshRefreshed = await refreshFreshEpisodes(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
-  )
+  let freshRefreshed = 0
+  try {
+    freshRefreshed = await refreshFreshEpisodes(
+      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
+    )
+  }
+  catch (error) {
+    console.warn('[catalog] fresh pass failed, continuing:', error instanceof Error ? error.message : error)
+  }
 
-  const unknownRefreshed = await refreshUnknownSlugs(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
-  )
+  let unknownRefreshed = 0
+  try {
+    unknownRefreshed = await refreshUnknownSlugs(
+      allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
+    )
+  }
+  catch (error) {
+    console.warn('[catalog] unknown pass failed, continuing:', error instanceof Error ? error.message : error)
+  }
 
   const now = new Date()
   const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
@@ -518,9 +545,14 @@ async function syncOngoingCatalog(): Promise<void> {
   console.log(`[catalog] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
   let resolved = 0
   for (const row of pending) {
-    if (await resolveMetadata(row.slug, row.title)) {
-      resolved++
-      console.log(`[catalog] metadata resolved: ${row.slug}`)
+    try {
+      if (await resolveMetadata(row.slug, row.title)) {
+        resolved++
+        console.log(`[catalog] metadata resolved: ${row.slug}`)
+      }
+    }
+    catch (error) {
+      console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error)
     }
   }
 

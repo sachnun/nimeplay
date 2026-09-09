@@ -40,7 +40,7 @@ watch([text, expanded, () => props.loading], () => {
         <button
           :disabled="!hasId"
           class="transition-colors"
-          :class="!hasId ? 'text-zinc-600 opacity-40 cursor-not-allowed' : lang === 'id' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
+          :class="!hasId ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'id' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
           @click="switchLang('id')"
         >
           ID
@@ -49,7 +49,7 @@ watch([text, expanded, () => props.loading], () => {
         <button
           :disabled="!hasEn"
           class="transition-colors"
-          :class="!hasEn ? 'text-zinc-600 opacity-40 cursor-not-allowed' : lang === 'en' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
+          :class="!hasEn ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'en' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
           @click="switchLang('en')"
         >
           EN

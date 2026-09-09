@@ -36,6 +36,15 @@ export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
   }) as Promise<EpisodeData | null>
 }
 
+export function invalidateEpisodeCache(slug: string): void {
+  cache.delete('episode', slug)
+}
+
+export function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
+  invalidateEpisodeCache(slug)
+  return scrapeEpisode(slug)
+}
+
 export function resolvemirror(dataContent: string): Promise<string | null> {
   return cache.get('mirror', dataContent, MIRROR_TTL, () => {
     const { source, rest } = splitSource(dataContent)

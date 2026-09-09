@@ -67,6 +67,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let skipFetched = false
+  let upstreamRefreshTried = false
+  let suppressEpisodeWatch = false
 
   const progressKey = computed(() => `${props.malId}:${currentEpisodeNum.value}`)
 
@@ -139,6 +141,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage.value = 'Menyiapkan player...'
     watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
     skipFetched = false
+    upstreamRefreshTried = false
     skipTimes.value = []
     clearGestureState()
   }
@@ -257,7 +260,38 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     episode,
     loadingMessage,
     resolving,
+    onExhausted: (tried) => {
+      void autoRefreshUpstream(tried)
+    },
   })
+
+  async function reloadUpstreamFresh(exclude: string[] = []): Promise<boolean> {
+    resolving.value = true
+    loadingMessage.value = 'Mencoba sumber video lain...'
+    try {
+      const data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${currentEpisodeNum.value}?refresh=1`)
+      if (!data) return false
+      suppressEpisodeWatch = true
+      episode.value = data.episode
+      const start = buildFallbackOrder(data.episode.mirrors, '720p').find((candidate) => !exclude.includes(candidate.dataContent)) ?? null
+      if (!start) return false
+      await playWithFallback(start, false)
+      return true
+    }
+    catch {
+      return false
+    }
+    finally {
+      suppressEpisodeWatch = false
+    }
+  }
+
+  async function autoRefreshUpstream(tried: string[]) {
+    if (upstreamRefreshTried) return
+    upstreamRefreshTried = true
+    const ok = await reloadUpstreamFresh(tried)
+    if (!ok) resolving.value = false
+  }
 
   function switchQuality(opt: { dataContent: string; quality: string; name: string }) {
     const video = videoRef.value
@@ -280,6 +314,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   async function loadEpisodeInPlace(epNum: number, shouldAutoPlay = false) {
     invalidatePlaybackSession()
+    upstreamRefreshTried = false
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
@@ -549,9 +584,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   watch(progressKey, resetForEpisode, { immediate: true })
 
   function loadEpisodeSource(value: EpisodeData) {
+    if (suppressEpisodeWatch) return
     const def = findDefaultMirror(value)
     if (!def) {
-      resolving.value = false
+      void autoRefreshUpstream([])
       return
     }
     void playWithFallback(def, false)

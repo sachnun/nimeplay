@@ -24,6 +24,7 @@ defineRouteMeta({
             required: ['dataContent'],
             properties: {
               dataContent: { type: 'string', description: 'Mirror token from the episode data attribute' },
+              refresh: { type: 'boolean', description: 'Set to true to bypass the cached resolve and extract the direct stream live' },
             },
           },
         },
@@ -36,10 +37,11 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ dataContent: string }>(event)
+  const body = await readBody<{ dataContent: string, refresh?: boolean }>(event)
   if (!body?.dataContent) return emptyResult()
+  if (body.refresh) cache.delete('prepare', body.dataContent)
 
-  return cache.get('prepare', body.dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
+  const result = await cache.get('prepare', body.dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(body.dataContent)
     if (!mirrorId) return emptyResult()
     const embedUrl = await resolvemirror(mirrorId)
@@ -52,5 +54,7 @@ export default defineEventHandler(async (event) => {
     const token = await sealStreamToken(directUrl)
     const origin = getRequestURL(event).origin
     return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
-  }) as Promise<PrepareResult>
+  }) as PrepareResult
+  if (!result.ok) cache.delete('prepare', body.dataContent)
+  return result
 })

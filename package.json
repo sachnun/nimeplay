@@ -31,7 +31,7 @@
     "@bomb.sh/tab": "0.0.22"
   },
   "devDependencies": {
-    "@miniflare/d1": "^2.14.4",
+    "@cloudflare/workers-types": "^5.20260908.1",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^26.1.2",
     "drizzle-kit": "^0.31.10",

@@ -1,9 +1,23 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ className?: string; message?: string; title?: string | null }>(), {
+const props = withDefaults(defineProps<{ className?: string; message?: string; title?: string | null; malId?: number | null; controlsSkeleton?: boolean }>(), {
   className: 'fixed inset-0 bg-black z-50',
   message: 'Memuat...',
   title: null,
+  malId: null,
+  controlsSkeleton: true,
 })
+
+const router = useRouter()
+
+function goBack() {
+  if (props.malId && !(window.history.length > 1)) {
+    router.push(`/anime/${props.malId}`)
+    return
+  }
+  if (window.history.length > 1) router.back()
+  else if (props.malId) router.push(`/anime/${props.malId}`)
+  else router.push('/')
+}
 
 type Block = [number, number]
 type Shape = Block[]
@@ -189,7 +203,12 @@ onMounted(() => {
   <div :class="className">
     <div class="absolute top-0 left-0 right-0 z-20 px-4 md:px-8 pt-4 pb-12 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-full bg-white/15 animate-pulse" />
+        <button v-if="malId" type="button" class="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 transition-colors cursor-pointer" aria-label="Kembali" @click="goBack">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div v-else class="w-9 h-9 rounded-full bg-white/15 animate-pulse" />
         <h1 v-if="title" class="text-sm md:text-base font-semibold text-white/90 truncate">{{ title }}</h1>
         <div v-else class="h-4 w-48 bg-white/10 rounded animate-pulse" />
       </div>
@@ -214,7 +233,7 @@ onMounted(() => {
       <span class="text-xs text-white/40 font-medium tracking-wide">{{ message }}</span>
     </div>
 
-    <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+    <div v-if="controlsSkeleton" class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
       <div class="px-4 md:px-8 pb-4 pt-20">
         <div class="h-1 w-full rounded-full bg-white/15 mb-3" />
         <div class="flex items-center gap-1 md:gap-2">

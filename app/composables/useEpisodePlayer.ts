@@ -823,6 +823,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     progress,
     qualityOptions,
     cancelAutoNext,
+    resolving,
     seekIndicator,
     seekIndicatorKey,
     showControls,

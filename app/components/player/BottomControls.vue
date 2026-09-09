@@ -1,28 +1,51 @@
 <script setup lang="ts">
 import type { SkipTime } from '~/utils/types'
 
-defineProps<{
-  activeQualityLabel: string
-  autoSkip: boolean
-  bufferedPct: number
-  controlsVisible: boolean
-  currentEpisodeNum: number
-  currentTime: number
-  duration: number
-  episodeCount: number
-  isFullscreen: boolean
-  isMuted: boolean
-  isPlaying: boolean
-  isSeeking: boolean
-  nextEpisode: { num: number } | null
-  prevEpisode: { num: number } | null
-  progress: number
-  qualityCount: number
-  showEpisodes: boolean
-  showVolume: boolean
-  skipTimes: SkipTime[]
-  volume: number
-}>()
+withDefaults(defineProps<{
+  activeQualityLabel?: string
+  autoSkip?: boolean
+  bufferedPct?: number
+  controlsVisible?: boolean
+  currentEpisodeNum?: number
+  currentTime?: number
+  duration?: number
+  episodeCount?: number
+  isFullscreen?: boolean
+  isMuted?: boolean
+  isPlaying?: boolean
+  isSeeking?: boolean
+  nextEpisode?: { num: number } | null
+  prevEpisode?: { num: number } | null
+  progress?: number
+  qualityCount?: number
+  disabled?: boolean
+  showEpisodes?: boolean
+  showVolume?: boolean
+  skipTimes?: SkipTime[]
+  volume?: number
+}>(), {
+  activeQualityLabel: 'HD',
+  autoSkip: false,
+  bufferedPct: 0,
+  controlsVisible: true,
+  currentEpisodeNum: 0,
+  currentTime: 0,
+  duration: 0,
+  episodeCount: 0,
+  isFullscreen: false,
+  isMuted: false,
+  isPlaying: false,
+  isSeeking: false,
+  nextEpisode: null,
+  prevEpisode: null,
+  progress: 0,
+  qualityCount: 0,
+  disabled: false,
+  showEpisodes: false,
+  showVolume: false,
+  skipTimes: () => [],
+  volume: 1,
+})
 
 defineEmits<{
   changeVolume: [value: number]
@@ -42,8 +65,8 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'">
-    <div class="px-4 md:px-8 pb-4 [@media_(hover:none)_and_(pointer:coarse)]:pb-[max(1rem,env(safe-area-inset-bottom))] pt-20" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
+  <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'" :aria-disabled="disabled">
+    <div class="px-4 md:px-8 pb-4 [@media_(hover:none)_and_(pointer:coarse)]:pb-[max(1rem,env(safe-area-inset-bottom))] pt-20 transition-opacity" :class="[controlsVisible && !disabled ? 'pointer-events-auto' : 'pointer-events-none', disabled ? 'opacity-50' : '']" :inert="disabled">
       <div class="group/prog relative w-full cursor-pointer mb-2 py-2 -my-1">
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full bg-white/20 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" />
         <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white/30 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${bufferedPct}%` }" />
@@ -56,7 +79,7 @@ defineEmits<{
         />
         <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${progress}%` }" />
         <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md transition-opacity" :class="isSeeking ? 'opacity-100 scale-110' : 'opacity-0 group-hover/prog:opacity-100'" :style="{ left: `${progress}%` }" />
-        <input type="range" :min="0" :max="duration || 0" step="0.1" :value="currentTime" :disabled="!duration" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-none" aria-label="Seek" @pointerdown="$emit('seekStart')" @input="$emit('seekPreview', Number(($event.target as HTMLInputElement).value))" @change="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointerup="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointercancel="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))">
+        <input type="range" :min="0" :max="duration || 0" step="0.1" :value="currentTime" :disabled="!duration || disabled" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-none" aria-label="Seek" @pointerdown="$emit('seekStart')" @input="$emit('seekPreview', Number(($event.target as HTMLInputElement).value))" @change="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointerup="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointercancel="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))">
       </div>
 
       <div class="flex items-center gap-1 md:gap-2">

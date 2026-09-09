@@ -41,6 +41,21 @@ const anime = computed(() => pageData.value?.anime ?? metaData.value?.anime ?? n
 const episodeData = computed(() => pageData.value?.episode ?? null)
 const initialSource = computed(() => pageData.value?.initialSource ?? null)
 const headerTitle = computed(() => pageData.value?.episode.title || metaData.value?.episodeTitle || '')
+const pendingEpisodeNum = computed(() => Number(episodeParam.value) || metaData.value?.episodeNumber || 0)
+const pendingPrev = computed(() => {
+  const list = metaData.value?.episodes ?? []
+  const idx = list.indexOf(pendingEpisodeNum.value)
+  return idx > 0 ? { num: list[idx - 1]! } : null
+})
+const pendingNext = computed(() => {
+  const list = metaData.value?.episodes ?? []
+  const idx = list.indexOf(pendingEpisodeNum.value)
+  return idx !== -1 && idx < list.length - 1 ? { num: list[idx + 1]! } : null
+})
+
+function pendingNavigate(epNum: number) {
+  router.replace(`/anime/${malId.value}/${epNum}`)
+}
 
 watchEffect(() => {
   if (pending.value) return
@@ -55,7 +70,17 @@ onMounted(() => {
 </script>
 
 <template>
-  <PlayerLoadingShell v-if="pending || !pageData || !episodeData" :title="headerTitle" />
+  <div v-if="pending || !pageData || !episodeData" class="fixed inset-0 bg-black z-50">
+    <PlayerLoadingShell class-name="absolute inset-0 bg-black" :title="headerTitle" :mal-id="malId" :controls-skeleton="false" />
+    <PlayerBottomControls
+      :current-episode-num="pendingEpisodeNum"
+      :disabled="true"
+      :episode-count="metaData?.episodes.length || 0"
+      :next-episode="pendingNext"
+      :prev-episode="pendingPrev"
+      @navigate="pendingNavigate"
+    />
+  </div>
   <EpisodePlayer
     v-else
     :key="`${malId}-${episodeParam}`"

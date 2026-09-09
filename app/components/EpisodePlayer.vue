@@ -42,6 +42,7 @@ const {
   prevEpisode,
   progress,
   qualityOptions,
+  resolving,
   seekIndicator,
   seekIndicatorKey,
   showEmpty,
@@ -76,7 +77,7 @@ const {
     </div>
 
     <div v-if="showLoading" class="absolute inset-0 z-10" @dblclick="toggleFullscreen">
-      <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="loadingMessage" />
+      <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="loadingMessage" :title="episode.title" :mal-id="malId" :controls-skeleton="false" />
     </div>
 
     <div v-if="showEmpty" class="absolute inset-0 flex items-center justify-center text-zinc-500">Stream tidak tersedia</div>
@@ -144,13 +145,14 @@ const {
     </div>
 
     <PlayerBottomControls
-      v-if="showNative && !showLoading"
+      v-if="showNative || resolving"
       :active-quality-label="activeQualityLabel"
       :auto-skip="autoSkip"
       :buffered-pct="bufferedPct"
       :controls-visible="controlsVisible"
       :current-episode-num="currentEpisodeNum"
       :current-time="currentTime"
+      :disabled="showLoading"
       :duration="duration"
       :episode-count="episodes.length"
       :is-fullscreen="isFullscreen"

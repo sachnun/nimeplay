@@ -5,7 +5,7 @@ import { gomunime } from './gomunime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 
 const EPISODE_TTL = 30 * 60 * 1000
-const MIRROR_TTL = 10 * 60 * 1000
+const MIRROR_TTL = 6 * 60 * 60 * 1000
 
 export const sources: Record<string, AnimeSource> = {
   otakudesu,

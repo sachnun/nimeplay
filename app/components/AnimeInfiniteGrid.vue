@@ -3,7 +3,7 @@ import type { AnimeCard } from '~/utils/types'
 
 interface PageData {
   anime: AnimeCard[]
-  totalPages: number
+  hasNext: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -58,11 +58,9 @@ watch(() => props.initialData, (data) => {
 })
 
 const primaryAnime = computed(() => gridState.value.primaryPages.flatMap((d) => d.anime))
-const totalPages = computed(() => gridState.value.primaryPages[0]?.totalPages ?? 1)
-const primaryEnd = computed(() => gridState.value.primarySize >= totalPages.value)
+const primaryEnd = computed(() => gridState.value.primaryPages.length > 0 && gridState.value.primaryPages[gridState.value.primaryPages.length - 1]?.hasNext === false)
 const nextAnime = computed(() => primaryEnd.value ? gridState.value.nextPages.flatMap((d) => d.anime) : [])
-const nextTotalPages = computed(() => gridState.value.nextPages[0]?.totalPages ?? 1)
-const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextSize >= nextTotalPages.value))
+const nextEnd = computed(() => !props.nextPageType || (primaryEnd.value && gridState.value.nextPages.length > 0 && gridState.value.nextPages[gridState.value.nextPages.length - 1]?.hasNext === false))
 const isEnd = computed(() => primaryEnd.value && nextEnd.value)
 
 const displayAnime = computed(() => [

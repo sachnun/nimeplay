@@ -2,8 +2,8 @@
 import type { AnimeCard, Genre } from '~/utils/types'
 
 interface HomeData {
-  ongoingData: { anime: AnimeCard[]; totalPages: number }
-  completedData: { anime: AnimeCard[]; totalPages: number }
+  ongoingData: { anime: AnimeCard[]; hasNext: boolean }
+  completedData: { anime: AnimeCard[]; hasNext: boolean }
   genres: Genre[]
 }
 
@@ -13,8 +13,8 @@ const { data } = await useAsyncData<HomeData>('home', async () => {
   return $fetch('/api/home')
 }, {
   default: () => ({
-    ongoingData: { anime: [], totalPages: 1 },
-    completedData: { anime: [], totalPages: 1 },
+    ongoingData: { anime: [], hasNext: false },
+    completedData: { anime: [], hasNext: false },
     genres: [],
   }),
 })

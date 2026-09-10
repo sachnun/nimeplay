@@ -5,7 +5,7 @@ defineRouteMeta({
   openAPI: {
     tags: ['Genre'],
     summary: 'List anime by genre',
-    description: 'Paginated anime list for a genre, sourced from the database.',
+    description: 'Paginated anime list for a genre, sourced from the database. Uses cursor-style pagination: follow hasNext to load the next page.',
     parameters: [
       {
         name: 'slug',
@@ -34,5 +34,6 @@ export default defineEventHandler(async (event) => {
 
   const result = await getGenreAnimePage(slug, page)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  setHeader(event, 'Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   return result
 })

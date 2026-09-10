@@ -1,6 +1,5 @@
-import type { H3Event } from 'h3'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { anime, animeGenres, episodes, genres } from '../database/schema'
+import { anime, animeGenres, episodes, genres, syncState } from '../database/schema'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { mirrorAnimeMedia } from './r2'
@@ -9,18 +8,34 @@ import { getSources, scrapeAnimeDetailFresh } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
-const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
-const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-const CATALOG_SYNC_MS = 10 * 60 * 1000
-const SYNC_WALL_MS = 25000
-const CATALOG_META_BUDGET = 20
-const ONGOING_PAGES = 6
+const TASK_WALL_MS = 100000
+const LOCK_TTL_MS = 15 * 60 * 1000
+const ROLLING_META_BUDGET = 5
+const SEED_META_BUDGET = 10
+const ONGOING_PAGES = 3
 const COMPLETED_PAGES = 3
-const FRESH_BUDGET = 24
-const UNKNOWN_BUDGET = 10
-const REFRESH_CONCURRENCY = 4
+const ROLLING_FRESH_BUDGET = 8
+const SEED_FRESH_BUDGET = 8
+const ROLLING_UNKNOWN_BUDGET = 5
+const SEED_UNKNOWN_BUDGET = 30
+const REFRESH_CONCURRENCY = 2
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
+const WRITE_CHUNK_SIZE = 100
+
+export type CatalogMode = 'seed' | 'rolling'
+
+export interface CatalogStats {
+  mode: CatalogMode
+  startedAt: string
+  finishedAt: string
+  durationMs: number
+  sourcesRegistered: Record<string, number>
+  freshRefreshed: number
+  unknownRefreshed: number
+  metadataPending: number
+  metadataResolved: number
+}
 
 function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
@@ -56,32 +71,7 @@ async function runBatches<T>(
   return done
 }
 
-let catalogSyncRunning = false
-let lastCatalogSync = 0
-
-interface CatalogStats {
-  startedAt: string
-  finishedAt: string
-  durationMs: number
-  sourcesRegistered: Record<string, number>
-  freshRefreshed: number
-  unknownRefreshed: number
-  metadataPending: number
-  metadataResolved: number
-}
-
-let lastCatalogStats: CatalogStats | null = null
-
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
-
-function waitUntil(event: H3Event, promise: Promise<unknown>): void {
-  const withWaitUntil = event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }
-  if (withWaitUntil.waitUntil) {
-    withWaitUntil.waitUntil(promise)
-    return
-  }
-  promise.catch(() => {})
-}
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -123,22 +113,58 @@ function recordFailure(slug: string, message: string): Promise<void> {
     )
 }
 
+async function acquireCatalogLock(mode: CatalogMode): Promise<string | null> {
+  const key = `catalog:${mode}`
+  const now = Date.now()
+  const [current] = await db().select().from(syncState).where(eq(syncState.key, key)).limit(1)
+  if (current && current.lockedUntil && current.lockedUntil.getTime() > now) return null
+  const owner = `${now}-${Math.floor(Math.random() * 1e9)}`
+  const lockedUntil = new Date(now + LOCK_TTL_MS)
+  await db()
+    .insert(syncState)
+    .values({ key, owner, lockedUntil, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: syncState.key,
+      set: { owner, lockedUntil, updatedAt: new Date() },
+    })
+  const [confirmed] = await db().select().from(syncState).where(eq(syncState.key, key)).limit(1)
+  return confirmed?.owner === owner ? owner : null
+}
+
+async function releaseCatalogLock(mode: CatalogMode, owner: string): Promise<void> {
+  const key = `catalog:${mode}`
+  const [current] = await db().select().from(syncState).where(eq(syncState.key, key)).limit(1)
+  if (!current || current.owner !== owner) return
+  await db()
+    .update(syncState)
+    .set({ lockedUntil: new Date(0), updatedAt: new Date() })
+    .where(eq(syncState.key, key))
+}
+
 export async function getCatalogHealth() {
-  const [row] = await db()
+  const [pending] = await db()
     .select({ count: sql<number>`count(*)` })
     .from(anime)
     .where(isNull(anime.malId))
+  const locks = await db().select().from(syncState)
   return {
     checkedAt: new Date().toISOString(),
-    pendingMetadata: row?.count ?? 0,
-    lastCatalogSync: lastCatalogStats,
+    pendingMetadata: pending?.count ?? 0,
+    locks: locks.map(entry => ({
+      key: entry.key,
+      locked: entry.lockedUntil ? entry.lockedUntil.getTime() > Date.now() : false,
+      lockedUntil: entry.lockedUntil?.toISOString() ?? null,
+      updatedAt: entry.updatedAt?.toISOString() ?? null,
+    })),
     config: {
       ongoingPages: ONGOING_PAGES,
       completedPages: COMPLETED_PAGES,
-      catalogMetaBudget: CATALOG_META_BUDGET,
-      catalogSyncMs: CATALOG_SYNC_MS,
-      freshBudget: FRESH_BUDGET,
-      unknownBudget: UNKNOWN_BUDGET,
+      rollingMetaBudget: ROLLING_META_BUDGET,
+      seedMetaBudget: SEED_META_BUDGET,
+      rollingFreshBudget: ROLLING_FRESH_BUDGET,
+      seedFreshBudget: SEED_FRESH_BUDGET,
+      rollingUnknownBudget: ROLLING_UNKNOWN_BUDGET,
+      seedUnknownBudget: SEED_UNKNOWN_BUDGET,
     },
   }
 }
@@ -154,17 +180,15 @@ async function upsertEpisodes(
 
   if (rows.length === 0) return
 
-  const client = db()
-  const statements = chunkValues(rows, 15).map(chunk =>
-    client.insert(episodes).values(chunk.map(({ entry, number }) => ({
+  for (const chunk of chunkValues(rows, WRITE_CHUNK_SIZE)) {
+    await db().insert(episodes).values(chunk.map(({ entry, number }) => ({
       animeSlug,
       slug: `${sourcePrefix}${entry.slug}`,
       number,
       title: entry.title,
       releaseDate: entry.date || null,
-    }))).onConflictDoNothing(),
-  )
-  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
+    }))).onConflictDoNothing()
+  }
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -176,32 +200,25 @@ async function syncGenres(animeSlug: string, names: string[]) {
   }))
   const wantedSlugs = [...new Set(rows.map(row => row.slug))]
 
-  const client = db()
-  const genreStatements = chunkValues(rows, 30).map(chunk =>
-    client.insert(genres).values(chunk).onConflictDoNothing(),
-  )
-  await client.batch(genreStatements as [typeof genreStatements[number], ...typeof genreStatements[number][]])
+  for (const chunk of chunkValues(rows, WRITE_CHUNK_SIZE)) {
+    await db().insert(genres).values(chunk).onConflictDoNothing()
+  }
   const stored = await db()
     .select({ id: genres.id, slug: genres.slug })
     .from(genres)
     .where(inArray(genres.slug, wantedSlugs))
-  const bySlug = new Map(stored.map((genre: any) => [genre.slug, genre.id]))
+  const bySlug = new Map(stored.map(genre => [genre.slug, genre.id]))
 
   const links = rows
     .map(row => bySlug.get(row.slug))
     .filter((id): id is number => id !== undefined)
     .map(id => ({ animeSlug, genreId: id }))
 
-  const writeClient = db()
-  const linkStatements = [
-    writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug)),
-    ...chunkValues(links, 30).map(chunk => writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()),
-  ]
-  if (links.length === 0) {
-    await writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
-    return
+  await db().delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
+  if (links.length === 0) return
+  for (const chunk of chunkValues(links, WRITE_CHUNK_SIZE)) {
+    await db().insert(animeGenres).values(chunk).onConflictDoNothing()
   }
-  await writeClient.batch(linkStatements as [typeof linkStatements[number], ...typeof linkStatements[number][]])
 }
 
 async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
@@ -373,48 +390,29 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
   if (refreshMetadata) await resolveMetadata(slug, title)
 }
 
-export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
-  const task = (async () => {
-    const [row] = await db()
-      .select({
-        slug: anime.slug,
-        title: anime.title,
-        status: anime.status,
-        updatedAt: anime.updatedAt,
-        metadataSyncedAt: anime.metadataSyncedAt,
-        episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
-      })
-      .from(anime)
-      .where(eq(anime.malId, malId))
-      .limit(1)
-    if (!row) return
-
-    const now = Date.now()
-    const stale = !row.updatedAt || now - row.updatedAt.getTime() > DETAIL_REFRESH_MS
-    const needsMetadata = !row.metadataSyncedAt || now - row.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
-    const hasEpisodes = Number(row.episodeCount) > 0
-
-    if ((row.status === 'ONGOING' && stale) || !hasEpisodes) {
-      await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
-    }
-  })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
-  waitUntil(event, task)
+interface CatalogCard {
+  source: AnimeSource
+  slug: string
+  title: string
+  day?: string
+  date?: string
+  episode?: string
+  ongoingRank?: number
 }
 
-async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, ongoingRank: number }[]) {
+async function registerCatalogCards(cards: CatalogCard[], status: 'ONGOING' | 'COMPLETED') {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     slug: `${card.source.id}:${card.slug}`,
     title: card.title,
-    status: 'ONGOING',
-    day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
+    status,
+    day: status === 'ONGOING' && card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
-    ongoingRank: card.ongoingRank,
+    ongoingRank: status === 'ONGOING' ? card.ongoingRank ?? null : null,
     sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
-  const client = db()
-  const statements = chunkValues(rows, 15).map(chunk =>
-    client.insert(anime).values(chunk).onConflictDoUpdate({
+  for (const chunk of chunkValues(rows, WRITE_CHUNK_SIZE)) {
+    await db().insert(anime).values(chunk).onConflictDoUpdate({
       target: anime.slug,
       set: {
         status: sql`excluded.status`,
@@ -422,14 +420,56 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
         latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
         ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
       },
-    }),
+    })
+  }
+}
+
+async function scrapeSourcePages(
+  source: AnimeSource,
+  kind: 'ongoing' | 'completed',
+  pages: number,
+  ongoingRankStart: number,
+): Promise<{ cards: CatalogCard[], nextRank: number }> {
+  const fetchPage = kind === 'ongoing' ? source.ongoingFresh : source.completedFresh
+  const cards: CatalogCard[] = []
+  let rank = ongoingRankStart
+  const first = await attempt(
+    fetchPage(1),
+    error => console.warn(`[catalog] ${source.id} ${kind} page 1 failed:`, error instanceof Error ? error.message : error),
   )
-  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
+  if (first === null || first.anime.length === 0) return { cards, nextRank: rank }
+  const push = (list: typeof first.anime) => {
+    for (const card of list) {
+      rank++
+      cards.push({
+        source,
+        slug: card.slug,
+        title: card.title,
+        day: card.day,
+        date: card.date,
+        episode: card.episode,
+        ongoingRank: kind === 'ongoing' ? rank : undefined,
+      })
+    }
+  }
+  push(first.anime)
+  const rest: number[] = []
+  for (let page = 2; page <= Math.min(pages, first.totalPages); page++) rest.push(page)
+  const restResults = await Promise.all(rest.map(page => attempt(
+    fetchPage(page),
+    error => console.warn(`[catalog] ${source.id} ${kind} page ${page} failed:`, error instanceof Error ? error.message : error),
+  )))
+  for (const result of restResults) {
+    if (result === null) continue
+    push(result.anime)
+  }
+  return { cards, nextRank: rank }
 }
 
 async function refreshFreshEpisodes(
   cards: { slug: string, title: string, episode: string }[],
   deadline: number,
+  budget: number,
 ): Promise<number> {
   const bySlug = new Map<string, { slug: string, title: string, episode: number }>()
   for (const card of cards) {
@@ -450,12 +490,12 @@ async function refreshFreshEpisodes(
   ))
   for (const rows of maxResults) {
     for (const row of rows) {
-      dbMax.set((row as { slug: string }).slug, Number((row as { max: number | null }).max ?? 0))
+      dbMax.set(row.slug, Number(row.max ?? 0))
     }
   }
   const todo = wanted
     .filter(item => item.episode > (dbMax.get(item.slug) ?? 0))
-    .slice(0, FRESH_BUDGET)
+    .slice(0, budget)
   const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
   if (refreshed > 0) {
     console.log(`[catalog] fresh episodes: ${refreshed} refreshed`)
@@ -466,6 +506,7 @@ async function refreshFreshEpisodes(
 async function refreshUnknownSlugs(
   cards: { slug: string, title: string }[],
   deadline: number,
+  budget: number,
 ): Promise<number> {
   const unique = [...new Map(cards.map(card => [card.slug, card])).values()]
   if (unique.length === 0) return 0
@@ -480,7 +521,7 @@ async function refreshUnknownSlugs(
   for (const rows of results) {
     for (const row of rows) withEpisodes.add(row.slug)
   }
-  const todo = unique.filter(item => !withEpisodes.has(item.slug)).slice(0, UNKNOWN_BUDGET)
+  const todo = unique.filter(item => !withEpisodes.has(item.slug)).slice(0, budget)
   const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
   if (refreshed > 0) {
     console.log(`[catalog] unknown episodes: ${refreshed} refreshed`)
@@ -488,56 +529,7 @@ async function refreshUnknownSlugs(
   return refreshed
 }
 
-async function syncOngoingCatalog(): Promise<void> {
-  const startedAt = new Date()
-  const deadline = startedAt.getTime() + SYNC_WALL_MS
-  const sourcesRegistered: Record<string, number> = {}
-  const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
-  let ongoingRank = 0
-  for (const source of getSources()) {
-    const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
-    const first = await attempt(
-      source.ongoingFresh(1),
-      error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
-    )
-    if (first !== null && first.anime.length > 0) {
-      for (const card of first.anime) {
-        ongoingRank++
-        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
-      }
-      const pages: number[] = []
-      for (let page = 2; page <= Math.min(ONGOING_PAGES, first.totalPages); page++) pages.push(page)
-      const restResults = await Promise.all(pages.map(page => attempt(
-        source.ongoingFresh(page),
-        error => console.warn(`[catalog] ${source.id} ongoing page ${page} failed:`, error instanceof Error ? error.message : error),
-      )))
-      for (const result of restResults) {
-        if (result === null) continue
-        for (const card of result.anime) {
-          ongoingRank++
-          cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
-        }
-      }
-    }
-    await attempt(
-      registerOngoingCards(cards),
-      error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
-    )
-    allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
-    sourcesRegistered[source.id] = cards.length
-    console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
-  }
-
-  const freshRefreshed = await refreshFreshEpisodes(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
-    deadline,
-  )
-
-  const unknownRefreshed = await refreshUnknownSlugs(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
-    deadline,
-  )
-
+async function resolvePendingMetadata(deadline: number, budget: number): Promise<{ pending: number, resolved: number }> {
   const now = new Date()
   const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
   const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
@@ -548,7 +540,7 @@ async function syncOngoingCatalog(): Promise<void> {
     .from(anime)
     .where(eligibleWhere)
     .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
-    .limit(CATALOG_META_BUDGET)
+    .limit(budget)
   console.log(`[catalog] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
   let resolved = 0
   for (const row of pending) {
@@ -562,26 +554,73 @@ async function syncOngoingCatalog(): Promise<void> {
       console.log(`[catalog] metadata resolved: ${row.slug}`)
     }
   }
-
-  lastCatalogStats = {
-    startedAt: startedAt.toISOString(),
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt.getTime(),
-    sourcesRegistered,
-    freshRefreshed,
-    unknownRefreshed,
-    metadataPending: totalPending,
-    metadataResolved: resolved,
-  }
+  return { pending: totalPending, resolved }
 }
 
-export function scheduleCatalogSync(event: H3Event): void {
-  const now = Date.now()
-  if (catalogSyncRunning || now - lastCatalogSync < CATALOG_SYNC_MS) return
-  lastCatalogSync = now
-  catalogSyncRunning = true
-  const task = syncOngoingCatalog()
-    .catch(error => console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error))
-    .finally(() => { catalogSyncRunning = false })
-  waitUntil(event, task)
+export async function runCatalogSync(mode: CatalogMode): Promise<CatalogStats> {
+  const startedAt = new Date()
+  const deadline = startedAt.getTime() + TASK_WALL_MS
+  const owner = await acquireCatalogLock(mode)
+  if (!owner) throw new Error(`catalog sync "${mode}" already running`)
+  const stats: CatalogStats = {
+    mode,
+    startedAt: startedAt.toISOString(),
+    finishedAt: startedAt.toISOString(),
+    durationMs: 0,
+    sourcesRegistered: {},
+    freshRefreshed: 0,
+    unknownRefreshed: 0,
+    metadataPending: 0,
+    metadataResolved: 0,
+  }
+  try {
+    const freshBudget = mode === 'seed' ? SEED_FRESH_BUDGET : ROLLING_FRESH_BUDGET
+    const unknownBudget = mode === 'seed' ? SEED_UNKNOWN_BUDGET : ROLLING_UNKNOWN_BUDGET
+    const metaBudget = mode === 'seed' ? SEED_META_BUDGET : ROLLING_META_BUDGET
+    const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
+    let ongoingRank = 0
+
+    if (mode === 'seed') {
+      for (const source of getSources()) {
+        const { cards, nextRank } = await scrapeSourcePages(source, 'completed', COMPLETED_PAGES, ongoingRank)
+        ongoingRank = nextRank
+        await attempt(
+          registerCatalogCards(cards, 'COMPLETED'),
+          error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
+        )
+        stats.sourcesRegistered[`${source.id}:completed`] = cards.length
+        console.log(`[catalog] ${source.id}: registered ${cards.length} completed cards`)
+      }
+    }
+
+    for (const source of getSources()) {
+      if (Date.now() > deadline) break
+      const { cards, nextRank } = await scrapeSourcePages(source, 'ongoing', ONGOING_PAGES, ongoingRank)
+      ongoingRank = nextRank
+      await attempt(
+        registerCatalogCards(cards, 'ONGOING'),
+        error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
+      )
+      allCards.push(...cards.map(card => ({ source: card.source, slug: `${card.source.id}:${card.slug}`, title: card.title, episode: card.episode ?? '' })))
+      stats.sourcesRegistered[`${source.id}:ongoing`] = cards.length
+      console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    }
+
+    stats.freshRefreshed = await refreshFreshEpisodes(allCards, deadline, freshBudget)
+    stats.unknownRefreshed = await refreshUnknownSlugs(
+      allCards.map(item => ({ slug: item.slug, title: item.title })),
+      deadline,
+      unknownBudget,
+    )
+
+    const meta = await resolvePendingMetadata(deadline, metaBudget)
+    stats.metadataPending = meta.pending
+    stats.metadataResolved = meta.resolved
+    return stats
+  }
+  finally {
+    stats.finishedAt = new Date().toISOString()
+    stats.durationMs = Date.now() - startedAt.getTime()
+    await releaseCatalogLock(mode, owner)
+  }
 }

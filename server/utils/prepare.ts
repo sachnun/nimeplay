@@ -22,7 +22,7 @@ export interface DefaultMirrorCandidate {
   name: string
 }
 
-export const MIRROR_PREPARE_TTL = 10 * 60 * 1000
+export const MIRROR_PREPARE_TTL = 60 * 60 * 1000
 
 const SOURCE_PRIORITY_GROUPS = [
   ['animeverse', 'nekoclouds'],

@@ -3,7 +3,7 @@ import type { GenreAnimeCard } from '~/utils/types'
 
 interface PageData {
   anime: GenreAnimeCard[]
-  totalPages: number
+  hasNext: boolean
 }
 
 const props = defineProps<{
@@ -33,8 +33,7 @@ onMounted(() => {
 })
 
 const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
-const totalPages = computed(() => pages.value[0]?.totalPages ?? 1)
-const isEnd = computed(() => size.value >= totalPages.value)
+const isEnd = computed(() => pages.value.length > 0 && pages.value[pages.value.length - 1]?.hasNext === false)
 const animeCards = computed(() => allAnime.value.map((anime) => {
   const progress = progressMap.value.get(anime.malId)
   return {

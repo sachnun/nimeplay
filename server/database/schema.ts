@@ -85,6 +85,13 @@ export const animeGenres = sqliteTable('anime_genres', {
   index('anime_genres_genre_id_idx').on(table.genreId),
 ])
 
+export const syncState = sqliteTable('sync_state', {
+  key: text('key').primaryKey(),
+  owner: text('owner'),
+  lockedUntil: integer('locked_until', { mode: 'timestamp_ms' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+})
+
 export const episodes = sqliteTable('episodes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   animeSlug: text('anime_slug')
@@ -94,6 +101,8 @@ export const episodes = sqliteTable('episodes', {
   number: integer('number').notNull(),
   title: text('title').notNull(),
   releaseDate: text('release_date'),
+  mirrors: text('mirrors'),
+  mirrorsUpdatedAt: integer('mirrors_updated_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
 }, table => [
   uniqueIndex('episodes_anime_slug_number_key').on(table.animeSlug, table.number),

@@ -18,11 +18,18 @@ export default defineNuxtConfig({
       openAPI: true,
       tasks: true,
     },
+    scheduledTasks: {
+      '*/15 * * * *': ['catalog:rolling'],
+      '0 3 * * *': ['catalog:seed'],
+    },
     cloudflare: {
       deployConfig: true,
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
+        triggers: {
+          crons: ['*/15 * * * *', '0 3 * * *'],
+        },
         placement: {
           mode: 'smart',
           hint: 'apac',

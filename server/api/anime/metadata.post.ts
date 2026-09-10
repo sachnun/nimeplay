@@ -79,10 +79,17 @@ async function lookupInDb(body: MetadataRequestBody) {
   const title = body.title?.trim()
   if (!title) return null
 
+  const [exact] = await db()
+    .select(columns)
+    .from(anime)
+    .where(eq(anime.title, title))
+    .limit(1)
+  if (exact) return exact
+
   const [row] = await db()
     .select(columns)
     .from(anime)
-    .where(sql`${anime.title} like ${`%${escapeLike(title)}%`} escape '\\'`)
+    .where(sql`${anime.title} like ${`${escapeLike(title)}%`} escape '\\'`)
     .orderBy(desc(anime.updatedAt))
     .limit(1)
   return row ?? null

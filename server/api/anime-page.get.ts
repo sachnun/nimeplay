@@ -1,12 +1,11 @@
 import { getQuery } from 'h3'
 import { listAnimePage } from '../utils/queries'
-import { scheduleCatalogSync } from '../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'List anime by type',
-    description: 'Paginated list of ongoing or completed anime from the database.',
+    description: 'Paginated list of ongoing or completed anime from the database. Uses cursor-style pagination: follow hasNext to load the next page.',
     parameters: [
       {
         name: 'type',
@@ -32,7 +31,6 @@ export default defineEventHandler((event) => {
   const type = String(query.type || 'ONGOING')
   const page = Math.max(1, Number(query.page) || 1)
 
-  if (type === 'ONGOING' && page === 1) scheduleCatalogSync(event)
-
+  setHeader(event, 'Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300')
   return type === 'COMPLETED' ? listAnimePage('COMPLETED', page) : listAnimePage('ONGOING', page)
 })

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
 import { cache } from '../../../utils/cache'
 import { db } from '../../../utils/db'
-import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
+import { getEpisodeNumbers, isMirrorsFresh, resolveEpisode, saveEpisodeMirrors, type StoredMirror } from '../../../utils/queries'
 import { refreshAnimeBySlug } from '../../../utils/refresh'
 import { scrapeEpisode, scrapeEpisodeFresh } from '../../../utils/sources'
 
@@ -11,7 +11,7 @@ defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'Get episode playback data',
-    description: 'Resolves an episode by MyAnimeList ID and episode number. Stream sources are extracted live at play time.',
+    description: 'Resolves an episode by MyAnimeList ID and episode number. Mirrors are served from the database when fresh and re-scraped from upstream on demand.',
     parameters: [
       {
         name: 'malId',
@@ -68,13 +68,23 @@ export default defineEventHandler(async (event) => {
   }
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
-  const [scraped, episodeNumbers] = await Promise.all([
-    refresh ? scrapeEpisodeFresh(resolved.sourceSlug) : scrapeEpisode(resolved.sourceSlug),
+  const useStored = !refresh && resolved.mirrors.length > 0 && isMirrorsFresh(resolved.mirrorsUpdatedAt)
+
+  const [mirrorData, episodeNumbers] = await Promise.all([
+    useStored
+      ? Promise.resolve({ title: resolved.episodeTitle, mirrors: resolved.mirrors as StoredMirror[], thumbnail: resolved.anime.thumbnail })
+      : (refresh ? scrapeEpisodeFresh(resolved.sourceSlug) : scrapeEpisode(resolved.sourceSlug)),
     getEpisodeNumbers(resolved.animeSlug),
   ])
-  if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
+  if (!mirrorData || mirrorData.mirrors.length === 0) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
-  const defaultCandidate = selectDefaultCandidate(scraped.mirrors)
+  if (!useStored && mirrorData.mirrors.length > 0) {
+    await saveEpisodeMirrors(resolved.animeSlug, episodeNumber, mirrorData.mirrors).catch((error) => {
+      console.warn(`[episode] save mirrors failed ${resolved.animeSlug} #${episodeNumber}:`, error instanceof Error ? error.message : error)
+    })
+  }
+
+  const defaultCandidate = selectDefaultCandidate(mirrorData.mirrors)
   let initialSource: { playUrl: string, kind: 'hls' | 'file', quality: string, dataContent: string } | null = null
   if (defaultCandidate && !refresh) {
     try {
@@ -90,9 +100,9 @@ export default defineEventHandler(async (event) => {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
     episode: {
-      title: scraped.title || resolved.episodeTitle,
-      mirrors: scraped.mirrors,
-      thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
+      title: mirrorData.title || resolved.episodeTitle,
+      mirrors: mirrorData.mirrors,
+      thumbnail: mirrorData.thumbnail || resolved.anime.thumbnail,
     },
     episodes: episodeNumbers,
     initialSource,

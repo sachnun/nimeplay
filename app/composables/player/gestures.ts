@@ -18,6 +18,7 @@ interface EpisodePlayerGestureOptions {
   scrubPreview: Ref<ScrubPreview>
   clearIdleTimer: () => void
   resetIdle: () => void
+  seekRelative: (delta: number) => void
   seekTo: (time: number) => void
   setHlsMaxBufferLength: (length: number) => void
   toggleControlsVisibility: () => void
@@ -51,6 +52,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   let scrubStartTime = 0
   let scrubWidth = 1
   let previewSeekTimer: ReturnType<typeof setTimeout> | null = null
+  let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
+  let seekAccumulator = 0
 
   function clearPendingSingleTap() {
     clearTimer(pendingSingleTap)
@@ -83,6 +86,27 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     }, 350)
   }
 
+  function showSeekFeedback(side: 'left' | 'right', seconds: number) {
+    clearTimer(seekIndicatorTimer)
+    seekAccumulator += seconds
+    options.scrubPreview.value = null
+    options.seekIndicator.value = { side, seconds: seekAccumulator }
+    options.seekIndicatorKey.value++
+    seekIndicatorTimer = setTimeout(() => {
+      options.seekIndicator.value = null
+      seekAccumulator = 0
+    }, 800)
+  }
+
+  function handleSeekTap(side: 'left' | 'right', isDoubleTap: boolean) {
+    if (!isDoubleTap) return scheduleSingleToggle()
+    clearPendingSingleTap()
+    cancelPreviewSeek()
+    const delta = side === 'left' ? -10 : 10
+    options.seekRelative(delta)
+    showSeekFeedback(side, Math.abs(delta))
+  }
+
   function scheduleSingleToggle() {
     clearPendingSingleTap()
     pendingWasVisible = options.showControls.value
@@ -108,8 +132,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
       scheduleSingleToggle()
       return
     }
-    if (isDoubleTap) return
-    scheduleSingleToggle()
+    handleSeekTap(zone, isDoubleTap)
   }
 
   function getZone(clientX: number, el: HTMLElement): TapZone {
@@ -168,6 +191,10 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (!video) return false
     clearPendingSingleTap()
     cancelLongPressTimer()
+    clearTimer(seekIndicatorTimer)
+    seekIndicatorTimer = null
+    seekAccumulator = 0
+    options.seekIndicator.value = null
     scrubActive = true
     scrubStartX = startX
     scrubWidth = Math.max(1, width)
@@ -377,6 +404,9 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   function clearGestureState() {
     cancelLongPressTimer()
     cancelPreviewSeek()
+    clearTimer(seekIndicatorTimer)
+    seekIndicatorTimer = null
+    seekAccumulator = 0
     clearPendingSingleTap()
     touchTracking = false
     touchMoved = false

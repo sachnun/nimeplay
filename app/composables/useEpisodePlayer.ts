@@ -611,6 +611,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     scrubPreview,
     clearIdleTimer,
     resetIdle,
+    seekRelative,
     seekTo,
     setHlsMaxBufferLength,
     toggleControlsVisibility,

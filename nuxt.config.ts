@@ -26,19 +26,6 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
-        placement: {
-          mode: 'targeted',
-          region: 'gcp:asia-southeast2',
-        },
-        kv_namespaces: [
-          {
-            binding: 'CACHE',
-            id: '6e97826a11de4cccba9c26325de2a09d',
-          },
-        ],
-        triggers: {
-          crons: ['*/10 * * * *'],
-        },
       },
     },
     openAPI: {

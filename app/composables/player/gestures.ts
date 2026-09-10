@@ -34,17 +34,13 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   let longPressActive = false
   let cleanupSpeedHold: (() => void) | null = null
   const lastTap = { left: 0, center: 0, right: 0 }
-  const tapTimers: Record<TapZone, ReturnType<typeof setTimeout> | null> = { left: null, center: null, right: null }
+  let pendingSingleTap: ReturnType<typeof setTimeout> | null = null
+  let pendingWasVisible: boolean | null = null
 
-  function clearTapTimer(zone: TapZone) {
-    clearTimer(tapTimers[zone])
-    tapTimers[zone] = null
-  }
-
-  function clearTapTimers() {
-    clearTapTimer('left')
-    clearTapTimer('center')
-    clearTapTimer('right')
+  function clearPendingSingleTap() {
+    clearTimer(pendingSingleTap)
+    pendingSingleTap = null
+    pendingWasVisible = null
   }
 
   function showSeekFeedback(side: 'left' | 'right', seconds: number) {
@@ -58,25 +54,30 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     }, 600)
   }
 
-  function scheduleZoneTap(zone: TapZone) {
-    tapTimers[zone] = setTimeout(() => {
-      tapTimers[zone] = null
+  function scheduleSingleToggle() {
+    clearPendingSingleTap()
+    pendingWasVisible = options.showControls.value
+    pendingSingleTap = setTimeout(() => {
+      const wasVisible = pendingWasVisible
+      pendingSingleTap = null
+      pendingWasVisible = null
+      if (wasVisible !== null && options.showControls.value !== wasVisible) return
       options.toggleControlsVisibility()
     }, 300)
   }
 
   function handleCenterTap(isDoubleTap: boolean) {
     if (isDoubleTap) {
-      clearTapTimer('center')
+      clearPendingSingleTap()
       void options.toggleFullscreen()
       return
     }
-    scheduleZoneTap('center')
+    scheduleSingleToggle()
   }
 
   function handleSeekTap(side: 'left' | 'right', isDoubleTap: boolean) {
-    if (!isDoubleTap) return scheduleZoneTap(side)
-    clearTapTimer(side)
+    if (!isDoubleTap) return scheduleSingleToggle()
+    clearPendingSingleTap()
     const delta = side === 'left' ? -10 : 10
     options.seekRelative(delta)
     showSeekFeedback(side, Math.abs(delta))
@@ -109,6 +110,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   }
 
   function startSpeedBoost() {
+    clearPendingSingleTap()
     longPressActive = true
     options.wasLongPress.value = true
     const video = options.videoRef.value
@@ -188,6 +190,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   }
 
   function onSeekStart() {
+    clearPendingSingleTap()
     options.isSeeking.value = true
     options.clearIdleTimer()
   }
@@ -215,7 +218,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     cleanupSpeedHold = null
     longPressActive = false
     seekAccumulator = 0
-    clearTapTimers()
+    clearPendingSingleTap()
     if (options.speedBoost.value) stopSpeedBoost()
     else options.speedBoost.value = false
     options.isSeeking.value = false

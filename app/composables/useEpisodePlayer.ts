@@ -679,8 +679,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!import.meta.client || !('mediaSession' in navigator)) return
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.value.title,
-      artist: props.animeTitle,
-      album: `Episode ${currentEpisodeNum.value}`,
+      artist: `Episode ${currentEpisodeNum.value}`,
+      album: props.animeTitle,
       artwork: mediaArtwork(),
     })
   }

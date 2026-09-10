@@ -131,6 +131,13 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
           </a>
         </div>
       </details>
+      <NuxtLink to="/history" title="History" aria-label="History" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 3v5h5" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 7v5l4 2" />
+        </svg>
+      </NuxtLink>
       <button
         v-for="genre in displayed"
         :key="genre.slug"

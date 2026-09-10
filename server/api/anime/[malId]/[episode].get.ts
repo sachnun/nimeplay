@@ -7,41 +7,6 @@ import { getEpisodeNumbers, isMirrorsFresh, resolveEpisode, saveEpisodeMirrors, 
 import { refreshAnimeBySlug } from '../../../utils/refresh'
 import { scrapeEpisode, scrapeEpisodeFresh } from '../../../utils/sources'
 
-defineRouteMeta({
-  openAPI: {
-    tags: ['Anime'],
-    summary: 'Get episode playback data',
-    description: 'Resolves an episode by MyAnimeList ID and episode number. Mirrors are served from the database when fresh and re-scraped from upstream on demand.',
-    parameters: [
-      {
-        name: 'malId',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer' },
-        description: 'MyAnimeList ID',
-      },
-      {
-        name: 'episode',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer', minimum: 1 },
-        description: 'Episode number',
-      },
-      {
-        name: 'refresh',
-        in: 'query',
-        required: false,
-        schema: { type: 'string', enum: ['1'] },
-        description: 'Set to 1 to re-scrape the upstream site and bypass caches, picking up newly registered upstream mirrors on demand',
-      },
-    ],
-    responses: {
-      '200': { description: 'Playback data including stream mirrors and the full episode list' },
-      '404': { description: 'Episode not found or unavailable' },
-    },
-  },
-})
-
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   const episodeNumber = Number(getRouterParam(event, 'episode'))

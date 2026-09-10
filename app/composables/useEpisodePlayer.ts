@@ -51,6 +51,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showVolume = ref(false)
   const seekIndicator = ref<{ side: 'left' | 'right'; seconds: number } | null>(null)
   const seekIndicatorKey = ref(0)
+  const scrubPreview = ref<{ current: number; delta: number } | null>(null)
   const volumeIndicator = ref<{ volume: number; isMuted: boolean } | null>(null)
   const speedBoost = ref(false)
   const wasLongPress = ref(false)
@@ -71,6 +72,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let skipFetched = false
   let upstreamRefreshTried = false
   let suppressEpisodeWatch = false
+  let resetEpoch = 0
+  let resetSettled: Promise<void> | null = null
 
   const progressKey = computed(() => `${props.malId}:${currentEpisodeNum.value}`)
 
@@ -127,11 +130,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   async function resetForEpisode() {
+    const epoch = ++resetEpoch
     clearAnyTimer(countdownTimer)
     resetPlaybackTracking()
     countdownTimer = null
     lastSavedTime = 0
-    resumeTime = await savedResumeTime()
+    resumeTime = 0
     autoNextCountdown.value = null
     currentTime.value = 0
     duration.value = 0
@@ -139,13 +143,26 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     isPlaying.value = false
     isSeeking.value = false
     seekIndicator.value = null
+    scrubPreview.value = null
     resolving.value = true
     loadingMessage.value = 'Menyiapkan player...'
-    watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
     skipFetched = false
     upstreamRefreshTried = false
     skipTimes.value = []
     clearGestureState()
+
+    const pendingReset = (async () => {
+      try {
+        const resume = await savedResumeTime()
+        if (epoch !== resetEpoch) return
+        resumeTime = resume
+        watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
+      }
+      catch {}
+    })()
+    resetSettled = pendingReset
+    await pendingReset
+    if (resetSettled === pendingReset) resetSettled = null
   }
 
   async function savedResumeTime() {
@@ -320,6 +337,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   async function loadEpisodeInPlace(epNum: number, shouldAutoPlay = false) {
     invalidatePlaybackSession()
+    resetEpoch++
     upstreamRefreshTried = false
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
@@ -334,7 +352,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       video.removeAttribute('src')
       video.load()
     }
-    const data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${epNum}`)
+    let data: EpisodePageData | null = null
+    try {
+      data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${epNum}`)
+    }
+    catch {
+      resolving.value = false
+      return
+    }
     if (!data) {
       resolving.value = false
       return
@@ -561,10 +586,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   const {
     clearGestureState,
-    handleSpeedHoldStart,
-    handleZonePointerUp,
-    handleZoneTouchEnd,
-    handleZoneTap,
+    handleVideoPointerCancel,
+    handleVideoPointerDown,
+    handleVideoPointerMove,
+    handleVideoPointerUp,
+    handleVideoTouchCancel,
+    handleVideoTouchEnd,
+    handleVideoTouchMove,
+    handleVideoTouchStart,
     onSeekCommit,
     onSeekPreview,
     onSeekStart,
@@ -579,6 +608,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     wasLongPress,
     seekIndicator,
     seekIndicatorKey,
+    scrubPreview,
     clearIdleTimer,
     resetIdle,
     seekRelative,
@@ -597,7 +627,15 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       void autoRefreshUpstream([])
       return
     }
-    void playWithFallback(def, false)
+    const gate = resetSettled
+    if (!gate) {
+      void playWithFallback(def, false)
+      return
+    }
+    void gate.catch(() => {}).then(() => {
+      if (suppressEpisodeWatch) return
+      void playWithFallback(def, false)
+    })
   }
 
   watch(episode, loadEpisodeSource, { immediate: true })
@@ -617,7 +655,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function updatePlayingState(playing: boolean) {
     if (playing) {
-      if (directUrl.value) videoLoading.value = false
+      videoLoading.value = false
       resetIdle()
     }
     else showPausedControls()
@@ -641,8 +679,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!import.meta.client || !('mediaSession' in navigator)) return
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.value.title,
-      artist: props.animeTitle,
-      album: `Episode ${currentEpisodeNum.value}`,
+      artist: `Episode ${currentEpisodeNum.value}`,
+      album: props.animeTitle,
       artwork: mediaArtwork(),
     })
   }
@@ -688,11 +726,35 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   watch([directUrl, videoRef], async ([url, video], _, onCleanup) => {
-    if (!video || !url) return
+    if (!video) return
+    if (!url) {
+      destroyHls()
+      try {
+        video.pause()
+        video.removeAttribute('src')
+        video.load()
+      }
+      catch {}
+      return
+    }
     loadingMessage.value = 'Memuat video...'
     videoLoading.value = true
     destroyHls()
-    const onFirstFrame = () => { videoLoading.value = false }
+    let stallTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      stallTimer = null
+      const el = videoRef.value
+      if (!el || !videoLoading.value) return
+      if (el.readyState >= 2 || !el.paused) videoLoading.value = false
+      else triggerFallback()
+    }, 15000)
+    const clearStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer)
+      stallTimer = null
+    }
+    const onFirstFrame = () => {
+      videoLoading.value = false
+      clearStallTimer()
+    }
     const onVideoError = () => triggerFallback()
     video.addEventListener('canplay', onFirstFrame, { once: true })
     video.addEventListener('loadeddata', onFirstFrame, { once: true })
@@ -702,6 +764,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
     const current = video as HTMLVideoElement
     if (current.readyState >= 2 || !current.paused) videoLoading.value = false
+    if (!videoLoading.value) clearStallTimer()
     const onReady = () => resumeAndAutoplay(current)
     current.addEventListener('canplay', onReady, { once: true })
     onCleanup(() => {
@@ -710,6 +773,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       current.removeEventListener('playing', onFirstFrame)
       current.removeEventListener('canplay', onReady)
       current.removeEventListener('error', onVideoError)
+      clearStallTimer()
       destroyHls()
     })
   })
@@ -778,6 +842,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
     onBeforeUnmount(() => {
       doSaveProgress()
+      const current = videoRef.value
+      if (current) {
+        try { current.pause() } catch {}
+        current.removeAttribute('src')
+        try { current.load() } catch {}
+      }
       destroyHls()
       invalidatePlaybackSession()
       clearAnyTimer(countdownTimer)
@@ -811,10 +881,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     formatTime,
     getEpisodeStatus,
     goNextNow,
-    handleSpeedHoldStart,
-    handleZonePointerUp,
-    handleZoneTouchEnd,
-    handleZoneTap,
+    handleVideoPointerCancel,
+    handleVideoPointerDown,
+    handleVideoPointerMove,
+    handleVideoPointerUp,
+    handleVideoTouchCancel,
+    handleVideoTouchEnd,
+    handleVideoTouchMove,
+    handleVideoTouchStart,
     hideVolumeControl,
     isFullscreen,
     isMuted,
@@ -831,6 +905,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     qualityOptions,
     cancelAutoNext,
     resolving,
+    scrubPreview,
     seekIndicator,
     seekIndicatorKey,
     showControls,

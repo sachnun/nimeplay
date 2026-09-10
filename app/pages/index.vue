@@ -9,7 +9,7 @@ interface HomeData {
 
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
-const { data } = await useAsyncData<HomeData>('home', async () => {
+const { data, error, status } = await useAsyncData<HomeData>('home', async () => {
   return $fetch('/api/home')
 }, {
   default: () => ({
@@ -21,6 +21,7 @@ const { data } = await useAsyncData<HomeData>('home', async () => {
 
 const selectedGenre = useState<Genre | null>('selected-genre', () => null)
 const searchOpen = ref(false)
+const homeFailed = computed(() => status.value !== 'pending' && isServerError(error.value))
 </script>
 
 <template>
@@ -29,6 +30,9 @@ const searchOpen = ref(false)
 
     <section v-if="selectedGenre">
       <GenreAnimeGrid :key="selectedGenre.slug" :genre-slug="selectedGenre.slug" />
+    </section>
+    <section v-else-if="homeFailed">
+      <EmptyState />
     </section>
     <section v-else>
       <AnimeInfiniteGrid

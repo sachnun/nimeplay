@@ -39,13 +39,12 @@ export default defineNuxtConfig({
     openAPI: {
       meta: {
         title: 'Nimeplay API',
-        description: 'Anime scraping and streaming API for Nimeplay',
         version: '1.0.0',
       },
       route: '/openapi.json',
       production: 'runtime',
       ui: {
-        scalar: { route: '/docs' },
+        scalar: { route: '/docs', theme: 'none' },
         swagger: false,
       },
     },

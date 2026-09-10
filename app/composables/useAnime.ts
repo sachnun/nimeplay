@@ -72,6 +72,7 @@ export function useInfiniteGridObserver(options: {
 export async function loadGridPage(options: {
   loading: Ref<boolean>
   loadError: Ref<boolean>
+  loadServerError?: Ref<boolean>
   isEnd: MaybeRefOrGetter<boolean>
   load: () => Promise<void>
   afterLoad: () => Promise<void>
@@ -79,12 +80,14 @@ export async function loadGridPage(options: {
   if (options.loading.value || toValue(options.isEnd)) return
   options.loading.value = true
   options.loadError.value = false
+  if (options.loadServerError) options.loadServerError.value = false
   let loaded = false
   try {
     await options.load()
     loaded = true
-  } catch {
+  } catch (err) {
     options.loadError.value = true
+    if (options.loadServerError) options.loadServerError.value = isServerError(err)
   } finally {
     options.loading.value = false
   }

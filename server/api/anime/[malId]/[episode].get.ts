@@ -8,38 +8,7 @@ import { refreshAnimeBySlug } from '../../../utils/refresh'
 import { scrapeEpisode, scrapeEpisodeFresh } from '../../../utils/sources'
 
 defineRouteMeta({
-  openAPI: {
-    tags: ['Anime'],
-    summary: 'Get episode playback data',
-    description: 'Resolves an episode by MyAnimeList ID and episode number. Stream sources are extracted live at play time.',
-    parameters: [
-      {
-        name: 'malId',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer' },
-        description: 'MyAnimeList ID',
-      },
-      {
-        name: 'episode',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer', minimum: 1 },
-        description: 'Episode number',
-      },
-      {
-        name: 'refresh',
-        in: 'query',
-        required: false,
-        schema: { type: 'string', enum: ['1'] },
-        description: 'Set to 1 to re-scrape the upstream site and bypass caches, picking up newly registered upstream mirrors on demand',
-      },
-    ],
-    responses: {
-      '200': { description: 'Playback data including stream mirrors and the full episode list' },
-      '404': { description: 'Episode not found or unavailable' },
-    },
-  },
+  openAPI: false,
 })
 
 export default defineEventHandler(async (event) => {

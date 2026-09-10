@@ -2,31 +2,7 @@ import { createError, getRouterParam } from 'h3'
 import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/queries'
 
 defineRouteMeta({
-  openAPI: {
-    tags: ['Anime'],
-    summary: 'Get episode header metadata',
-    description: 'DB-only fast path for the player header. No upstream scrape, so the title can render while mirrors resolve.',
-    parameters: [
-      {
-        name: 'malId',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer' },
-        description: 'MyAnimeList ID',
-      },
-      {
-        name: 'episode',
-        in: 'path',
-        required: true,
-        schema: { type: 'integer', minimum: 1 },
-        description: 'Episode number',
-      },
-    ],
-    responses: {
-      '200': { description: 'Anime title, episode title from DB, and the full episode list' },
-      '404': { description: 'Episode not found' },
-    },
-  },
+  openAPI: false,
 })
 
 export default defineEventHandler(async (event) => {

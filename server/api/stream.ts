@@ -1,31 +1,5 @@
 defineRouteMeta({
-  openAPI: {
-    tags: ['Stream'],
-    summary: 'Proxy stream by token',
-    description: 'Resolves a sealed stream token and proxies the upstream playlist or media, forwarding Range headers. Supports HLS (m3u8) and direct files.',
-    parameters: [
-      {
-        name: 't',
-        in: 'query',
-        required: true,
-        schema: { type: 'string' },
-        description: 'Sealed stream token',
-      },
-      {
-        name: 'Range',
-        in: 'header',
-        required: false,
-        schema: { type: 'string' },
-        description: 'HTTP Range header, forwarded to the upstream media server',
-      },
-    ],
-    responses: {
-      '200': { description: 'Playlist or proxied stream data' },
-      '206': { description: 'Partial content for ranged requests' },
-      '400': { description: 'Missing or invalid stream token/URL' },
-      '403': { description: 'Invalid or expired stream token' },
-    },
-  },
+  openAPI: false,
 })
 
 const UPSTREAM_TIMEOUT_MS = 10_000

@@ -2,14 +2,7 @@ import { getGenreList, listAnimePage } from '../utils/queries'
 import { scheduleCatalogSync } from '../utils/refresh'
 
 defineRouteMeta({
-  openAPI: {
-    tags: ['Home'],
-    summary: 'Get home page data',
-    description: 'Returns the first page of ongoing anime, completed anime and the genre list from the database.',
-    responses: {
-      '200': { description: 'Home page payload' },
-    },
-  },
+  openAPI: false,
 })
 
 export default defineEventHandler((event) => {

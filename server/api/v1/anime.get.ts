@@ -4,7 +4,7 @@ import { scheduleCatalogSync } from '../../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
-    tags: ['v1'],
+    tags: ['Anime'],
     summary: 'List anime',
     description: 'Paginated list of ongoing or completed anime. Set q to search by title.',
     parameters: [

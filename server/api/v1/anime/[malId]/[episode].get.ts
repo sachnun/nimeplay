@@ -5,7 +5,7 @@ import { scrapeEpisode } from '../../../../utils/sources'
 
 defineRouteMeta({
   openAPI: {
-    tags: ['v1'],
+    tags: ['Anime'],
     summary: 'Watch episode',
     description: 'Resolve an episode to a ready-to-play stream URL. Pick a server with server and quality, defaults to the best server.',
     parameters: [

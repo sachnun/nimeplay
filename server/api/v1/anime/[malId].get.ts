@@ -4,7 +4,7 @@ import { scheduleAnimeRefresh } from '../../../utils/refresh'
 
 defineRouteMeta({
   openAPI: {
-    tags: ['v1'],
+    tags: ['Anime'],
     summary: 'Get anime detail',
     description: 'Anime detail with episode list, keyed by MyAnimeList ID.',
     parameters: [

@@ -2,7 +2,7 @@ import { getGenreList } from '../../utils/queries'
 
 defineRouteMeta({
   openAPI: {
-    tags: ['v1'],
+    tags: ['Genre'],
     summary: 'List genres',
     description: 'Full genre list.',
     responses: {

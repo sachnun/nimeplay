@@ -3,7 +3,7 @@ import { getGenreAnimePage } from '../../../utils/queries'
 
 defineRouteMeta({
   openAPI: {
-    tags: ['v1'],
+    tags: ['Genre'],
     summary: 'List anime by genre',
     description: 'Paginated anime list for a genre.',
     parameters: [

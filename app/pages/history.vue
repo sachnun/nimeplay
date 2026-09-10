@@ -94,19 +94,15 @@ onMounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M15 19l-7-7 7-7" />
         </svg>
       </NuxtLink>
-      <h1 class="text-lg font-semibold text-zinc-100">
-        History
-        <span v-if="!loading && items.length > 0" class="ml-2 text-xs font-normal text-zinc-500">({{ items.length }})</span>
-      </h1>
+      <h1 class="text-lg font-semibold text-zinc-100">History</h1>
       <div class="flex-1" />
       <button
-        v-if="!loading && items.length > 0"
         type="button"
-        :disabled="clearing"
+        :disabled="clearing || loading || items.length === 0"
         class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors cursor-pointer disabled:opacity-50"
         @click="clearHistory"
       >
-        {{ clearing ? 'Menghapus...' : 'Hapus semua' }}
+        {{ clearing ? 'Clearing...' : 'Clear' }}
       </button>
     </div>
 
@@ -116,14 +112,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-else-if="items.length === 0" class="py-20 text-center">
-      <p class="text-sm text-zinc-400">Belum ada riwayat tontonan</p>
-      <NuxtLink to="/" class="inline-block mt-4 px-4 py-2 rounded-full text-xs font-medium bg-white text-black hover:bg-zinc-200 transition-colors">
-        Jelajahi Anime
-      </NuxtLink>
-    </div>
-
-    <div v-else class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">
+    <div v-else-if="items.length > 0" class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">
       <NuxtLink
         v-for="item in items"
         :key="item.malId"

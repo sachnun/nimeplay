@@ -51,6 +51,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showVolume = ref(false)
   const seekIndicator = ref<{ side: 'left' | 'right'; seconds: number } | null>(null)
   const seekIndicatorKey = ref(0)
+  const scrubPreview = ref<{ current: number; delta: number } | null>(null)
   const volumeIndicator = ref<{ volume: number; isMuted: boolean } | null>(null)
   const speedBoost = ref(false)
   const wasLongPress = ref(false)
@@ -142,6 +143,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     isPlaying.value = false
     isSeeking.value = false
     seekIndicator.value = null
+    scrubPreview.value = null
     resolving.value = true
     loadingMessage.value = 'Menyiapkan player...'
     skipFetched = false
@@ -584,10 +586,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   const {
     clearGestureState,
-    handleSpeedHoldStart,
-    handleZonePointerUp,
-    handleZoneTouchEnd,
-    handleZoneTap,
+    handleVideoPointerCancel,
+    handleVideoPointerDown,
+    handleVideoPointerMove,
+    handleVideoPointerUp,
+    handleVideoTouchCancel,
+    handleVideoTouchEnd,
+    handleVideoTouchMove,
+    handleVideoTouchStart,
     onSeekCommit,
     onSeekPreview,
     onSeekStart,
@@ -602,6 +608,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     wasLongPress,
     seekIndicator,
     seekIndicatorKey,
+    scrubPreview,
     clearIdleTimer,
     resetIdle,
     seekRelative,
@@ -672,8 +679,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!import.meta.client || !('mediaSession' in navigator)) return
     navigator.mediaSession.metadata = new MediaMetadata({
       title: episode.value.title,
-      artist: props.animeTitle,
-      album: `Episode ${currentEpisodeNum.value}`,
+      artist: `Episode ${currentEpisodeNum.value}`,
+      album: props.animeTitle,
       artwork: mediaArtwork(),
     })
   }
@@ -874,10 +881,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     formatTime,
     getEpisodeStatus,
     goNextNow,
-    handleSpeedHoldStart,
-    handleZonePointerUp,
-    handleZoneTouchEnd,
-    handleZoneTap,
+    handleVideoPointerCancel,
+    handleVideoPointerDown,
+    handleVideoPointerMove,
+    handleVideoPointerUp,
+    handleVideoTouchCancel,
+    handleVideoTouchEnd,
+    handleVideoTouchMove,
+    handleVideoTouchStart,
     hideVolumeControl,
     isFullscreen,
     isMuted,
@@ -894,6 +905,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     qualityOptions,
     cancelAutoNext,
     resolving,
+    scrubPreview,
     seekIndicator,
     seekIndicatorKey,
     showControls,

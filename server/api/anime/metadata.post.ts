@@ -5,33 +5,6 @@ import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 import { cleanSynopsis } from '../../utils/synopsis'
 
-defineRouteMeta({
-  openAPI: {
-    tags: ['Anime'],
-    summary: 'Get anime metadata (MyAnimeList)',
-    description: 'Returns enriched metadata from MyAnimeList. Reads from the database first and falls back to a live MAL fetch for titles not yet synced. Requires either `malId` or `title`.',
-    requestBody: {
-      required: true,
-      content: {
-        'application/json': {
-          schema: {
-            type: 'object',
-            properties: {
-              title: { type: 'string' },
-              japaneseTitle: { type: 'string' },
-              malId: { type: 'integer', nullable: true },
-              idOnly: { type: 'boolean', description: 'Only resolve the MAL id' },
-            },
-          },
-        },
-      },
-    },
-    responses: {
-      '200': { description: 'MAL metadata or null when not found' },
-    },
-  },
-})
-
 const METADATA_TTL = 24 * 60 * 60 * 1000
 
 interface MetadataRequestBody {

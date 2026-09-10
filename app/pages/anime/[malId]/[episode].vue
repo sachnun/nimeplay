@@ -7,12 +7,17 @@ const router = useRouter()
 const malId = computed(() => Number(route.params.malId) || 0)
 const episodeParam = computed(() => String(route.params.episode || ''))
 
+const metaError = ref<unknown>(null)
+const pageError = ref<unknown>(null)
+
 const { data: metaData } = await useAsyncData<EpisodeMetaData | null>(
   () => `episode-meta-${malId.value}-${episodeParam.value}`,
   async () => {
     try {
+      metaError.value = null
       return await $fetch<EpisodeMetaData>(`/api/anime/${malId.value}/${episodeParam.value}/meta`)
-    } catch {
+    } catch (err) {
+      metaError.value = err
       return null
     }
   },
@@ -26,8 +31,10 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   () => `episode-page-${malId.value}-${episodeParam.value}`,
   async () => {
     try {
+      pageError.value = null
       return await $fetch<EpisodePageData>(`/api/anime/${malId.value}/${episodeParam.value}`)
-    } catch {
+    } catch (err) {
+      pageError.value = err
       return null
     }
   },
@@ -36,6 +43,8 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
     default: () => null,
   },
 )
+
+const showPlane = computed(() => !pending.value && !pageData.value && !metaData.value && (isServerError(pageError.value) || isServerError(metaError.value)))
 
 const anime = computed(() => pageData.value?.anime ?? metaData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
@@ -60,7 +69,7 @@ function pendingNavigate(epNum: number) {
 const showPendingEpisodes = ref(false)
 
 watchEffect(() => {
-  if (pending.value) return
+  if (pending.value || showPlane.value) return
   if (!pageData.value && !metaData.value) router.replace('/')
   else if (!pageData.value) router.replace(`/anime/${malId.value}`)
   if (headerTitle.value) useHead({ title: headerTitle.value })
@@ -72,7 +81,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="pending || !pageData || !episodeData" class="fixed inset-0 bg-black z-50">
+  <div v-if="showPlane" class="fixed inset-0 bg-black z-50 flex items-center justify-center">
+    <EmptyState />
+  </div>
+  <div v-else-if="pending || !pageData || !episodeData" class="fixed inset-0 bg-black z-50">
     <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="'Menyiapkan player...'" :header="false" :controls-skeleton="false" />
     <PlayerTopBar
       :title="headerTitle"

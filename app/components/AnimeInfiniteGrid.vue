@@ -36,6 +36,7 @@ const gridState = useState<{
 }))
 const loading = ref(false)
 const loadError = ref(false)
+const loadServerError = ref(false)
 const { progressMap, syncProgress } = useAnimeProgressMap(() => [])
 const {
   onProgressCardPointerDown,
@@ -80,6 +81,7 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0)
+const showPlane = computed(() => loadError.value && loadServerError.value && !hasAnyCard.value)
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
   return $fetch('/api/anime-page', { params: { type, page } })
@@ -109,6 +111,7 @@ async function loadMore() {
   await loadGridPage({
     loading,
     loadError,
+    loadServerError,
     isEnd,
     load: loadNextAvailablePage,
     afterLoad: () => fillGridViewport(isSentinelNearViewport, loadMore),
@@ -162,9 +165,10 @@ function goToEpisode(malId: number, episodeNum: string | number) {
       </NuxtLink>
     </div>
 
+    <EmptyState v-if="showPlane" />
     <div ref="sentinelRef" class="py-4">
       <p v-if="isEnd && hasAnyCard" class="text-sm text-zinc-600 text-center">No more anime to load</p>
-      <button v-else-if="loadError" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
+      <button v-else-if="loadError && !showPlane" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
         Gagal memuat anime. Coba lagi
       </button>
     </div>

@@ -1,8 +1,7 @@
 import { getGenreList, listAnimePage } from '../utils/queries'
-import { scheduleCatalogSync } from '../utils/refresh'
 
 export default defineEventHandler((event) => {
-  scheduleCatalogSync(event)
+  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   return Promise.all([
     listAnimePage('ONGOING', 1),
     listAnimePage('COMPLETED', 1),

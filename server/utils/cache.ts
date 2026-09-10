@@ -1,3 +1,5 @@
+import { kvDel, kvGet, kvPut } from './kv'
+
 interface Entry {
   expiresAt: number
   value: Promise<unknown>
@@ -5,6 +7,8 @@ interface Entry {
 
 const tables = new Map<string, Map<string, Entry>>()
 const MAX_ENTRIES_PER_NAMESPACE = 500
+
+const KV_NAMESPACES = new Set(['list', 'genres', 'genre-page', 'detail', 'episodes', 'search', 'metadata', 'counts'])
 
 function pruneTable(table: Map<string, Entry>, now: number): void {
   for (const [key, entry] of table) {
@@ -18,8 +22,18 @@ function pruneTable(table: Map<string, Entry>, now: number): void {
   }
 }
 
+function useKv(namespace: string, options?: { kv?: boolean }): boolean {
+  if (options?.kv === false) return false
+  return KV_NAMESPACES.has(namespace)
+}
+
+function shouldPersist(namespace: string, value: unknown): boolean {
+  if (namespace === 'search') return Array.isArray(value) && value.length > 0
+  return true
+}
+
 export const cache = {
-  get(namespace: string, key: string | number, ttlMs: number, load: () => Promise<unknown>): Promise<unknown> {
+  get(namespace: string, key: string | number, ttlMs: number, load: () => Promise<unknown>, options?: { kv?: boolean }): Promise<unknown> {
     let table = tables.get(namespace)
     if (!table) {
       table = new Map()
@@ -30,13 +44,31 @@ export const cache = {
     const hit = table.get(k)
     if (hit && hit.expiresAt > now) return hit.value
 
-    const value = load().catch((error) => {
-      table!.delete(k)
+    const pending = (async () => {
+      if (useKv(namespace, options)) {
+        try {
+          const cached = await kvGet(namespace, k)
+          if (cached.hit) return cached.value
+        }
+        catch {}
+      }
+      const fresh = await load()
+      if (useKv(namespace, options) && shouldPersist(namespace, fresh)) {
+        try {
+          await kvPut(namespace, k, fresh, ttlMs)
+        }
+        catch {}
+      }
+      return fresh
+    })()
+
+    const tracked = pending.catch((error) => {
+      if (table!.get(k)?.value === tracked) table!.delete(k)
       throw error
     })
-    table.set(k, { expiresAt: now + ttlMs, value })
+    table.set(k, { expiresAt: now + ttlMs, value: tracked })
     pruneTable(table, now)
-    return value
+    return tracked
   },
   peek(namespace: string, key: string | number): Promise<unknown> | undefined {
     const table = tables.get(namespace)
@@ -47,6 +79,9 @@ export const cache = {
   },
   delete(namespace: string, key: string | number): void {
     tables.get(namespace)?.delete(String(key))
+    if (KV_NAMESPACES.has(namespace)) {
+      kvDel(namespace, String(key)).catch(() => {})
+    }
   },
   clear(namespace?: string): void {
     if (namespace) tables.delete(namespace)

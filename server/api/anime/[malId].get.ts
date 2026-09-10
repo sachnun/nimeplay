@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
 
   const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
+  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   scheduleAnimeRefresh(event, malId)
   return detail
 })

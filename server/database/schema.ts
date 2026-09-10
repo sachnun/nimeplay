@@ -54,6 +54,8 @@ export const anime = sqliteTable('anime', {
   trailerId: text('trailer_id'),
   characters: jsonText<MalCharacter[]>()('characters').notNull().default(sql`'[]'`),
   sourceUrl: text('source_url'),
+  episodeCount: integer('episode_count').notNull().default(0),
+  latestEpisode: integer('latest_episode'),
   latestEpisodeAt: integer('latest_episode_at', { mode: 'timestamp_ms' }),
   ongoingRank: integer('ongoing_rank'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),

@@ -2,10 +2,6 @@ import { getQuery } from 'h3'
 import { listAnimePage } from '../utils/queries'
 import { scheduleCatalogSync } from '../utils/refresh'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler((event) => {
   const query = getQuery(event)
   const type = String(query.type || 'ONGOING')

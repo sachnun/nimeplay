@@ -1,9 +1,5 @@
 import type { PrepareResult } from '../../utils/prepare'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ dataContent: string, refresh?: boolean }>(event)
   if (!body?.dataContent) return emptyPrepareResult()

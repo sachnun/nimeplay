@@ -2,10 +2,6 @@ import { createError, getRouterParam } from 'h3'
 import { getAnimeDetail } from '../../utils/queries'
 import { scheduleAnimeRefresh } from '../../utils/refresh'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   if (!Number.isInteger(malId) || malId <= 0) {

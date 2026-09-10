@@ -1,10 +1,6 @@
 import { createError, getQuery, getRouterParam } from 'h3'
 import { getGenreAnimePage } from '../../utils/queries'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') || ''
   const page = Math.max(1, Number(getQuery(event).page) || 1)

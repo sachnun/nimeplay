@@ -5,10 +5,6 @@ import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 import { cleanSynopsis } from '../../utils/synopsis'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 const METADATA_TTL = 24 * 60 * 60 * 1000
 
 interface MetadataRequestBody {

@@ -1,7 +1,3 @@
-defineRouteMeta({
-  openAPI: false,
-})
-
 const UPSTREAM_TIMEOUT_MS = 10_000
 
 function isPlaylistUrl(url: URL): boolean {

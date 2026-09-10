@@ -7,10 +7,6 @@ import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
 import { refreshAnimeBySlug } from '../../../utils/refresh'
 import { scrapeEpisode, scrapeEpisodeFresh } from '../../../utils/sources'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   const episodeNumber = Number(getRouterParam(event, 'episode'))

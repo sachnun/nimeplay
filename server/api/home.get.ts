@@ -1,10 +1,6 @@
 import { getGenreList, listAnimePage } from '../utils/queries'
 import { scheduleCatalogSync } from '../utils/refresh'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler((event) => {
   scheduleCatalogSync(event)
   return Promise.all([

@@ -1,10 +1,6 @@
 import { createError, getRouterParam } from 'h3'
 import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/queries'
 
-defineRouteMeta({
-  openAPI: false,
-})
-
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
   const episodeNumber = Number(getRouterParam(event, 'episode'))

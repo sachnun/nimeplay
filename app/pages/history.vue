@@ -32,6 +32,10 @@ async function loadHistory() {
   loading.value = true
   try {
     const progressList = await getContinueWatching()
+    if (progressList.length === 0) {
+      await navigateTo('/', { replace: true })
+      return
+    }
     items.value = []
     const queue = [...progressList]
     if (queue.length === 0) return
@@ -54,6 +58,7 @@ async function loadHistory() {
 async function removeItem(malId: number) {
   await removeAnimeProgress(malId)
   items.value = items.value.filter((item) => item.malId !== malId)
+  if ((await getContinueWatching()).length === 0) await navigateTo('/', { replace: true })
 }
 
 async function clearHistory() {
@@ -62,6 +67,7 @@ async function clearHistory() {
   try {
     await clearAllProgress()
     items.value = []
+    await navigateTo('/', { replace: true })
   } finally {
     clearing.value = false
   }

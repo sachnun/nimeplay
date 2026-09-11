@@ -4,9 +4,7 @@
   <img src="https://github.com/sachnun/nimeplay/releases/download/assets/device-shot.webp" alt="Nimeplay" width="880">
 </p>
 
-Minimal anime streaming: browse genres, search titles, and watch episodes.
-
-Stack: Nuxt 4 on Cloudflare Workers with D1, KV, R2, and scheduled catalog sync.
+Watch anime with no ads, no comments, no popups, and no distractions. Just watch and enjoy.
 
 ## Requirements
 

@@ -298,7 +298,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       episode.value = data.episode
       const start = buildFallbackOrder(data.episode.mirrors, '720p').find((candidate) => !exclude.includes(candidate.dataContent)) ?? null
       if (!start) return false
-      await playWithFallback(start, false)
+      const playback = playWithFallback(start, false, true)
+      loadingMessage.value = 'Mencoba sumber video lain...'
+      await playback
       return true
     }
     catch {

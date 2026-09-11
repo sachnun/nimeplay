@@ -100,9 +100,10 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     return { resolved: false, nextIndex: candidates.length }
   }
 
-  function resetForFallbackAttempt() {
-    options.resolving.value = true
+  function resetForFallbackAttempt(seamless: boolean) {
     options.loadingMessage.value = 'Mencoba sumber video lain...'
+    if (seamless) return
+    options.resolving.value = true
     options.directUrl.value = null
     options.directKind.value = null
   }
@@ -142,13 +143,13 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     options.resolving.value = false
   }
 
-  function installFallbackHandler(candidates: MirrorCandidate[], sessionId: number, getFallbackIdx: () => number, setFallbackIdx: (index: number) => void) {
+  function installFallbackHandler(candidates: MirrorCandidate[], sessionId: number, getFallbackIdx: () => number, setFallbackIdx: (index: number) => void, seamless: boolean) {
     fallbackFn = () => {
       if (fallbackRunning || !isCurrentSession(sessionId)) return
       fallbackRunning = true
       ;(async () => {
         try {
-          resetForFallbackAttempt()
+          resetForFallbackAttempt(seamless)
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
           setFallbackIdx(result.nextIndex)
           if (!isCurrentSession(sessionId)) return
@@ -166,7 +167,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1
-    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index })
+    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index }, seamless)
     const result = await resolveInitialPlayback(startCandidate, candidates, fallbackIdx, sessionId)
     fallbackIdx = result.nextIndex
     finishPlaybackResolution(result.resolved, sessionId)

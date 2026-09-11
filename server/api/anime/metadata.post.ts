@@ -1,6 +1,7 @@
 import { toR2Url } from '../../utils/r2'
-import { desc, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../utils/db'
+import { toFtsQuery } from '../../utils/fts'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 import { cleanSynopsis } from '../../utils/synopsis'
@@ -28,8 +29,14 @@ function splitSeasonYear(season: string | null): { season: string | null, year: 
   return { season: (name ?? null)?.toLowerCase() ?? null, year: year ? Number(year) : null }
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+function parseCharacters(value: string): MalCharacter[] {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed as MalCharacter[] : []
+  }
+  catch {
+    return []
+  }
 }
 
 async function lookupInDb(body: MetadataRequestBody) {
@@ -52,13 +59,32 @@ async function lookupInDb(body: MetadataRequestBody) {
   const title = body.title?.trim()
   if (!title) return null
 
-  const [row] = await db()
-    .select(columns)
-    .from(anime)
-    .where(sql`${anime.title} like ${`%${escapeLike(title)}%`} escape '\\'`)
-    .orderBy(desc(anime.updatedAt))
-    .limit(1)
-  return row ?? null
+  const [exact] = await db().select(columns).from(anime).where(eq(anime.title, title)).limit(1)
+  if (exact) return exact
+
+  const match = toFtsQuery(title)
+  if (!match) return null
+  const [row] = await db().all<{
+    malId: number | null
+    synopsis: string | null
+    rating: number | null
+    rank: number | null
+    popularity: number | null
+    season: string | null
+    trailerId: string | null
+    characters: string
+  }>(sql`
+    select a.mal_id as malId, a.synopsis as synopsis, a.rating as rating,
+      a.rank as rank, a.popularity as popularity, a.season as season,
+      a.trailer_id as trailerId, a.characters as characters
+    from anime_fts f
+    inner join anime a on a.rowid = f.rowid
+    where f.title match ${match}
+    order by rank
+    limit 1
+  `)
+  if (!row) return null
+  return { ...row, characters: parseCharacters(row.characters ?? '[]') }
 }
 
 function toMetadataPayload(source: {

@@ -7,5 +7,6 @@ export default defineEventHandler(async (event) => {
 
   const result = await getGenreAnimePage(slug, page)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   return result
 })

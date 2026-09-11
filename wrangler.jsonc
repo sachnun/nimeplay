@@ -8,12 +8,25 @@
       "bucket_name": "nimeplay"
     }
   ],
+  "placement": {
+    "mode": "targeted",
+    "region": "gcp:asia-southeast2"
+  },
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "nimeplay",
       "database_id": "aa1c7419-d7e1-4b32-94db-400b48573073",
       "migrations_dir": "server/database/migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "6e97826a11de4cccba9c26325de2a09d"
     }
   ]
 }

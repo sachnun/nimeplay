@@ -57,7 +57,6 @@ async function runBatches<T>(
 }
 
 let catalogSyncRunning = false
-let lastCatalogSync = 0
 
 interface CatalogStats {
   startedAt: string
@@ -165,6 +164,14 @@ async function upsertEpisodes(
     }))).onConflictDoNothing(),
   )
   await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
+  const [agg] = await db()
+    .select({ count: sql<number>`count(*)`, max: sql<number | null>`max(${episodes.number})` })
+    .from(episodes)
+    .where(eq(episodes.animeSlug, animeSlug))
+  await db()
+    .update(anime)
+    .set({ episodeCount: Number(agg?.count ?? 0), latestEpisode: agg?.max ?? null })
+    .where(eq(anime.slug, animeSlug))
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -575,13 +582,16 @@ async function syncOngoingCatalog(): Promise<void> {
   }
 }
 
-export function scheduleCatalogSync(event: H3Event): void {
-  const now = Date.now()
-  if (catalogSyncRunning || now - lastCatalogSync < CATALOG_SYNC_MS) return
-  lastCatalogSync = now
+export async function runCatalogSync(): Promise<void> {
+  if (catalogSyncRunning) return
   catalogSyncRunning = true
-  const task = syncOngoingCatalog()
-    .catch(error => console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error))
-    .finally(() => { catalogSyncRunning = false })
-  waitUntil(event, task)
+  try {
+    await syncOngoingCatalog()
+  }
+  catch (error) {
+    console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    catalogSyncRunning = false
+  }
 }

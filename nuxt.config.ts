@@ -18,15 +18,14 @@ export default defineNuxtConfig({
       openAPI: true,
       tasks: true,
     },
+    scheduledTasks: {
+      '*/10 * * * *': ['catalog-sync'],
+    },
     cloudflare: {
       deployConfig: true,
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2025-07-15',
-        placement: {
-          mode: 'smart',
-          hint: 'apac',
-        },
       },
     },
     openAPI: {

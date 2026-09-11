@@ -141,3 +141,17 @@ export async function getEpisodeStatusMap(malId: number): Promise<Record<string,
     return {}
   }
 }
+
+export async function removeAnimeProgress(malId: number): Promise<void> {
+  if (!import.meta.client) return
+  const db = await getDb()
+  const keys = await db.getAllKeys('progress')
+  const prefix = `${malId}:`
+  await Promise.all(keys.filter((key) => String(key).startsWith(prefix)).map((key) => db.delete('progress', key)))
+}
+
+export async function clearAllProgress(): Promise<void> {
+  if (!import.meta.client) return
+  const db = await getDb()
+  await db.clear('progress')
+}

@@ -25,7 +25,7 @@ export default defineNuxtConfig({
       deployConfig: true,
       wrangler: {
         name: 'nimeplay',
-        compatibility_date: '2025-07-15',
+        compatibility_date: '2026-09-11',
       },
     },
     openAPI: {

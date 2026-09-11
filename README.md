@@ -6,20 +6,29 @@
 
 Minimal anime streaming: browse genres, search titles, and watch episodes.
 
+Stack: Nuxt 4 on Cloudflare Workers with D1, KV, R2, and scheduled catalog sync.
+
+## Requirements
+
+Node >=22 and a configured Wrangler login.
+
 ## Quick start
 
 ```bash
 npm install
+npm run db:migrate:local
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Syncing data
+Local bindings emulate D1 (`DB`), KV (`CACHE`), and R2 (`R2`) via `wrangler.jsonc`.
 
-The catalog syncs itself in the background while the server runs.
+## Catalog sync
 
-Schema migrations:
+`catalog-sync` runs every 10 minutes via Nitro `scheduledTasks` and the Workers cron trigger.
+
+Schema changes:
 
 ```bash
 npm run db:generate
@@ -27,9 +36,21 @@ npm run db:migrate:local
 npm run db:migrate      # production database
 ```
 
-## Production build
+## API
+
+Public endpoints live under `/api/v1/*`.
+
+Interactive reference: `/docs` (source: `/openapi.json`).
+
+## Production
 
 ```bash
 npm run build
-npm run preview
+npx wrangler deploy
+```
+
+Preview a production build locally:
+
+```bash
+npx wrangler dev
 ```

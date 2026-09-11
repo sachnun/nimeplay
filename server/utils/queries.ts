@@ -125,7 +125,7 @@ async function listAnimePageFresh(
 
   const orderBy = status === 'ONGOING'
     ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
-    : [desc(SEASON_YEAR), desc(SEASON_RANK), desc(anime.updatedAt)]
+    : [desc(SEASON_YEAR), desc(SEASON_RANK), asc(anime.title), asc(anime.slug)]
 
   const rowsQuery = db()
     .select({

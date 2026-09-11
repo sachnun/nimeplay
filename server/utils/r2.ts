@@ -1,3 +1,5 @@
+import type { H3Event } from 'h3'
+import { getRequestURL } from 'h3'
 import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
@@ -56,6 +58,18 @@ export function toR2Url(url: string | null | undefined, type: 'posters' | 'chara
 
 export function posterSrc(value: string | null | undefined): string {
   return toR2Url(value, 'posters')
+}
+
+export function toAbsoluteUrl(path: string | null | undefined, event?: H3Event): string {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (!path.startsWith('/r2/')) return path
+  if (!event) return path
+  return `${getRequestURL(event).origin}${path}`
+}
+
+export function absolutePosterSrc(value: string | null | undefined, event?: H3Event): string {
+  return toAbsoluteUrl(posterSrc(value), event)
 }
 
 export function keyToOrigin(key: string): string | null {

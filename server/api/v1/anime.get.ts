@@ -1,5 +1,6 @@
 import { getQuery } from 'h3'
 import { listAnimePage, searchAnime } from '../../utils/queries'
+import { toAbsoluteUrl } from '../../utils/r2'
 
 defineRouteMeta({
   openAPI: {
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
   if (q) {
     setHeader(event, 'Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
     const rows = await searchAnime(q, event)
-    return { data: rows, page: 1, totalPages: 1 }
+    return { data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, event) })), page: 1, totalPages: 1 }
   }
 
   const rawType = String(query.type || 'ongoing').toUpperCase()
@@ -50,5 +51,5 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   const result = await listAnimePage(status, page, event)
-  return { data: result.anime, page, totalPages: result.totalPages }
+  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, event) })), page, totalPages: result.totalPages }
 })

@@ -1,5 +1,6 @@
 import { createError, getQuery, getRouterParam } from 'h3'
 import { getGenreAnimePage } from '../../../utils/queries'
+import { toAbsoluteUrl } from '../../../utils/r2'
 
 defineRouteMeta({
   openAPI: {
@@ -35,5 +36,5 @@ export default defineEventHandler(async (event) => {
 
   const result = await getGenreAnimePage(slug, page, event)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
-  return { data: result.anime, page, totalPages: result.totalPages }
+  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, event) })), page, totalPages: result.totalPages }
 })

@@ -19,6 +19,7 @@ withDefaults(defineProps<{
   progress?: number
   qualityCount?: number
   disabled?: boolean
+  refreshing?: boolean
   showEpisodes?: boolean
   showVolume?: boolean
   skipTimes?: SkipTime[]
@@ -41,6 +42,7 @@ withDefaults(defineProps<{
   progress: 0,
   qualityCount: 0,
   disabled: false,
+  refreshing: false,
   showEpisodes: false,
   showVolume: false,
   skipTimes: () => [],
@@ -61,6 +63,7 @@ defineEmits<{
   toggleMute: []
   togglePlay: []
   toggleQuality: []
+  refresh: []
 }>()
 </script>
 
@@ -100,6 +103,11 @@ defineEmits<{
         </button>
         <button v-if="qualityCount > 1" class="hidden md:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer" @click="$emit('toggleQuality')">
           {{ activeQualityLabel }}
+        </button>
+        <button type="button" title="Perbarui stream" aria-label="Perbarui stream" class="w-9 h-9 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer disabled:opacity-50" :disabled="refreshing" @click="$emit('refresh')">
+          <svg class="w-5 h-5" :class="refreshing ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
         </button>
         <button v-if="skipTimes.length > 0" class="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded transition-colors cursor-pointer" :class="autoSkip ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleAutoSkip')">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>

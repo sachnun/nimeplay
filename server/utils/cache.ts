@@ -8,10 +8,7 @@ interface Entry {
 const tables = new Map<string, Map<string, Entry>>()
 const MAX_ENTRIES_PER_NAMESPACE = 500
 
-const KV_NAMESPACES: Record<string, true> = {
-  genres: true,
-  metadata: true,
-}
+const KV_NAMESPACES = new Set(['list', 'genres', 'genre-page', 'detail', 'episodes', 'search', 'metadata', 'counts'])
 
 function pruneTable(table: Map<string, Entry>, now: number): void {
   for (const [key, entry] of table) {
@@ -27,7 +24,7 @@ function pruneTable(table: Map<string, Entry>, now: number): void {
 
 function useKv(namespace: string, options?: { kv?: boolean }): boolean {
   if (options?.kv === false) return false
-  return KV_NAMESPACES[namespace] === true
+  return KV_NAMESPACES.has(namespace)
 }
 
 function shouldPersist(namespace: string, value: unknown): boolean {
@@ -82,7 +79,7 @@ export const cache = {
   },
   delete(namespace: string, key: string | number): void {
     tables.get(namespace)?.delete(String(key))
-    if (KV_NAMESPACES[namespace]) {
+    if (KV_NAMESPACES.has(namespace)) {
       kvDel(namespace, String(key)).catch(() => {})
     }
   },

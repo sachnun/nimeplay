@@ -12,6 +12,11 @@ const emit = defineEmits<{
 }>()
 
 const detailsRef = ref<HTMLDetailsElement | null>(null)
+const detailsOpen = ref(false)
+
+function onToggle(e: Event) {
+  detailsOpen.value = (e.target as HTMLDetailsElement).open
+}
 
 function onClickOutside(event: MouseEvent) {
   if (detailsRef.value?.open && !detailsRef.value.contains(event.target as Node)) {
@@ -26,43 +31,42 @@ const showAll = ref(false)
 const visibleCount = ref(20)
 const measureRef = ref<HTMLDivElement | null>(null)
 
-function firstRowCount(genres: HTMLElement[]) {
-  const first = genres[0]
-  if (!first) return 0
-  const firstTop = first.getBoundingClientRect().top
+function countFirstRowItems(children: HTMLElement[], firstTop: number, limit: number) {
   let count = 0
-  for (const genre of genres) {
-    if (genre.getBoundingClientRect().top - firstTop > 0.5) break
+  for (let i = 1; i < limit; i++) {
+    const child = children[i]
+    if (!child || child.offsetTop > firstTop) break
     count++
   }
   return count
 }
 
-function fitMoreSlot(containerRight: number, genres: HTMLElement[], count: number, moreEl: HTMLElement, gap: number) {
+function fitMoreSlot(el: HTMLElement, children: HTMLElement[], count: number, moreEl: HTMLElement) {
+  const containerWidth = el.offsetWidth
+  const moreWidth = moreEl.offsetWidth
+  const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
   let fitted = count
   while (fitted >= 1) {
-    const genre = genres[fitted - 1]
-    if (!genre) break
-    moreEl.textContent = `+${genres.length - fitted} more`
-    if (genre.getBoundingClientRect().right + gap + moreEl.getBoundingClientRect().width <= containerRight) break
+    const child = children[fitted]
+    if (!child) break
+    if (child.offsetLeft + child.offsetWidth + gap + moreWidth <= containerWidth) break
     fitted--
   }
-  const result = Math.max(1, fitted)
-  moreEl.textContent = `+${genres.length - result} more`
-  return result
+  return Math.max(1, fitted)
 }
 
 function calculate() {
   const el = measureRef.value
   if (!el) return
-  const genres = Array.from(el.querySelectorAll<HTMLElement>('[data-genre-slot]'))
-  if (genres.length === 0) return
+  const children = Array.from(el.children) as HTMLElement[]
   const moreEl = el.querySelector<HTMLElement>('[data-more-slot]')
-  const containerRight = el.getBoundingClientRect().right
-  const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
-  let count = firstRowCount(genres)
-  if (count < genres.length && moreEl) {
-    count = fitMoreSlot(containerRight, genres, count, moreEl, gap)
+  if (children.length < 2) return
+  const first = children[0]
+  if (!first) return
+  const limit = moreEl ? children.length - 1 : children.length
+  let count = countFirstRowItems(children, first.offsetTop, limit)
+  if (count < props.genres.length) {
+    count = moreEl ? fitMoreSlot(el, children, count, moreEl) : Math.max(1, count - 1)
   }
   visibleCount.value = count
 }
@@ -79,8 +83,6 @@ onBeforeUnmount(() => observer?.disconnect())
 watch(() => props.genres.length, () => nextTick(calculate))
 
 const hasHistory = ref(false)
-
-watch(hasHistory, () => nextTick(calculate))
 
 async function syncHistoryVisibility() {
   try {
@@ -110,8 +112,14 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
 
 <template>
   <div v-if="genres.length > 0" class="mb-6 relative">
-    <div class="flex flex-wrap gap-2 flex-1 min-w-0 select-none">
-      <details ref="detailsRef" class="group relative shrink-0">
+    <div ref="measureRef" class="flex flex-wrap gap-2 invisible absolute inset-x-0 pointer-events-none" aria-hidden="true">
+      <span class="px-3 py-1.5 rounded-full text-xs font-medium"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" /></span>
+      <span v-for="genre in genres" :key="genre.slug" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">{{ genre.name }}</span>
+      <span data-more-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">+{{ genres.length }} more</span>
+    </div>
+
+    <div class="flex flex-wrap gap-2 flex-1 min-w-0 select-none" :class="effectiveShowAll || detailsOpen ? '' : 'overflow-hidden max-h-7'">
+      <details ref="detailsRef" class="group relative shrink-0" @toggle="onToggle">
         <summary class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 group-open:bg-white group-open:text-black group-open:hover:bg-white group-open:hover:text-black transition-colors cursor-pointer list-none" title="Menu">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
@@ -141,38 +149,31 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
           </a>
         </div>
       </details>
-      <div class="relative flex flex-wrap gap-2 flex-1 min-w-0" :class="effectiveShowAll ? '' : 'overflow-hidden max-h-7'">
-        <div ref="measureRef" class="flex flex-wrap gap-2 invisible absolute inset-x-0 top-0 pointer-events-none" aria-hidden="true">
-          <span v-if="hasHistory" class="px-3 py-1.5 rounded-full text-xs font-medium"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" /></span>
-          <span v-for="genre in genres" :key="genre.slug" data-genre-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">{{ genre.name }}</span>
-          <span data-more-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">+{{ genres.length }} more</span>
-        </div>
-        <NuxtLink v-if="hasHistory" to="/history" title="History" aria-label="History" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 3v5h5" />
-            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 7v5l4 2" />
-          </svg>
-        </NuxtLink>
-        <NuxtLink
-          v-for="genre in displayed"
-          :key="genre.slug"
-          :to="selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`"
-          replace
-          :aria-current="selectedGenre?.slug === genre.slug ? 'true' : undefined"
-          class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
-          :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
-        >
-          {{ genre.name }}
-        </NuxtLink>
-        <button
-          v-if="hiddenCount > 0"
-          class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors cursor-pointer"
-          @click="showAll = !showAll"
-        >
-          {{ effectiveShowAll ? 'Show less' : `+${hiddenCount} more` }}
-        </button>
-      </div>
+      <NuxtLink v-if="hasHistory" to="/history" title="History" aria-label="History" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 3v5h5" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 7v5l4 2" />
+        </svg>
+      </NuxtLink>
+      <NuxtLink
+        v-for="genre in displayed"
+        :key="genre.slug"
+        :to="selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`"
+        replace
+        :aria-current="selectedGenre?.slug === genre.slug ? 'true' : undefined"
+        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
+        :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
+      >
+        {{ genre.name }}
+      </NuxtLink>
+      <button
+        v-if="hiddenCount > 0"
+        class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors cursor-pointer"
+        @click="showAll = !showAll"
+      >
+        {{ effectiveShowAll ? 'Show less' : `+${hiddenCount} more` }}
+      </button>
     </div>
   </div>
 </template>

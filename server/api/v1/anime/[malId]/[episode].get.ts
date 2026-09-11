@@ -1,5 +1,6 @@
 import { createError, getQuery, getRouterParam } from 'h3'
 import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/queries'
+import { toAbsoluteUrl } from '../../../../utils/r2'
 import { prepareMirror, selectDefaultCandidate } from '../../../../utils/prepare'
 import { scrapeEpisode } from '../../../../utils/sources'
 
@@ -109,10 +110,10 @@ export default defineEventHandler(async (event) => {
   }
 
   return {
-    anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
+    anime: { malId, title: resolved.anime.title, thumbnail: toAbsoluteUrl(resolved.anime.thumbnail, event) },
     episodeNumber,
     title: scraped.title || resolved.episodeTitle,
-    thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
+    thumbnail: toAbsoluteUrl(scraped.thumbnail || resolved.anime.thumbnail, event),
     episodes: episodeNumbers,
     servers,
     stream,

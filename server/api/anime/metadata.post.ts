@@ -171,5 +171,5 @@ export default defineEventHandler(async (event) => {
       trailerId: fetched.trailerId,
       characters: fetched.characters,
     })
-  }) as Promise<unknown>
+  }, { event }) as Promise<unknown>
 })

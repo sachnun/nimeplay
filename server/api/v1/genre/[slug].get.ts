@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') || ''
   const page = Math.max(1, Number(getQuery(event).page) || 1)
 
-  const result = await getGenreAnimePage(slug, page)
+  const result = await getGenreAnimePage(slug, page, event)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
   return { data: result.anime, page, totalPages: result.totalPages }
 })

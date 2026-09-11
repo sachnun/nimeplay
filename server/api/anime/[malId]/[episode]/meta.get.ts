@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
-  const episodeNumbers = await getEpisodeNumbers(resolved.animeSlug)
+  const episodeNumbers = await getEpisodeNumbers(resolved.animeSlug, event)
 
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },

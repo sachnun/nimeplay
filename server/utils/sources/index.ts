@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import { cache } from '../cache'
 import { animein } from './animein'
 import { otakudesu } from './otakudesu'
@@ -31,25 +32,25 @@ export function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail
   return source.detailFresh(rest)
 }
 
-export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
+export function scrapeEpisode(slug: string, event?: H3Event): Promise<EpisodeData | null> {
   return cache.get('episode', slug, EPISODE_TTL, () => {
     const { source, rest } = splitSource(slug)
     return source.episodeFresh(rest)
-  }) as Promise<EpisodeData | null>
+  }, event ? { event } : undefined) as Promise<EpisodeData | null>
 }
 
 export function invalidateEpisodeCache(slug: string): void {
   cache.delete('episode', slug)
 }
 
-export function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
+export function scrapeEpisodeFresh(slug: string, event?: H3Event): Promise<EpisodeData | null> {
   invalidateEpisodeCache(slug)
-  return scrapeEpisode(slug)
+  return scrapeEpisode(slug, event)
 }
 
-export function resolvemirror(dataContent: string): Promise<string | null> {
+export function resolvemirror(dataContent: string, event?: H3Event): Promise<string | null> {
   return cache.get('mirror', dataContent, MIRROR_TTL, () => {
     const { source, rest } = splitSource(dataContent)
     return source.resolveMirror(rest)
-  }) as Promise<string | null>
+  }, event ? { event } : undefined) as Promise<string | null>
 }

@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import { kvDel, kvGet, kvPut } from './kv'
 
 interface Entry {
@@ -22,7 +23,24 @@ function pruneTable(table: Map<string, Entry>, now: number): void {
   }
 }
 
-function useKv(namespace: string, options?: { kv?: boolean }): boolean {
+interface CacheOptions {
+  kv?: boolean
+  event?: H3Event
+}
+
+function persistAfterResponse(event: H3Event | undefined, task: Promise<unknown>): void {
+  const waitUntil = event ? (event as unknown as { waitUntil?: unknown }).waitUntil : undefined
+  if (typeof waitUntil === 'function') {
+    try {
+      (waitUntil as (p: Promise<unknown>) => void).call(event, task.catch(() => {}))
+      return
+    }
+    catch {}
+  }
+  task.catch(() => {})
+}
+
+function useKv(namespace: string, options?: CacheOptions): boolean {
   if (options?.kv === false) return false
   return KV_NAMESPACES.has(namespace)
 }
@@ -33,7 +51,7 @@ function shouldPersist(namespace: string, value: unknown): boolean {
 }
 
 export const cache = {
-  get(namespace: string, key: string | number, ttlMs: number, load: () => Promise<unknown>, options?: { kv?: boolean }): Promise<unknown> {
+  get(namespace: string, key: string | number, ttlMs: number, load: () => Promise<unknown>, options?: CacheOptions): Promise<unknown> {
     let table = tables.get(namespace)
     if (!table) {
       table = new Map()
@@ -54,10 +72,7 @@ export const cache = {
       }
       const fresh = await load()
       if (useKv(namespace, options) && shouldPersist(namespace, fresh)) {
-        try {
-          await kvPut(namespace, k, fresh, ttlMs)
-        }
-        catch {}
+        persistAfterResponse(options?.event, kvPut(namespace, k, fresh, ttlMs))
       }
       return fresh
     })()

@@ -83,6 +83,25 @@ onMounted(() => {
 onBeforeUnmount(() => observer?.disconnect())
 watch(() => props.genres.length, () => nextTick(calculate))
 
+const hasHistory = ref(false)
+
+async function syncHistoryVisibility() {
+  try {
+    hasHistory.value = (await getContinueWatching()).length > 0
+  } catch {
+    hasHistory.value = false
+  }
+}
+
+onMounted(() => {
+  void syncHistoryVisibility()
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') void syncHistoryVisibility()
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+  onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
+})
+
 const selectedIsHidden = computed(() => {
   if (!props.selectedGenre) return false
   return props.genres.findIndex((g) => g.slug === props.selectedGenre?.slug) >= visibleCount.value
@@ -131,6 +150,13 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
           </a>
         </div>
       </details>
+      <NuxtLink v-if="hasHistory" to="/history" title="History" aria-label="History" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 3v5h5" />
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 7v5l4 2" />
+        </svg>
+      </NuxtLink>
       <button
         v-for="genre in displayed"
         :key="genre.slug"

@@ -161,8 +161,9 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
         :key="genre.slug"
         :to="selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`"
         replace
+        :aria-current="selectedGenre?.slug === genre.slug ? 'true' : undefined"
         class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
-        :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
+        :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
       >
         {{ genre.name }}
       </NuxtLink>

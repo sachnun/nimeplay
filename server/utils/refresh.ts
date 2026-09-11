@@ -1,6 +1,7 @@
 import type { H3Event } from 'h3'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
+import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { mirrorAnimeMedia } from './r2'
@@ -346,6 +347,19 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   return false
 }
 
+function invalidateAnimeCaches(animeSlug: string, malId: number | null, statusChanged: boolean): void {
+  cache.delete('episodes', animeSlug)
+  if (!malId) return
+  cache.delete('detail', malId)
+  cache.clear('list')
+  cache.delete('list', 'ONGOING:1')
+  cache.delete('list', 'COMPLETED:1')
+  if (statusChanged) {
+    cache.delete('counts', 'status:ONGOING')
+    cache.delete('counts', 'status:COMPLETED')
+  }
+}
+
 export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {
   const detail = await scrapeAnimeDetailFresh(slug)
   if (detail) {
@@ -354,10 +368,17 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       .map(entry => parseEpisodeDate(entry.date))
       .filter((date): date is Date => date !== null)
       .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-    const [beforeRow] = await db()
-      .select({ max: sql<number | null>`max(${episodes.number})` })
-      .from(episodes)
-      .where(eq(episodes.animeSlug, slug))
+    const [[beforeRow], [animeRow]] = await Promise.all([
+      db()
+        .select({ max: sql<number | null>`max(${episodes.number})` })
+        .from(episodes)
+        .where(eq(episodes.animeSlug, slug)),
+      db()
+        .select({ malId: anime.malId, status: anime.status })
+        .from(anime)
+        .where(eq(anime.slug, slug))
+        .limit(1),
+    ])
     const maxBefore = Number(beforeRow?.max ?? 0)
     await upsertEpisodes(slug, detail.episodes)
     const maxInDetail = detail.episodes.reduce((max, entry) => {
@@ -365,6 +386,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       return parsed != null && parsed > max ? parsed : max
     }, 0)
     const maxAfter = Math.max(maxBefore, maxInDetail)
+    const statusChanged = animeRow?.status != null && animeRow.status !== status
     await db()
       .update(anime)
       .set({
@@ -376,6 +398,9 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         updatedAt: new Date(),
       })
       .where(eq(anime.slug, slug))
+    if (maxAfter > maxBefore || statusChanged) {
+      invalidateAnimeCaches(slug, animeRow?.malId ?? null, statusChanged)
+    }
   }
   if (refreshMetadata) await resolveMetadata(slug, title)
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
@@ -63,6 +63,7 @@ export interface AnimeDetail {
 }
 
 const PAGE_SIZE = 24
+const BIND_CHUNK_SIZE = 40
 
 const LIST_TTL_MS = 10 * 60 * 1000
 const GENRE_TTL_MS = 60 * 60 * 1000
@@ -129,13 +130,13 @@ async function listAnimePageFresh(
 
   const rowsQuery = db()
     .select({
+      slug: anime.slug,
       malId: anime.malId,
       title: anime.title,
       poster: anime.poster,
       rating: anime.rating,
       day: anime.day,
       season: anime.season,
-      latestEpisode: anime.latestEpisode,
     })
     .from(anime)
     .where(filter)
@@ -144,13 +145,30 @@ async function listAnimePageFresh(
     .offset((page - 1) * PAGE_SIZE)
 
   const [total, rows] = await Promise.all([getStatusCount(status), rowsQuery])
+  if (rows.length === 0) {
+    return { anime: [], totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
+  }
+
+  const maxBySlug = new Map<string, number>()
+  const slugs = rows.map(row => row.slug)
+  for (let i = 0; i < slugs.length; i += BIND_CHUNK_SIZE) {
+    const chunk = slugs.slice(i, i + BIND_CHUNK_SIZE)
+    const maxRows = await db()
+      .select({ slug: episodes.animeSlug, max: sql<number | null>`max(${episodes.number})` })
+      .from(episodes)
+      .where(inArray(episodes.animeSlug, chunk))
+      .groupBy(episodes.animeSlug)
+    for (const entry of maxRows) {
+      if (entry.max != null) maxBySlug.set(entry.slug, Number(entry.max))
+    }
+  }
 
   return {
     anime: rows.map(row => ({
       malId: row.malId!,
       title: row.title,
       thumbnail: posterSrc(row.poster),
-      episode: row.latestEpisode ? `Episode ${row.latestEpisode}` : '',
+      episode: maxBySlug.get(row.slug) ? `Episode ${maxBySlug.get(row.slug)}` : '',
       day: row.day ?? '',
       date: formatSeason(row.season),
       rating: row.rating != null ? String(row.rating) : undefined,

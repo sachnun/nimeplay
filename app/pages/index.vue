@@ -19,19 +19,15 @@ const { data, error, status } = await useAsyncData<HomeData>('home', async () =>
   }),
 })
 
-const selectedGenre = useState<Genre | null>('selected-genre', () => null)
 const searchOpen = ref(false)
 const homeFailed = computed(() => status.value !== 'pending' && isServerError(error.value))
 </script>
 
 <template>
   <div class="px-6 py-8">
-    <GenreFilter :genres="data.genres" :selected-genre="selectedGenre" @select="selectedGenre = $event" @search="searchOpen = true" @sign-in="searchOpen = false" />
+    <GenreFilter :genres="data.genres" :selected-genre="null" @search="searchOpen = true" @sign-in="searchOpen = false" />
 
-    <section v-if="selectedGenre">
-      <GenreAnimeGrid :key="selectedGenre.slug" :genre-slug="selectedGenre.slug" />
-    </section>
-    <section v-else-if="homeFailed">
+    <section v-if="homeFailed">
       <EmptyState />
     </section>
     <section v-else>

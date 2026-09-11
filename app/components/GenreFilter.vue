@@ -7,7 +7,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  select: [genre: Genre | null]
   search: []
   signIn: []
 }>()
@@ -157,15 +156,17 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 7v5l4 2" />
         </svg>
       </NuxtLink>
-      <button
+      <NuxtLink
         v-for="genre in displayed"
         :key="genre.slug"
+        :to="selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`"
+        replace
+        :aria-current="selectedGenre?.slug === genre.slug ? 'true' : undefined"
         class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
-        :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
-        @click="emit('select', selectedGenre?.slug === genre.slug ? null : genre)"
+        :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
       >
         {{ genre.name }}
-      </button>
+      </NuxtLink>
       <button
         v-if="hiddenCount > 0"
         class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors cursor-pointer"

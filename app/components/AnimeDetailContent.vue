@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Genre, OtakudesuInfo } from '~/utils/types'
+import type { OtakudesuInfo } from '~/utils/types'
 
 const props = defineProps<{
   malId: number
@@ -12,7 +12,6 @@ const props = defineProps<{
 }>()
 
 const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
-const selectedGenre = useState<Genre | null>('selected-genre', () => null)
 const infoItems = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Type', value: props.otakudesu.type },
@@ -32,10 +31,6 @@ function goBack() {
 
 function closePoster() {
   posterOpen.value = false
-}
-
-function selectGenre(genre: { name: string; slug: string }) {
-  selectedGenre.value = { name: genre.name, slug: genre.slug }
 }
 
 watch(posterOpen, (open) => {
@@ -76,7 +71,7 @@ onMounted(() => {
             <div class="lg:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-1.5 mt-3">
-                <NuxtLink v-for="genre in genres" :key="genre.slug" to="/" class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors" @click="selectGenre(genre)">
+                <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
                   {{ genre.name }}
                 </NuxtLink>
               </div>
@@ -93,7 +88,7 @@ onMounted(() => {
             <div class="hidden lg:block">
               <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-2 mt-3">
-                <NuxtLink v-for="genre in genres" :key="genre.slug" to="/" class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors" @click="selectGenre(genre)">
+                <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
                   {{ genre.name }}
                 </NuxtLink>
               </div>

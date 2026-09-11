@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   const q = String(query.q ?? '').trim()
   if (q) {
     setHeader(event, 'Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
-    const rows = await searchAnime(q)
+    const rows = await searchAnime(q, event)
     return { data: rows, page: 1, totalPages: 1 }
   }
 
@@ -49,6 +49,6 @@ export default defineEventHandler(async (event) => {
   const page = Math.max(1, Number(query.page) || 1)
 
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
-  const result = await listAnimePage(status, page)
+  const result = await listAnimePage(status, page, event)
   return { data: result.anime, page, totalPages: result.totalPages }
 })

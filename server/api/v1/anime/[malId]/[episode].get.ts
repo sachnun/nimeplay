@@ -60,8 +60,8 @@ export default defineEventHandler(async (event) => {
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
-    scrapeEpisode(resolved.sourceSlug),
-    getEpisodeNumbers(resolved.animeSlug),
+    scrapeEpisode(resolved.sourceSlug, event),
+    getEpisodeNumbers(resolved.animeSlug, event),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
@@ -99,7 +99,7 @@ export default defineEventHandler(async (event) => {
   let stream: { playUrl: string, kind: 'hls' | 'file', quality: string, server: string } | null = null
   for (const candidate of ordered.slice(0, 3)) {
     try {
-      const result = await prepareMirror(candidate.dataContent, origin)
+      const result = await prepareMirror(candidate.dataContent, origin, event)
       if (result.ok && result.playUrl && result.kind) {
         stream = { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
         break

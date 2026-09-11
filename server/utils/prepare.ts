@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import { isPlaceholderStreamUrl } from './extractors/hosts'
 
 export interface PrepareResult {
@@ -63,18 +64,18 @@ export function selectDefaultCandidate(mirrors: MirrorGroup[]): DefaultMirrorCan
   return null
 }
 
-export function prepareMirror(dataContent: string, origin: string): Promise<PrepareResult> {
+export function prepareMirror(dataContent: string, origin: string, event?: H3Event): Promise<PrepareResult> {
   return cache.get('prepare', dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
     const mirrorId = await openStreamToken(dataContent)
     if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyPrepareResult()
-    const embedUrl = await resolvemirror(mirrorId)
+    const embedUrl = await resolvemirror(mirrorId, event)
     if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
     const directUrl = await extractStreamUrl(embedUrl)
     if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
     const kind = await detectStreamKind(directUrl)
     const token = await sealStreamToken(directUrl)
     return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
-  }) as Promise<PrepareResult>
+  }, event ? { event } : undefined) as Promise<PrepareResult>
 }
 
 export function peekPreparedResult(dataContent: string): Promise<PrepareResult> | undefined {

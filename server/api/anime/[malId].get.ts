@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id' })
   }
 
-  const detail = await getAnimeDetail(malId)
+  const detail = await getAnimeDetail(malId, event)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   scheduleAnimeRefresh(event, malId)

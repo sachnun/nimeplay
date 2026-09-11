@@ -19,6 +19,7 @@ const ONGOING_PAGES = 6
 const COMPLETED_PAGES = 3
 const FRESH_BUDGET = 24
 const UNKNOWN_BUDGET = 10
+const STALE_ONGOING_BUDGET = 10
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
@@ -66,6 +67,7 @@ interface CatalogStats {
   sourcesRegistered: Record<string, number>
   freshRefreshed: number
   unknownRefreshed: number
+  staleRefreshed: number
   metadataPending: number
   metadataResolved: number
 }
@@ -139,6 +141,7 @@ export async function getCatalogHealth() {
       catalogSyncMs: CATALOG_SYNC_MS,
       freshBudget: FRESH_BUDGET,
       unknownBudget: UNKNOWN_BUDGET,
+      staleOngoingBudget: STALE_ONGOING_BUDGET,
     },
   }
 }
@@ -245,6 +248,35 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     .where(eq(anime.slug, slug))
   await syncGenres(slug, mal.genres)
   await mirrorAnimeMedia(poster, characters)
+}
+
+async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<boolean> {
+  const mal = await fetchMalAnime(malId)
+  if (!mal) {
+    console.warn(`[metadata] linked refresh empty ${slug} mal ${malId}`)
+    return false
+  }
+  const [owner] = await db()
+    .select({ slug: anime.slug })
+    .from(anime)
+    .where(eq(anime.malId, mal.malId))
+    .limit(1)
+  if (owner && owner.slug !== slug) {
+    const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
+    await recordFailure(slug, reason)
+    console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
+    return false
+  }
+  try {
+    await applyMalMetadata(slug, mal)
+    return true
+  }
+  catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    await recordFailure(slug, reason)
+    console.warn(`[metadata] linked refresh failed ${slug}: ${reason}`)
+    return false
+  }
 }
 
 async function resolveMetadata(slug: string, title: string): Promise<boolean> {
@@ -361,24 +393,24 @@ function invalidateAnimeCaches(animeSlug: string, malId: number | null, statusCh
 }
 
 export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {
+  const [animeRow] = await db()
+    .select({ malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
+    .from(anime)
+    .where(eq(anime.slug, slug))
+    .limit(1)
   const detail = await scrapeAnimeDetailFresh(slug)
+  let hasNewEpisodes = false
+  let statusChanged = false
   if (detail) {
     const status = normalizeStatus(detail.status)
     const latestEpisodeAt = detail.episodes
       .map(entry => parseEpisodeDate(entry.date))
       .filter((date): date is Date => date !== null)
       .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-    const [[beforeRow], [animeRow]] = await Promise.all([
-      db()
-        .select({ max: sql<number | null>`max(${episodes.number})` })
-        .from(episodes)
-        .where(eq(episodes.animeSlug, slug)),
-      db()
-        .select({ malId: anime.malId, status: anime.status })
-        .from(anime)
-        .where(eq(anime.slug, slug))
-        .limit(1),
-    ])
+    const [beforeRow] = await db()
+      .select({ max: sql<number | null>`max(${episodes.number})` })
+      .from(episodes)
+      .where(eq(episodes.animeSlug, slug))
     const maxBefore = Number(beforeRow?.max ?? 0)
     await upsertEpisodes(slug, detail.episodes)
     const maxInDetail = detail.episodes.reduce((max, entry) => {
@@ -386,7 +418,8 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       return parsed != null && parsed > max ? parsed : max
     }, 0)
     const maxAfter = Math.max(maxBefore, maxInDetail)
-    const statusChanged = animeRow?.status != null && animeRow.status !== status
+    hasNewEpisodes = maxAfter > maxBefore
+    statusChanged = animeRow?.status != null && animeRow.status !== status
     await db()
       .update(anime)
       .set({
@@ -394,15 +427,24 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
         status,
         ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
         ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-        ...(maxAfter > maxBefore ? { lastNewEpisodeAt: new Date() } : {}),
+        ...(hasNewEpisodes ? { lastNewEpisodeAt: new Date() } : {}),
         updatedAt: new Date(),
       })
       .where(eq(anime.slug, slug))
-    if (maxAfter > maxBefore || statusChanged) {
+    if (hasNewEpisodes || statusChanged) {
       invalidateAnimeCaches(slug, animeRow?.malId ?? null, statusChanged)
     }
   }
-  if (refreshMetadata) await resolveMetadata(slug, title)
+  const linkedMalId = animeRow?.malId ?? null
+  const metadataStale = !animeRow?.metadataSyncedAt || Date.now() - animeRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
+  if (linkedMalId) {
+    if (statusChanged || (metadataStale && (hasNewEpisodes || refreshMetadata))) {
+      await refreshLinkedMalMetadata(slug, linkedMalId)
+    }
+  }
+  else if (refreshMetadata) {
+    await resolveMetadata(slug, title)
+  }
 }
 
 export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
@@ -426,7 +468,7 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
     const needsMetadata = !row.metadataSyncedAt || now - row.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
     const hasEpisodes = Number(row.episodeCount) > 0
 
-    if ((row.status === 'ONGOING' && stale) || !hasEpisodes) {
+    if ((row.status === 'ONGOING' && stale) || !hasEpisodes || needsMetadata) {
       await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
@@ -520,6 +562,22 @@ async function refreshUnknownSlugs(
   return refreshed
 }
 
+async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise<number> {
+  const candidates = await db()
+    .select({ slug: anime.slug, title: anime.title })
+    .from(anime)
+    .where(eq(anime.status, 'ONGOING'))
+    .orderBy(asc(anime.updatedAt))
+    .limit(30)
+  const todo = candidates.filter(item => !seen.has(item.slug)).slice(0, STALE_ONGOING_BUDGET)
+  if (todo.length === 0) return 0
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'stale ongoing refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
+  if (refreshed > 0) {
+    console.log(`[catalog] stale ongoing: ${refreshed} refreshed`)
+  }
+  return refreshed
+}
+
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
   const deadline = startedAt.getTime() + SYNC_WALL_MS
@@ -570,6 +628,9 @@ async function syncOngoingCatalog(): Promise<void> {
     deadline,
   )
 
+  const seen = new Set(allCards.map(item => `${item.source.id}:${item.slug}`))
+  const staleRefreshed = await refreshStaleOngoing(seen, deadline)
+
   const now = new Date()
   const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
   const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
@@ -602,6 +663,7 @@ async function syncOngoingCatalog(): Promise<void> {
     sourcesRegistered,
     freshRefreshed,
     unknownRefreshed,
+    staleRefreshed,
     metadataPending: totalPending,
     metadataResolved: resolved,
   }

@@ -100,10 +100,9 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     return { resolved: false, nextIndex: candidates.length }
   }
 
-  function resetForFallbackAttempt(seamless: boolean) {
-    options.loadingMessage.value = 'Mencoba sumber video lain...'
-    if (seamless) return
+  function resetForFallbackAttempt() {
     options.resolving.value = true
+    options.loadingMessage.value = 'Mencoba sumber video lain...'
     options.directUrl.value = null
     options.directKind.value = null
   }
@@ -143,13 +142,13 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     options.resolving.value = false
   }
 
-  function installFallbackHandler(candidates: MirrorCandidate[], sessionId: number, getFallbackIdx: () => number, setFallbackIdx: (index: number) => void, seamless: boolean) {
+  function installFallbackHandler(candidates: MirrorCandidate[], sessionId: number, getFallbackIdx: () => number, setFallbackIdx: (index: number) => void) {
     fallbackFn = () => {
       if (fallbackRunning || !isCurrentSession(sessionId)) return
       fallbackRunning = true
       ;(async () => {
         try {
-          resetForFallbackAttempt(seamless)
+          resetForFallbackAttempt()
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
           setFallbackIdx(result.nextIndex)
           if (!isCurrentSession(sessionId)) return
@@ -167,7 +166,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1
-    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index }, seamless)
+    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index })
     const result = await resolveInitialPlayback(startCandidate, candidates, fallbackIdx, sessionId)
     fallbackIdx = result.nextIndex
     finishPlaybackResolution(result.resolved, sessionId)

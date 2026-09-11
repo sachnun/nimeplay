@@ -25,9 +25,6 @@ const {
   duration,
   episode,
   goNextNow,
-  refreshStream,
-  refreshing,
-  showSoftLoading,
   handleVideoPointerCancel,
   handleVideoPointerDown,
   handleVideoPointerMove,
@@ -84,17 +81,7 @@ const {
       <PlayerLoadingShell class-name="absolute inset-0 bg-black" :message="loadingMessage" :header="false" :controls-skeleton="false" />
     </div>
 
-    <div v-if="showSoftLoading" class="absolute inset-0 z-[12] flex items-center justify-center pointer-events-none">
-      <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm">
-        <svg class="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-        <span class="text-xs font-medium text-white/90">{{ refreshing ? 'Memperbarui stream...' : 'Memuat video...' }}</span>
-      </div>
-    </div>
-
-    <div v-if="showEmpty" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-zinc-500">
-      <span>Stream tidak tersedia</span>
-      <button type="button" class="px-4 py-2 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer" @click="refreshStream">Coba lagi</button>
-    </div>
+    <div v-if="showEmpty" class="absolute inset-0 flex items-center justify-center text-zinc-500">Stream tidak tersedia</div>
     <div v-if="seekIndicator" :key="seekIndicatorKey" class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
       <div class="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-black/70 backdrop-blur-sm animate-[seekPulse_0.6s_ease-out_forwards]">
         <div class="flex items-center gap-2">
@@ -149,10 +136,8 @@ const {
       :show-episodes="showEpisodes"
       :quality-count="qualityOptions.length"
       :active-quality-label="activeQualityLabel"
-      :refreshing="refreshing"
       @toggle-episodes="toggleEpisodesPanel"
       @toggle-quality="toggleQuality"
-      @refresh="refreshStream"
     />
 
     <div v-if="autoNextCountdown !== null" data-tv-nav-scope class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30">
@@ -170,7 +155,7 @@ const {
     </div>
 
     <PlayerBottomControls
-      v-if="showNative || resolving || refreshing"
+      v-if="showNative || resolving"
       :active-quality-label="activeQualityLabel"
       :auto-skip="autoSkip"
       :buffered-pct="bufferedPct"
@@ -202,11 +187,9 @@ const {
       @toggle-auto-skip="toggleAutoSkip"
       @toggle-episodes="toggleEpisodesPanel"
       @toggle-fullscreen="toggleFullscreen"
-      :refreshing="refreshing"
       @toggle-mute="toggleMute"
       @toggle-play="togglePlay"
       @toggle-quality="toggleQuality"
-      @refresh="refreshStream"
     />
 
     <PlayerEpisodeDrawer

@@ -32,8 +32,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const directKind = ref<'hls' | 'file' | null>(null)
   const activeQuality = ref('720p')
   const resolving = ref(true)
-  const refreshing = ref(false)
-  const hasPlaybackStarted = ref(false)
   const videoLoading = ref(true)
   const loadingMessage = ref('Menyiapkan player...')
   const skipTimes = ref<SkipTime[]>([])
@@ -109,9 +107,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   const activeQualityLabel = computed(() => qualityOptions.value.find((opt) => opt.quality === activeQuality.value)?.label ?? 'HD')
   const showNative = computed(() => !!directUrl.value)
-  const showEmpty = computed(() => !showNative.value && !resolving.value && !refreshing.value)
-  const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value && !hasPlaybackStarted.value))
-  const showSoftLoading = computed(() => !showLoading.value && showNative.value && (videoLoading.value || refreshing.value))
+  const showEmpty = computed(() => !showNative.value && !resolving.value)
+  const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value))
   const controlsVisible = computed(() => !speedBoost.value && (showControls.value || !isPlaying.value))
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
   const bufferedPct = computed(() => duration.value > 0 ? (buffered.value / duration.value) * 100 : 0)
@@ -148,8 +145,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     seekIndicator.value = null
     scrubPreview.value = null
     resolving.value = true
-    refreshing.value = false
-    hasPlaybackStarted.value = false
     loadingMessage.value = 'Menyiapkan player...'
     skipFetched = false
     upstreamRefreshTried = false
@@ -293,16 +288,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   async function reloadUpstreamFresh(exclude: string[] = []): Promise<boolean> {
-    if (refreshing.value) return false
-    const hasVideo = !!directUrl.value
-    const video = videoRef.value
-    const savedTime = video ? video.currentTime : (Number.isFinite(currentTime.value) ? currentTime.value : resumeTime)
-    const wasPlaying = video ? !video.paused : autoPlayOnLoad
-    if (!hasVideo) {
-      resolving.value = true
-      loadingMessage.value = 'Mencoba sumber video lain...'
-    }
-    else refreshing.value = true
+    resolving.value = true
+    loadingMessage.value = 'Mencoba sumber video lain...'
     try {
       const data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${currentEpisodeNum.value}?refresh=1`)
       if (!data) return false
@@ -311,12 +298,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       episode.value = data.episode
       const start = buildFallbackOrder(data.episode.mirrors, '720p').find((candidate) => !exclude.includes(candidate.dataContent)) ?? null
       if (!start) return false
-      if (hasVideo) {
-        if (Number.isFinite(savedTime) && savedTime > 0) resumeTime = savedTime
-        autoPlayOnLoad = wasPlaying
-        await playWithFallback(start, false, true)
-      }
-      else await playWithFallback(start, false)
+      await playWithFallback(start, false)
       return true
     }
     catch {
@@ -324,22 +306,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     finally {
       suppressEpisodeWatch = false
-      refreshing.value = false
     }
   }
 
   async function autoRefreshUpstream(tried: string[]) {
-    if (upstreamRefreshTried || refreshing.value) return
+    if (upstreamRefreshTried) return
     upstreamRefreshTried = true
-    const hadVideo = !!directUrl.value
     const ok = await reloadUpstreamFresh(tried)
-    if (!ok && !hadVideo) resolving.value = false
-  }
-
-  async function refreshStream(): Promise<boolean> {
-    const ok = await reloadUpstreamFresh([])
-    if (ok) upstreamRefreshTried = true
-    return ok
+    if (!ok) resolving.value = false
   }
 
   function switchQuality(opt: { dataContent: string; quality: string; name: string }) {
@@ -365,8 +339,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     invalidatePlaybackSession()
     resetEpoch++
     upstreamRefreshTried = false
-    refreshing.value = false
-    hasPlaybackStarted.value = false
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
@@ -684,7 +656,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function updatePlayingState(playing: boolean) {
     if (playing) {
       videoLoading.value = false
-      hasPlaybackStarted.value = true
       resetIdle()
     }
     else showPausedControls()
@@ -782,7 +753,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     const onFirstFrame = () => {
       videoLoading.value = false
-      hasPlaybackStarted.value = true
       clearStallTimer()
     }
     const onVideoError = () => triggerFallback()
@@ -934,8 +904,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     progress,
     qualityOptions,
     cancelAutoNext,
-    refreshing,
-    refreshStream,
     resolving,
     scrubPreview,
     seekIndicator,
@@ -945,7 +913,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     showEpisodes,
     showLoading,
     showNative,
-    showSoftLoading,
     showVolume,
     showVolumeControl,
     skipTimes,

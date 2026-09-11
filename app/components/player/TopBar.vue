@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   title: string
   malId: number
   episodeCount: number
@@ -8,15 +8,11 @@ const props = withDefaults(defineProps<{
   showEpisodes: boolean
   qualityCount: number
   activeQualityLabel: string
-  refreshing?: boolean
-}>(), {
-  refreshing: false,
-})
+}>()
 
 defineEmits<{
   toggleEpisodes: []
   toggleQuality: []
-  refresh: []
 }>()
 
 const router = useRouter()
@@ -61,16 +57,6 @@ function goBack() {
         @click="$emit('toggleQuality')"
       >
         {{ activeQualityLabel }}
-      </button>
-      <button type="button" title="Perbarui stream" aria-label="Perbarui stream" class="hidden md:flex items-center justify-center w-9 h-9 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50" :disabled="refreshing" @click="$emit('refresh')">
-        <svg class="w-5 h-5" :class="refreshing ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-        </svg>
-      </button>
-      <button type="button" title="Perbarui stream" aria-label="Perbarui stream" class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:flex items-center justify-center w-9 h-9 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50" :disabled="refreshing" @click="$emit('refresh')">
-        <svg class="w-5 h-5" :class="refreshing ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-        </svg>
       </button>
     </div>
   </div>

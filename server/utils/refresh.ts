@@ -4,7 +4,6 @@ import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { mirrorAnimeMedia } from './r2'
 import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
@@ -14,12 +13,13 @@ const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
 const CATALOG_SYNC_MS = 10 * 60 * 1000
 const SYNC_WALL_MS = 25000
-const CATALOG_META_BUDGET = 20
+const CATALOG_META_BUDGET = 8
+const METADATA_WALL_MS = 120000
 const ONGOING_PAGES = 6
 const COMPLETED_PAGES = 3
-const FRESH_BUDGET = 24
-const UNKNOWN_BUDGET = 10
-const STALE_ONGOING_BUDGET = 10
+const FRESH_BUDGET = 8
+const UNKNOWN_BUDGET = 2
+const STALE_ONGOING_BUDGET = 5
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
@@ -249,7 +249,6 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     })
     .where(eq(anime.slug, slug))
   await syncGenres(slug, mal.genres)
-  await mirrorAnimeMedia(poster, characters)
 }
 
 async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<boolean> {
@@ -489,7 +488,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
   const client = db()
-  const statements = chunkValues(rows, 15).map(chunk =>
+  const statements = chunkValues(rows, 10).map(chunk =>
     client.insert(anime).values(chunk).onConflictDoUpdate({
       target: anime.slug,
       set: {
@@ -611,13 +610,18 @@ async function syncOngoingCatalog(): Promise<void> {
         }
       }
     }
-    await attempt(
+    const registered = await attempt(
       registerOngoingCards(cards),
       error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
     )
-    allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
-    sourcesRegistered[source.id] = cards.length
-    console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    if (registered !== null) {
+      allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
+      sourcesRegistered[source.id] = cards.length
+      console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    }
+    else {
+      sourcesRegistered[source.id] = 0
+    }
   }
 
   const freshRefreshed = await refreshFreshEpisodes(
@@ -630,33 +634,11 @@ async function syncOngoingCatalog(): Promise<void> {
     deadline,
   )
 
-  const seen = new Set(allCards.map(item => `${item.source.id}:${item.slug}`))
+  const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
   const staleRefreshed = await refreshStaleOngoing(seen, deadline)
 
-  const now = new Date()
-  const eligibleWhere = and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)))
   const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0
-
-  const pending = await db()
-    .select({ slug: anime.slug, title: anime.title })
-    .from(anime)
-    .where(eligibleWhere)
-    .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
-    .limit(CATALOG_META_BUDGET)
-  console.log(`[catalog] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
-  let resolved = 0
-  for (const row of pending) {
-    if (Date.now() > deadline) break
-    const ok = await attempt(
-      resolveMetadata(row.slug, row.title),
-      error => console.warn(`[catalog] metadata deferred ${row.slug}:`, error instanceof Error ? error.message : error),
-    )
-    if (ok) {
-      resolved++
-      console.log(`[catalog] metadata resolved: ${row.slug}`)
-    }
-  }
 
   lastCatalogStats = {
     startedAt: startedAt.toISOString(),
@@ -667,7 +649,57 @@ async function syncOngoingCatalog(): Promise<void> {
     unknownRefreshed,
     staleRefreshed,
     metadataPending: totalPending,
-    metadataResolved: resolved,
+    metadataResolved: lastCatalogStats?.metadataResolved ?? 0,
+  }
+}
+
+let metadataSyncRunning = false
+
+export async function runMetadataSync(): Promise<void> {
+  if (metadataSyncRunning) return
+  metadataSyncRunning = true
+  try {
+    const startedAt = new Date()
+    const deadline = startedAt.getTime() + METADATA_WALL_MS
+    const now = new Date()
+    const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
+    const totalPending = totalResult?.count ?? 0
+    const pending = await db()
+      .select({ slug: anime.slug, title: anime.title })
+      .from(anime)
+      .where(and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))))
+      .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
+      .limit(CATALOG_META_BUDGET)
+    console.log(`[metadata] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
+    let resolved = 0
+    for (const row of pending) {
+      if (Date.now() > deadline) break
+      const ok = await attempt(
+        resolveMetadata(row.slug, row.title),
+        error => console.warn(`[metadata] deferred ${row.slug}:`, error instanceof Error ? error.message : error),
+      )
+      if (ok) {
+        resolved++
+        console.log(`[metadata] resolved: ${row.slug}`)
+      }
+    }
+    lastCatalogStats = {
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      sourcesRegistered: lastCatalogStats?.sourcesRegistered ?? {},
+      freshRefreshed: lastCatalogStats?.freshRefreshed ?? 0,
+      unknownRefreshed: lastCatalogStats?.unknownRefreshed ?? 0,
+      staleRefreshed: lastCatalogStats?.staleRefreshed ?? 0,
+      metadataPending: totalPending,
+      metadataResolved: resolved,
+    }
+  }
+  catch (error) {
+    console.warn('[metadata] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    metadataSyncRunning = false
   }
 }
 

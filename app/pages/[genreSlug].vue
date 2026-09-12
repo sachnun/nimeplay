@@ -35,6 +35,6 @@ const searchOpen = ref(false)
       <GenreAnimeGrid :key="genreSlug" :genre-slug="genreSlug" />
     </section>
 
-    <SearchBar :open="searchOpen" @close="searchOpen = false" />
+    <SearchBar :open="searchOpen" @close="searchOpen = false" @open="searchOpen = true" />
   </div>
 </template>

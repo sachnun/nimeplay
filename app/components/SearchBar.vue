@@ -2,7 +2,7 @@
 import type { SearchResult } from '~/utils/types'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; open: [] }>()
 
 const query = ref('')
 const results = ref<SearchResult[]>([])
@@ -10,10 +10,15 @@ const searched = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | null = null
 let searchToken = 0
+let pendingQuery = ''
 
 watch(() => props.open, (open) => {
   if (!import.meta.client) return
   if (open) {
+    if (pendingQuery) {
+      query.value = pendingQuery
+      pendingQuery = ''
+    }
     document.body.style.overflow = 'hidden'
     setTimeout(() => inputRef.value?.focus(), 50)
   } else {
@@ -43,9 +48,27 @@ watch(query, (value) => {
   }, value.trim() ? 500 : 0)
 })
 
+function isDesktop() {
+  if (typeof window.matchMedia !== 'function') return true
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+
+function shouldOpenFromKey(event: KeyboardEvent) {
+  if (props.open || event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return false
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return false
+  return isDesktop()
+}
+
 onMounted(() => {
   const handleKey = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && props.open) emit('close')
+    if (event.key === 'Escape' && props.open) {
+      emit('close')
+      return
+    }
+    if (!shouldOpenFromKey(event)) return
+    pendingQuery += event.key
+    emit('open')
   }
   window.addEventListener('keydown', handleKey)
   onBeforeUnmount(() => {

@@ -40,6 +40,6 @@ const homeFailed = computed(() => status.value !== 'pending' && isServerError(er
       />
     </section>
 
-    <SearchBar :open="searchOpen" @close="searchOpen = false" />
+    <SearchBar :open="searchOpen" @close="searchOpen = false" @open="searchOpen = true" />
   </div>
 </template>

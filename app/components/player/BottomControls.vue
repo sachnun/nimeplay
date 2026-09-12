@@ -47,6 +47,8 @@ withDefaults(defineProps<{
   volume: 1,
 })
 
+const isDesktopLayout = useMediaQuery('(min-width: 768px)')
+
 defineEmits<{
   changeVolume: [value: number]
   hideVolume: []
@@ -95,10 +97,10 @@ defineEmits<{
         </button>
         <span class="text-xs text-white/70 font-mono tabular-nums select-none whitespace-nowrap">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
         <div class="flex-1" />
-        <button v-if="episodeCount > 1" class="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer" :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleEpisodes')">
+        <button v-if="episodeCount > 1 && isDesktopLayout" class="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer" :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleEpisodes')">
           EP {{ currentEpisodeNum }}
         </button>
-        <button v-if="qualityCount > 1" class="hidden md:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer" @click="$emit('toggleQuality')">
+        <button v-if="qualityCount > 1 && isDesktopLayout" class="hidden md:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer" @click="$emit('toggleQuality')">
           {{ activeQualityLabel }}
         </button>
         <button v-if="skipTimes.length > 0" class="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded transition-colors cursor-pointer" :class="autoSkip ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleAutoSkip')">

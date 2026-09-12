@@ -11,6 +11,21 @@ export async function fetchAnimeMetadata(malId: number): Promise<AnimeMetadata |
   }
 }
 
+export async function fetchSynopsisId(malId: number | undefined, text: string): Promise<string | null> {
+  const source = text.trim()
+  if (!source) return null
+  try {
+    const res = await $fetch<{ text: string }>('/api/anime/translate', {
+      method: 'POST',
+      body: { malId: malId ?? null, text: source },
+    })
+    return res?.text?.trim() || null
+  }
+  catch {
+    return null
+  }
+}
+
 interface AniskipResponse {
   found: boolean
   results: SkipTime[]

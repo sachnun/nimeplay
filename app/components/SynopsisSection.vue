@@ -1,27 +1,58 @@
 <script setup lang="ts">
+import { fetchSynopsisId } from '~/utils/remote'
+
 const props = defineProps<{
   synopsisId?: string
   synopsisEn?: string
+  malId?: number
   loading: boolean
 }>()
 
-const lang = ref<'id' | 'en'>('en')
 const expanded = ref(false)
 const clamped = ref(false)
 const textRef = ref<HTMLParagraphElement | null>(null)
+const translated = ref('')
+const translating = ref(false)
+const failed = ref(false)
 
-const hasId = computed(() => !!props.synopsisId?.trim())
-const hasEn = computed(() => !!props.synopsisEn?.trim())
-const text = computed(() => lang.value === 'id' ? (props.synopsisId || props.synopsisEn) : (props.synopsisEn || props.synopsisId))
+const hasIdProp = computed(() => !!props.synopsisId?.trim())
+const hasSource = computed(() => !!props.synopsisEn?.trim())
+const text = computed(() => props.synopsisId?.trim() || translated.value.trim())
+const showBody = computed(() => !!text.value || props.loading || translating.value || (hasSource.value && !failed.value))
 
-function switchLang(newLang: 'id' | 'en') {
-  if (newLang === 'id' && !hasId.value) return
-  if (newLang === 'en' && !hasEn.value) return
-  lang.value = newLang
-  expanded.value = false
+async function ensureTranslation() {
+  if (hasIdProp.value || translated.value || translating.value) return
+  const en = props.synopsisEn?.trim()
+  if (!en || !import.meta.client) return
+  translating.value = true
+  failed.value = false
+  const result = await fetchSynopsisId(props.malId, en)
+  if (result) {
+    translated.value = result
+    expanded.value = false
+  } else {
+    failed.value = true
+  }
+  translating.value = false
 }
 
-watch([text, expanded, () => props.loading], () => {
+function retry() {
+  failed.value = false
+  void ensureTranslation()
+}
+
+watch(() => props.synopsisEn, () => {
+  translated.value = ''
+  failed.value = false
+})
+
+if (import.meta.client) {
+  watch(() => props.synopsisEn, (en) => {
+    if (en?.trim() && !hasIdProp.value) void ensureTranslation()
+  }, { immediate: true })
+}
+
+watch([text, expanded, translating, () => props.loading], () => {
   if (expanded.value || !import.meta.client) return
   requestAnimationFrame(() => {
     const el = textRef.value
@@ -36,41 +67,35 @@ watch([text, expanded, () => props.loading], () => {
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
-      <div v-if="hasId || hasEn" class="flex items-center text-xs text-zinc-500">
-        <button
-          :disabled="!hasId"
-          class="transition-colors"
-          :class="!hasId ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'id' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
-          @click="switchLang('id')"
-        >
-          ID
-        </button>
-        <span class="mx-1.5 text-zinc-600">|</span>
-        <button
-          :disabled="!hasEn"
-          class="transition-colors"
-          :class="!hasEn ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'en' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
-          @click="switchLang('en')"
-        >
-          EN
-        </button>
-      </div>
+      <span v-if="translating && !text" class="text-xs text-zinc-600 animate-pulse">Menerjemahkan...</span>
     </div>
-    <div v-if="hasId || hasEn">
+    <div v-if="showBody">
       <p
+        v-if="text"
         ref="textRef"
         class="text-sm text-zinc-300 leading-relaxed [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"
         :class="!expanded ? 'lg:line-clamp-none line-clamp-4' : ''"
       >
         {{ text }}
       </p>
+      <div v-else-if="props.loading || translating" class="space-y-2 animate-pulse">
+        <div class="h-3.5 rounded bg-white/10" />
+        <div class="h-3.5 rounded bg-white/10" />
+        <div class="h-3.5 w-2/3 rounded bg-white/10" />
+      </div>
       <button
-        v-if="clamped && !expanded"
+        v-if="clamped && !expanded && text"
         class="lg:hidden mt-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
         @click="expanded = true"
       >
-        Read more
+        Selengkapnya
       </button>
+      <p v-if="failed && !text && !translating" class="text-sm text-zinc-500">
+        Gagal memuat sinopsis.
+        <button class="text-zinc-300 underline underline-offset-2 hover:text-white transition-colors cursor-pointer" @click="retry">
+          Coba lagi
+        </button>
+      </p>
     </div>
   </section>
 </template>

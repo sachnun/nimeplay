@@ -6,7 +6,6 @@ const emit = defineEmits<{ close: []; open: [] }>()
 
 const query = ref('')
 const results = ref<SearchResult[]>([])
-const searched = ref(false)
 const inputRef = ref<HTMLInputElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | null = null
 let searchToken = 0
@@ -33,10 +32,8 @@ watch(query, (value) => {
     const trimmed = value.trim()
     if (!trimmed) {
       results.value = []
-      searched.value = false
       return
     }
-    searched.value = true
     try {
       const result = await $fetch<SearchResult[]>('/api/search', { params: { query: trimmed } })
       if (token !== searchToken) return
@@ -83,11 +80,11 @@ onMounted(() => {
   <div
     v-if="open"
     data-tv-nav-scope
-    class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[10vh] px-4 cursor-pointer"
+    class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[20vh] px-4 cursor-pointer"
     @click.self="emit('close')"
   >
-    <div class="w-full max-w-lg bg-zinc-900 rounded-xl border border-zinc-800 shadow-2xl flex flex-col max-h-[80vh] cursor-default">
-      <div class="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
+    <div class="w-full max-w-lg bg-zinc-900 rounded-xl border border-zinc-800 shadow-2xl flex flex-col max-h-[70vh] cursor-default">
+      <div class="flex items-center gap-3 px-4 py-3">
         <svg class="w-5 h-5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
@@ -99,10 +96,8 @@ onMounted(() => {
         </button>
       </div>
 
-      <div class="overflow-y-auto flex-1 p-4">
-        <div v-if="searched && results.length === 0" class="text-center text-zinc-500 py-12 text-lg">No results found</div>
-        <div v-else-if="!searched" class="text-center text-zinc-600 py-12 text-sm">Type to search anime</div>
-        <div v-else class="flex flex-col divide-y divide-zinc-800">
+      <div v-if="results.length > 0" class="overflow-y-auto border-t border-zinc-800 p-4">
+        <div class="flex flex-col divide-y divide-zinc-800">
           <NuxtLink
             v-for="result in results"
             :key="result.malId"

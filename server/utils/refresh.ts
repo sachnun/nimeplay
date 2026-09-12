@@ -6,7 +6,7 @@ import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { mirrorAnimeMedia } from './r2'
 import { toR2Url } from './r2'
-import { getSources, scrapeAnimeDetailFresh } from './sources'
+import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
@@ -150,7 +150,9 @@ async function upsertEpisodes(
   animeSlug: string,
   list: { title: string, slug: string, date: string }[],
 ) {
-  const sourcePrefix = `${animeSlug.split(':')[0]}:`
+  const split = splitSource(animeSlug)
+  if (!split) return
+  const sourcePrefix = `${split.source.id}:`
   const rows = list
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
     .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)

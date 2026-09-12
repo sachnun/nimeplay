@@ -1,9 +1,9 @@
 import type { H3Event } from 'h3'
 import { cache } from '../cache'
 import { animein } from './animein'
+import { gomunime } from './gomunime'
 import { otakudesu } from './otakudesu'
 import { ylnime } from './ylnime'
-import { gomunime } from './gomunime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 
 const EPISODE_TTL = 30 * 60 * 1000
@@ -20,22 +20,26 @@ export function getSources(): AnimeSource[] {
   return Object.values(sources)
 }
 
-export function splitSource(slug: string): { source: AnimeSource; rest: string } {
+export function splitSource(slug: string): { source: AnimeSource, rest: string } | null {
   const index = slug.indexOf(':')
-  const source = index === -1 ? null : sources[slug.slice(0, index)]
-  if (!source) return { source: otakudesu, rest: slug }
-  return { source, rest: slug.slice(index + 1) }
+  if (index <= 0) return null
+  const source = sources[slug.slice(0, index)]
+  const rest = slug.slice(index + 1)
+  if (!source || !rest) return null
+  return { source, rest }
 }
 
 export function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const { source, rest } = splitSource(slug)
-  return source.detailFresh(rest)
+  const split = splitSource(slug)
+  if (!split) return Promise.resolve(null)
+  return split.source.detailFresh(split.rest)
 }
 
 export function scrapeEpisode(slug: string, event?: H3Event): Promise<EpisodeData | null> {
+  const split = splitSource(slug)
+  if (!split) return Promise.resolve(null)
   return cache.get('episode', slug, EPISODE_TTL, () => {
-    const { source, rest } = splitSource(slug)
-    return source.episodeFresh(rest)
+    return split.source.episodeFresh(split.rest)
   }, event ? { event } : undefined) as Promise<EpisodeData | null>
 }
 
@@ -49,8 +53,9 @@ export function scrapeEpisodeFresh(slug: string, event?: H3Event): Promise<Episo
 }
 
 export function resolvemirror(dataContent: string, event?: H3Event): Promise<string | null> {
+  const split = splitSource(dataContent)
+  if (!split) return Promise.resolve(null)
   return cache.get('mirror', dataContent, MIRROR_TTL, () => {
-    const { source, rest } = splitSource(dataContent)
-    return source.resolveMirror(rest)
+    return split.source.resolveMirror(split.rest)
   }, event ? { event } : undefined) as Promise<string | null>
 }

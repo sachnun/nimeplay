@@ -17,6 +17,8 @@ defineEmits<{
 
 const router = useRouter()
 
+const isMobilePortraitControls = useMediaQuery('(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)')
+
 function goBack() {
   if (window.history.length > 1) {
     router.back()
@@ -44,7 +46,7 @@ function goBack() {
       </button>
       <div class="flex-1" />
       <button
-        v-if="episodeCount > 1"
+        v-if="episodeCount > 1 && isMobilePortraitControls"
         class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
         :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'"
         @click="$emit('toggleEpisodes')"
@@ -52,7 +54,7 @@ function goBack() {
         EP {{ currentEpisodeNum }}
       </button>
       <button
-        v-if="qualityCount > 1"
+        v-if="qualityCount > 1 && isMobilePortraitControls"
         class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer"
         @click="$emit('toggleQuality')"
       >

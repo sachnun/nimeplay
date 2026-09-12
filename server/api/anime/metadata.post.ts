@@ -5,8 +5,10 @@ import { toFtsQuery } from '../../utils/fts'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 import { cleanSynopsis } from '../../utils/synopsis'
+import { translateEnToId } from '../../utils/translate'
 
 const METADATA_TTL = 24 * 60 * 60 * 1000
+const METADATA_NAMESPACE = 'metadata-v3'
 
 interface MetadataRequestBody {
   title?: string
@@ -102,7 +104,7 @@ function toMetadataPayload(source: {
   const supporting = source.characters.filter(c => c.role !== 'Main')
   return {
     malId: source.malId,
-    synopsisEn: cleanSynopsis(stripHtml(source.synopsis)),
+    synopsis: cleanSynopsis(stripHtml(source.synopsis)),
     background: '',
     malScore: source.score !== null ? Number(source.score) : null,
     malRank: source.rank,
@@ -131,7 +133,7 @@ export default defineEventHandler(async (event) => {
   if (!malId && !title) return null
 
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
-  return cache.get('metadata', cacheKey, METADATA_TTL, async () => {
+  return cache.get(METADATA_NAMESPACE, cacheKey, METADATA_TTL, async () => {
     const row = await lookupInDb({ ...body, title })
     if (row?.malId && (row.synopsis || (row.characters?.length ?? 0) > 0)) {
       if (body?.idOnly === true) return { malId: row.malId }
@@ -160,9 +162,10 @@ export default defineEventHandler(async (event) => {
     if (!fetched) return null
 
     if (body?.idOnly === true) return { malId: fetched.malId }
+    const synopsis = await translateEnToId(fetched.synopsis)
     return toMetadataPayload({
       malId: fetched.malId,
-      synopsis: fetched.synopsis,
+      synopsis: synopsis ?? '',
       score: fetched.score,
       rank: fetched.rank,
       popularity: fetched.popularity,

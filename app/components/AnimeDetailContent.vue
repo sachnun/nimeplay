@@ -11,7 +11,7 @@ const props = defineProps<{
   episodes: number[]
 }>()
 
-const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
+const { data } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
 const infoItems = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Type', value: props.otakudesu.type },
@@ -130,7 +130,7 @@ onMounted(() => {
       <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8">
         <div class="grid grid-cols-1 lg:grid-cols-[1fr_minmax(280px,400px)] gap-6 lg:gap-8 xl:gap-10">
           <div class="space-y-6 lg:space-y-8 min-w-0">
-            <SynopsisSection :synopsis-en="data?.synopsisEn" :loading="loading" />
+            <SynopsisSection :synopsis="data?.synopsis" />
           </div>
           <div>
             <CharacterList :characters="data?.characters" />

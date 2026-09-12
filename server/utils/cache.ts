@@ -9,7 +9,7 @@ interface Entry {
 const tables = new Map<string, Map<string, Entry>>()
 const MAX_ENTRIES_PER_NAMESPACE = 500
 
-const KV_NAMESPACES = new Set(['list', 'genres', 'genre-page', 'detail', 'episodes', 'search', 'metadata', 'counts', 'translate'])
+const KV_NAMESPACES = new Set(['list', 'genres', 'genre-page', 'detail', 'episodes', 'search', 'metadata', 'metadata-v2', 'counts', 'translate'])
 
 function pruneTable(table: Map<string, Entry>, now: number): void {
   for (const [key, entry] of table) {

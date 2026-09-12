@@ -235,7 +235,8 @@ interface AnimeRecord {
   malId: number
   title: string
   poster: string | null
-  synopsis: string | null
+  synopsisEn: string | null
+  synopsisId: string | null
   rating: number | null
   season: string | null
   status: string | null
@@ -251,7 +252,8 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
       malId: anime.malId,
       title: anime.title,
       poster: anime.poster,
-      synopsis: anime.synopsis,
+      synopsisEn: anime.synopsisEn,
+      synopsisId: anime.synopsisId,
       rating: anime.rating,
       season: anime.season,
       status: anime.status,
@@ -297,7 +299,7 @@ async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
     source: row.source ?? '',
     genres: genreRows,
     thumbnail: posterSrc(row.poster),
-    synopsis: cleanSynopsis(row.synopsis ?? ''),
+    synopsis: cleanSynopsis(row.synopsisId ?? row.synopsisEn ?? ''),
     season: row.season ?? '',
     episodes: episodeRows.map(entry => ({
       number: entry.number,

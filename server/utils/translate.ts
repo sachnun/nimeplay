@@ -1,6 +1,8 @@
-const GOOGLE_URL = 'https://translate.googleapis.com/translate_a/single'
+import { cleanSynopsis } from './synopsis'
+
+const GOOGLE_URL = 'https://translate.google.com/translate_a/single?client=at&dt=t&dt=rm&dj=1'
 const MYMEMORY_URL = 'https://api.mymemory.translated.net/get'
-const FETCH_TIMEOUT_MS = 8000
+const FETCH_TIMEOUT_MS = 10000
 const MAX_CHUNK = 4000
 
 function splitChunks(text: string): string[] {
@@ -44,20 +46,24 @@ function splitChunks(text: string): string[] {
   return chunks.filter(Boolean)
 }
 
+interface AtResponse {
+  sentences?: { trans?: string }[]
+}
+
 async function translateGoogle(chunk: string): Promise<string | null> {
   try {
-    const url = `${GOOGLE_URL}?client=gtx&sl=en&tl=id&dt=t&q=${encodeURIComponent(chunk)}`
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
+    const res = await fetch(GOOGLE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      body: new URLSearchParams({ sl: 'en', tl: 'id', q: chunk }).toString(),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
     if (!res.ok) return null
-    const data: unknown = await res.json()
-    if (!Array.isArray(data) || !Array.isArray(data[0])) return null
-    const joined = (data[0] as unknown[])
-      .map((part) => Array.isArray(part) && typeof part[0] === 'string' ? part[0] as string : '')
-      .join('')
-      .trim()
+    const data = await res.json() as AtResponse
+    const joined = (data?.sentences ?? []).map(part => part?.trans ?? '').join('').trim()
     return joined || null
   }
   catch {
@@ -87,7 +93,7 @@ async function translateMyMemory(chunk: string): Promise<string | null> {
 }
 
 export async function translateEnToId(text: string): Promise<string | null> {
-  const source = text.trim()
+  const source = cleanSynopsis(text)
   if (!source) return null
   const chunks = splitChunks(source)
   const out: string[] = []

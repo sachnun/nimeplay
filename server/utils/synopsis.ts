@@ -1,3 +1,16 @@
+const JUNK_SYNOPSIS = new Set([
+  'synopsis',
+  'sinopsis',
+  '-',
+  '--',
+  '...',
+  'tba',
+  'n/a',
+  'na',
+  'ongoing',
+  'completed',
+])
+
 export function cleanSynopsis(value: string | null | undefined): string {
   if (!value) return ''
   let result = value.trim()
@@ -9,5 +22,7 @@ export function cleanSynopsis(value: string | null | undefined): string {
       .replace(/\s*\(Source:[^()]*\)\s*$/i, '')
       .trim()
   }
+  if (!result || result.length < 10) return ''
+  if (JUNK_SYNOPSIS.has(result.toLowerCase())) return ''
   return result
 }

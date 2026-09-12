@@ -8,6 +8,26 @@ const props = defineProps<{
   loading: boolean
 }>()
 
+const JUNK_SOURCE = new Set([
+  'synopsis',
+  'sinopsis',
+  '-',
+  '--',
+  '...',
+  'tba',
+  'n/a',
+  'na',
+  'ongoing',
+  'completed',
+])
+
+function cleanSource(value: string | null | undefined): string {
+  const text = value?.trim() ?? ''
+  if (!text || text.length < 10) return ''
+  if (JUNK_SOURCE.has(text.toLowerCase())) return ''
+  return text
+}
+
 const expanded = ref(false)
 const clamped = ref(false)
 const textRef = ref<HTMLParagraphElement | null>(null)
@@ -16,13 +36,13 @@ const translating = ref(false)
 const failed = ref(false)
 
 const hasIdProp = computed(() => !!props.synopsisId?.trim())
-const hasSource = computed(() => !!props.synopsisEn?.trim())
+const source = computed(() => cleanSource(props.synopsisEn))
 const text = computed(() => props.synopsisId?.trim() || translated.value.trim())
-const showBody = computed(() => !!text.value || props.loading || translating.value || (hasSource.value && !failed.value))
+const showBody = computed(() => !!text.value || props.loading || translating.value || (!!source.value && !failed.value))
 
 async function ensureTranslation() {
   if (hasIdProp.value || translated.value || translating.value) return
-  const en = props.synopsisEn?.trim()
+  const en = source.value
   if (!en || !import.meta.client) return
   translating.value = true
   failed.value = false
@@ -47,8 +67,8 @@ watch(() => props.synopsisEn, () => {
 })
 
 if (import.meta.client) {
-  watch(() => props.synopsisEn, (en) => {
-    if (en?.trim() && !hasIdProp.value) void ensureTranslation()
+  watch(source, (en) => {
+    if (en && !hasIdProp.value) void ensureTranslation()
   }, { immediate: true })
 }
 
@@ -62,14 +82,14 @@ watch([text, expanded, translating, () => props.loading], () => {
 </script>
 
 <template>
-  <section>
+  <section v-if="showBody">
     <div class="flex items-center gap-3 mb-3">
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
       <span v-if="translating && !text" class="text-xs text-zinc-600 animate-pulse">Menerjemahkan...</span>
     </div>
-    <div v-if="showBody">
+    <div>
       <p
         v-if="text"
         ref="textRef"

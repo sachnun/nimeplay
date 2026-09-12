@@ -6,6 +6,8 @@ import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { mirrorAnimeMedia } from './r2'
 import { toR2Url } from './r2'
+import { cleanSynopsis } from './synopsis'
+import { translateEnToId } from './translate'
 import { getSources, scrapeAnimeDetailFresh } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -226,11 +228,15 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     } : undefined,
   }))
 
+  const synopsisEn = cleanSynopsis(mal.synopsis)
+  const synopsisId = await translateEnToId(synopsisEn)
+
   await db()
     .update(anime)
     .set({
       malId: mal.malId,
-      synopsis: mal.synopsis,
+      synopsisEn,
+      synopsisId,
       poster,
       rating: mal.score,
       rank: mal.rank,

@@ -87,7 +87,6 @@ watch([text, expanded, translating, () => props.loading], () => {
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
-      <span v-if="translating && !text" class="text-xs text-zinc-600 animate-pulse">Menerjemahkan...</span>
     </div>
     <div>
       <p
@@ -108,7 +107,7 @@ watch([text, expanded, translating, () => props.loading], () => {
         class="lg:hidden mt-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
         @click="expanded = true"
       >
-        Selengkapnya
+        Read more
       </button>
       <p v-if="failed && !text && !translating" class="text-sm text-zinc-500">
         Gagal memuat sinopsis.

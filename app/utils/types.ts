@@ -93,8 +93,7 @@ export interface AnimeCharacter {
 
 export interface AnimeMetadata {
   malId: number
-  synopsisEn: string
-  synopsisId: string | null
+  synopsis: string
   background: string
   malScore: number | null
   malRank: number | null

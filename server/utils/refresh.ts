@@ -72,6 +72,7 @@ interface CatalogStats {
   staleRefreshed: number
   metadataPending: number
   metadataResolved: number
+  synopsisBackfilled: number
 }
 
 let lastCatalogStats: CatalogStats | null = null
@@ -132,9 +133,14 @@ export async function getCatalogHealth() {
     .select({ count: sql<number>`count(*)` })
     .from(anime)
     .where(isNull(anime.malId))
+  const [missing] = await db()
+    .select({ count: sql<number>`count(*)` })
+    .from(anime)
+    .where(isNull(anime.synopsis))
   return {
     checkedAt: new Date().toISOString(),
     pendingMetadata: row?.count ?? 0,
+    missingSynopsis: missing?.count ?? 0,
     lastCatalogSync: lastCatalogStats,
     config: {
       ongoingPages: ONGOING_PAGES,
@@ -228,15 +234,13 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     } : undefined,
   }))
 
-  const synopsisEn = cleanSynopsis(mal.synopsis)
-  const synopsisId = await translateEnToId(synopsisEn)
+  const synopsis = await translateEnToId(mal.synopsis)
 
   await db()
     .update(anime)
     .set({
       malId: mal.malId,
-      synopsisEn,
-      synopsisId,
+      synopsis,
       poster,
       rating: mal.score,
       rank: mal.rank,
@@ -254,6 +258,40 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     .where(eq(anime.slug, slug))
   await syncGenres(slug, mal.genres)
   await mirrorAnimeMedia(poster, characters)
+  if (!synopsis) {
+    await recordFailure(slug, 'synopsis translate failed')
+  }
+}
+
+const SYNOPSIS_BACKFILL_BUDGET = 12
+
+async function backfillMissingSynopsis(deadline: number): Promise<number> {
+  const now = new Date()
+  const todo = await db()
+    .select({ slug: anime.slug, title: anime.title, malId: anime.malId })
+    .from(anime)
+    .where(and(isNull(anime.synopsis), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))))
+    .orderBy(asc(anime.updatedAt))
+    .limit(SYNOPSIS_BACKFILL_BUDGET)
+  if (todo.length === 0) return 0
+  let done = 0
+  for (const row of todo) {
+    if (Date.now() > deadline) break
+    const ok = row.malId
+      ? await attempt(
+        refreshLinkedMalMetadata(row.slug, row.malId),
+        error => console.warn(`[catalog] synopsis backfill deferred ${row.slug}:`, error instanceof Error ? error.message : error),
+      )
+      : await attempt(
+        resolveMetadata(row.slug, row.title),
+        error => console.warn(`[catalog] synopsis backfill deferred ${row.slug}:`, error instanceof Error ? error.message : error),
+      )
+    if (ok) {
+      done++
+      console.log(`[catalog] synopsis backfilled: ${row.slug}`)
+    }
+  }
+  return done
 }
 
 async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<boolean> {
@@ -662,6 +700,11 @@ async function syncOngoingCatalog(): Promise<void> {
     }
   }
 
+  const synopsisFilled = await backfillMissingSynopsis(deadline)
+  if (synopsisFilled > 0) {
+    console.log(`[catalog] synopsis backfilled: ${synopsisFilled} rows`)
+  }
+
   lastCatalogStats = {
     startedAt: startedAt.toISOString(),
     finishedAt: new Date().toISOString(),
@@ -672,6 +715,7 @@ async function syncOngoingCatalog(): Promise<void> {
     staleRefreshed,
     metadataPending: totalPending,
     metadataResolved: resolved,
+    synopsisBackfilled: synopsisFilled,
   }
 }
 

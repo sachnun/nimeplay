@@ -5,9 +5,10 @@ import { toFtsQuery } from '../../utils/fts'
 import { anime } from '../../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from '../../utils/mal'
 import { cleanSynopsis } from '../../utils/synopsis'
+import { translateEnToId } from '../../utils/translate'
 
 const METADATA_TTL = 24 * 60 * 60 * 1000
-const METADATA_NAMESPACE = 'metadata-v2'
+const METADATA_NAMESPACE = 'metadata-v3'
 
 interface MetadataRequestBody {
   title?: string
@@ -43,8 +44,7 @@ function parseCharacters(value: string): MalCharacter[] {
 async function lookupInDb(body: MetadataRequestBody) {
   const columns = {
     malId: anime.malId,
-    synopsisEn: anime.synopsisEn,
-    synopsisId: anime.synopsisId,
+    synopsis: anime.synopsis,
     rating: anime.rating,
     rank: anime.rank,
     popularity: anime.popularity,
@@ -68,8 +68,7 @@ async function lookupInDb(body: MetadataRequestBody) {
   if (!match) return null
   const [row] = await db().all<{
     malId: number | null
-    synopsisEn: string | null
-    synopsisId: string | null
+    synopsis: string | null
     rating: number | null
     rank: number | null
     popularity: number | null
@@ -77,7 +76,7 @@ async function lookupInDb(body: MetadataRequestBody) {
     trailerId: string | null
     characters: string
   }>(sql`
-    select a.mal_id as malId, a.synopsis_en as synopsisEn, a.synopsis_id as synopsisId, a.rating as rating,
+    select a.mal_id as malId, a.synopsis as synopsis, a.rating as rating,
       a.rank as rank, a.popularity as popularity, a.season as season,
       a.trailer_id as trailerId, a.characters as characters
     from anime_fts f
@@ -92,8 +91,7 @@ async function lookupInDb(body: MetadataRequestBody) {
 
 function toMetadataPayload(source: {
   malId: number
-  synopsisEn: string
-  synopsisId: string | null
+  synopsis: string
   score: number | null
   rank: number | null
   popularity: number | null
@@ -106,8 +104,7 @@ function toMetadataPayload(source: {
   const supporting = source.characters.filter(c => c.role !== 'Main')
   return {
     malId: source.malId,
-    synopsisEn: cleanSynopsis(stripHtml(source.synopsisEn)),
-    synopsisId: source.synopsisId ?? null,
+    synopsis: cleanSynopsis(stripHtml(source.synopsis)),
     background: '',
     malScore: source.score !== null ? Number(source.score) : null,
     malRank: source.rank,
@@ -138,13 +135,12 @@ export default defineEventHandler(async (event) => {
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
   return cache.get(METADATA_NAMESPACE, cacheKey, METADATA_TTL, async () => {
     const row = await lookupInDb({ ...body, title })
-    if (row?.malId && (row.synopsisEn || row.synopsisId || (row.characters?.length ?? 0) > 0)) {
+    if (row?.malId && (row.synopsis || (row.characters?.length ?? 0) > 0)) {
       if (body?.idOnly === true) return { malId: row.malId }
       const { season, year } = splitSeasonYear(row.season)
       return toMetadataPayload({
         malId: row.malId,
-        synopsisEn: row.synopsisEn ?? '',
-        synopsisId: row.synopsisId ?? null,
+        synopsis: row.synopsis ?? '',
         score: row.rating,
         rank: row.rank,
         popularity: row.popularity,
@@ -166,10 +162,10 @@ export default defineEventHandler(async (event) => {
     if (!fetched) return null
 
     if (body?.idOnly === true) return { malId: fetched.malId }
+    const synopsis = await translateEnToId(fetched.synopsis)
     return toMetadataPayload({
       malId: fetched.malId,
-      synopsisEn: fetched.synopsis,
-      synopsisId: null,
+      synopsis: synopsis ?? '',
       score: fetched.score,
       rank: fetched.rank,
       popularity: fetched.popularity,

@@ -146,8 +146,8 @@ onMounted(() => {
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       </button>
-      <div class="relative max-w-[90vw] max-h-[90vh]" @click.stop>
-        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" decoding="async" class="max-h-[90vh] w-auto rounded-lg shadow-2xl object-contain [filter:brightness(0.9)]">
+      <div class="relative w-[80vw] h-[80vh] flex items-center justify-center" @click.stop>
+        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" decoding="async" class="w-full h-full object-contain rounded-lg shadow-2xl [filter:brightness(0.9)]">
       </div>
     </div>
   </div>

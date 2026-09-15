@@ -48,7 +48,6 @@ const {
   progress,
   qualityOptions,
   resolving,
-  scrubPreview,
   seekIndicator,
   seekIndicatorKey,
   showEmpty,
@@ -82,21 +81,12 @@ const {
     </div>
 
     <div v-if="showEmpty" class="absolute inset-0 flex items-center justify-center text-zinc-500">Stream tidak tersedia</div>
-    <div v-if="seekIndicator" :key="seekIndicatorKey" class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
-      <div class="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-black/70 backdrop-blur-sm animate-[seekPulse_0.6s_ease-out_forwards]">
-        <div class="flex items-center gap-2">
-          <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path :d="seekIndicator.side === 'left' ? 'M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z' : 'M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z'" />
-          </svg>
-          <span class="text-sm font-semibold tabular-nums" :class="seekIndicator.side === 'right' ? 'text-white' : 'text-amber-300'">{{ seekIndicator.side === 'right' ? '+' : '-' }}{{ seekIndicator.seconds }}s</span>
-        </div>
-        <span class="text-sm font-semibold text-white tabular-nums">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
-      </div>
-    </div>
-    <div v-if="scrubPreview" class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
-      <div class="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-black/70 backdrop-blur-sm">
-        <span class="text-sm font-semibold text-white tabular-nums">{{ formatTime(scrubPreview.current) }} / {{ formatTime(duration) }}</span>
-        <span class="text-xs font-medium tabular-nums" :class="scrubPreview.delta >= 0 ? 'text-white' : 'text-amber-300'">{{ scrubPreview.delta >= 0 ? '+' : '' }}{{ Math.round(scrubPreview.delta) }}s</span>
+    <div v-if="seekIndicator" :key="seekIndicatorKey" class="absolute top-0 bottom-0 z-[15] flex items-center pointer-events-none" :class="seekIndicator.side === 'left' ? 'left-0 w-[30%] justify-center' : 'right-0 w-[30%] justify-center'">
+      <div class="flex flex-col items-center gap-1 animate-[seekPulse_0.6s_ease-out_forwards]">
+        <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path :d="seekIndicator.side === 'left' ? 'M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z' : 'M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z'" />
+        </svg>
+        <span class="text-sm font-semibold text-white tabular-nums">{{ seekIndicator.seconds }}s</span>
       </div>
     </div>
     <Transition name="osd-fade">

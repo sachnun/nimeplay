@@ -118,7 +118,10 @@ async function fetchEpisodePage(movieId: string, page: number): Promise<AnimeinE
 
 async function collectEpisodes(movieId: string): Promise<AnimeinEpisode[]> {
   const all: AnimeinEpisode[] = []
-  for (let start = 0; start < EPISODE_LIST_MAX_PAGES; start += EPISODE_FETCH_BATCH) {
+  const first = await fetchEpisodePage(movieId, 0)
+  all.push(...first)
+  if (first.length < EPISODE_PAGE_SIZE) return all
+  for (let start = 1; start < EPISODE_LIST_MAX_PAGES; start += EPISODE_FETCH_BATCH) {
     const pages = Array.from(
       { length: Math.min(EPISODE_FETCH_BATCH, EPISODE_LIST_MAX_PAGES - start) },
       (_, offset) => start + offset,

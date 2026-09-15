@@ -15,11 +15,11 @@ const CATALOG_SYNC_MS = 10 * 60 * 1000
 const SYNC_WALL_MS = 25000
 const CATALOG_META_BUDGET = 8
 const METADATA_WALL_MS = 120000
-const ONGOING_PAGES = 6
+const ONGOING_PAGES = 3
 const COMPLETED_PAGES = 3
-const FRESH_BUDGET = 8
-const UNKNOWN_BUDGET = 2
-const STALE_ONGOING_BUDGET = 5
+const FRESH_BUDGET = 6
+const UNKNOWN_BUDGET = 1
+const STALE_ONGOING_BUDGET = 2
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
@@ -146,9 +146,54 @@ export async function getCatalogHealth() {
   }
 }
 
+async function loadMaxMap(slugs: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  const results = await Promise.all(chunkValues(slugs, BIND_CHUNK_SIZE).map(chunk =>
+    db()
+      .select({ slug: episodes.animeSlug, max: sql<number | null>`max(${episodes.number})` })
+      .from(episodes)
+      .where(inArray(episodes.animeSlug, chunk))
+      .groupBy(episodes.animeSlug),
+  ))
+  for (const rows of results) {
+    for (const row of rows) map.set(row.slug, Number(row.max ?? 0))
+  }
+  return map
+}
+
+interface AnimeRefreshState {
+  max: number
+  malId: number | null
+  status: string | null
+  metadataSyncedAt: Date | null
+}
+
+async function loadRefreshStates(slugs: string[], max?: Map<string, number>): Promise<Map<string, AnimeRefreshState>> {
+  const states = new Map<string, AnimeRefreshState>()
+  if (slugs.length === 0) return states
+  const results = await Promise.all(chunkValues(slugs, BIND_CHUNK_SIZE).map(chunk =>
+    db()
+      .select({ slug: anime.slug, malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
+      .from(anime)
+      .where(inArray(anime.slug, chunk)),
+  ))
+  for (const rows of results) {
+    for (const row of rows) {
+      states.set(row.slug, {
+        max: max?.get(row.slug) ?? 0,
+        malId: row.malId,
+        status: row.status,
+        metadataSyncedAt: row.metadataSyncedAt,
+      })
+    }
+  }
+  return states
+}
+
 async function upsertEpisodes(
   animeSlug: string,
   list: { title: string, slug: string, date: string }[],
+  updates: Partial<typeof anime.$inferInsert>,
 ) {
   const split = splitSource(animeSlug)
   if (!split) return
@@ -157,27 +202,24 @@ async function upsertEpisodes(
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
     .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)
 
-  if (rows.length === 0) return
-
   const client = db()
-  const statements = chunkValues(rows, 15).map(chunk =>
-    client.insert(episodes).values(chunk.map(({ entry, number }) => ({
-      animeSlug,
-      slug: `${sourcePrefix}${entry.slug}`,
-      number,
-      title: entry.title,
-      releaseDate: entry.date || null,
-    }))).onConflictDoNothing(),
-  )
+  const statements = [
+    ...chunkValues(rows, 15).map(chunk =>
+      client.insert(episodes).values(chunk.map(({ entry, number }) => ({
+        animeSlug,
+        slug: `${sourcePrefix}${entry.slug}`,
+        number,
+        title: entry.title,
+        releaseDate: entry.date || null,
+      }))).onConflictDoNothing(),
+    ),
+    client.update(anime).set({
+      ...updates,
+      episodeCount: sql<number>`(select count(*) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
+      latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
+    }).where(eq(anime.slug, animeSlug)),
+  ]
   await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
-  const [agg] = await db()
-    .select({ count: sql<number>`count(*)`, max: sql<number | null>`max(${episodes.number})` })
-    .from(episodes)
-    .where(eq(episodes.animeSlug, animeSlug))
-  await db()
-    .update(anime)
-    .set({ episodeCount: Number(agg?.count ?? 0), latestEpisode: agg?.max ?? null })
-    .where(eq(anime.slug, animeSlug))
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -393,12 +435,22 @@ function invalidateAnimeCaches(animeSlug: string, malId: number | null, statusCh
   }
 }
 
-export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean): Promise<void> {
-  const [animeRow] = await db()
-    .select({ malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
-    .from(anime)
-    .where(eq(anime.slug, slug))
-    .limit(1)
+export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean, known?: AnimeRefreshState): Promise<void> {
+  let state = known
+  if (!state) {
+    const [row] = await db()
+      .select({ malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
+      .from(anime)
+      .where(eq(anime.slug, slug))
+      .limit(1)
+    state = {
+      max: -1,
+      malId: row?.malId ?? null,
+      status: row?.status ?? null,
+      metadataSyncedAt: row?.metadataSyncedAt ?? null,
+    }
+  }
+  const animeRow = state
   const detail = await scrapeAnimeDetailFresh(slug)
   let hasNewEpisodes = false
   let statusChanged = false
@@ -408,36 +460,27 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       .map(entry => parseEpisodeDate(entry.date))
       .filter((date): date is Date => date !== null)
       .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-    const [beforeRow] = await db()
-      .select({ max: sql<number | null>`max(${episodes.number})` })
-      .from(episodes)
-      .where(eq(episodes.animeSlug, slug))
-    const maxBefore = Number(beforeRow?.max ?? 0)
-    await upsertEpisodes(slug, detail.episodes)
+    const maxBefore = animeRow.max >= 0 ? animeRow.max : (await loadMaxMap([slug])).get(slug) ?? 0
     const maxInDetail = detail.episodes.reduce((max, entry) => {
       const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
       return parsed != null && parsed > max ? parsed : max
     }, 0)
-    const maxAfter = Math.max(maxBefore, maxInDetail)
-    hasNewEpisodes = maxAfter > maxBefore
-    statusChanged = animeRow?.status != null && animeRow.status !== status
-    await db()
-      .update(anime)
-      .set({
-        title: detail.title || title,
-        status,
-        ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
-        ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-        ...(hasNewEpisodes ? { lastNewEpisodeAt: new Date() } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(anime.slug, slug))
+    hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
+    statusChanged = animeRow.status != null && animeRow.status !== status
+    await upsertEpisodes(slug, detail.episodes, {
+      title: detail.title || title,
+      status,
+      ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
+      ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+      ...(hasNewEpisodes ? { lastNewEpisodeAt: new Date() } : {}),
+      updatedAt: new Date(),
+    })
     if (hasNewEpisodes || statusChanged) {
-      invalidateAnimeCaches(slug, animeRow?.malId ?? null, statusChanged)
+      invalidateAnimeCaches(slug, animeRow.malId, statusChanged)
     }
   }
-  const linkedMalId = animeRow?.malId ?? null
-  const metadataStale = !animeRow?.metadataSyncedAt || Date.now() - animeRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
+  const linkedMalId = animeRow.malId
+  const metadataStale = !animeRow.metadataSyncedAt || Date.now() - animeRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
   if (linkedMalId) {
     if (statusChanged || (metadataStale && (hasNewEpisodes || refreshMetadata))) {
       await refreshLinkedMalMetadata(slug, linkedMalId)
@@ -515,23 +558,12 @@ async function refreshFreshEpisodes(
   }
   const wanted = [...bySlug.values()]
   if (wanted.length === 0) return 0
-  const dbMax = new Map<string, number>()
-  const maxResults = await Promise.all(chunkValues(wanted, BIND_CHUNK_SIZE).map(chunk =>
-    db()
-      .select({ slug: episodes.animeSlug, max: sql<number>`max(${episodes.number})` })
-      .from(episodes)
-      .where(inArray(episodes.animeSlug, chunk.map(item => item.slug)))
-      .groupBy(episodes.animeSlug),
-  ))
-  for (const rows of maxResults) {
-    for (const row of rows) {
-      dbMax.set((row as { slug: string }).slug, Number((row as { max: number | null }).max ?? 0))
-    }
-  }
+  const dbMax = await loadMaxMap(wanted.map(item => item.slug))
   const todo = wanted
     .filter(item => item.episode > (dbMax.get(item.slug) ?? 0))
     .slice(0, FRESH_BUDGET)
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
+  const states = await loadRefreshStates(todo.map(item => item.slug), dbMax)
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] fresh episodes: ${refreshed} refreshed`)
   }
@@ -556,7 +588,8 @@ async function refreshUnknownSlugs(
     for (const row of rows) withEpisodes.add(row.slug)
   }
   const todo = unique.filter(item => !withEpisodes.has(item.slug)).slice(0, UNKNOWN_BUDGET)
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
+  const states = await loadRefreshStates(todo.map(item => item.slug))
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] unknown episodes: ${refreshed} refreshed`)
   }
@@ -572,7 +605,8 @@ async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise
     .limit(30)
   const todo = candidates.filter(item => !seen.has(item.slug)).slice(0, STALE_ONGOING_BUDGET)
   if (todo.length === 0) return 0
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'stale ongoing refresh', item => refreshAnimeBySlug(item.slug, item.title, false))
+  const states = await loadRefreshStates(todo.map(item => item.slug), await loadMaxMap(todo.map(item => item.slug)))
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'stale ongoing refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] stale ongoing: ${refreshed} refreshed`)
   }

@@ -24,7 +24,7 @@ Local bindings emulate D1 (`DB`), KV (`CACHE`), and R2 (`R2`) via `wrangler.json
 
 ## Catalog sync
 
-`catalog-sync` runs every 10 minutes via Nitro `scheduledTasks` and the Workers cron trigger.
+`catalog-sync` and `metadata-sync` run every 3 hours via Nitro `scheduledTasks` and the Workers cron trigger.
 
 Schema changes:
 

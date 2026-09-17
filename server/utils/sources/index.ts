@@ -1,7 +1,6 @@
 import type { H3Event } from 'h3'
 import { cache } from '../cache'
 import { animein } from './animein'
-import { gomunime } from './gomunime'
 import { otakudesu } from './otakudesu'
 import { ylnime } from './ylnime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
@@ -13,7 +12,6 @@ export const sources: Record<string, AnimeSource> = {
   animein,
   otakudesu,
   ylnime,
-  gomunime,
 }
 
 export function getSources(): AnimeSource[] {

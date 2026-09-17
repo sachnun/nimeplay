@@ -9,6 +9,11 @@ interface HomeData {
 
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
+definePageMeta({
+  browse: true,
+  scrollToTop: (_to, from) => !from.meta.browse,
+})
+
 const { data, error, status } = await useAsyncData<HomeData>('home', async () => {
   return $fetch('/api/home')
 }, {

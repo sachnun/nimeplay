@@ -25,6 +25,11 @@ watchEffect(() => {
   if (selectedGenre.value) useHead({ title: selectedGenre.value.name })
 })
 
+definePageMeta({
+  browse: true,
+  scrollToTop: (_to, from) => !from.meta.browse,
+})
+
 const searchOpen = ref(false)
 </script>
 

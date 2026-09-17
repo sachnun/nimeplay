@@ -6,6 +6,7 @@ export interface ScrapedAnimeCard {
   day: string
   date: string
   rating?: string
+  status?: 'ONGOING' | 'COMPLETED'
 }
 
 export interface ScrapedAnimeDetail {

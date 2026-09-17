@@ -519,12 +519,12 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
   waitUntil(event, task)
 }
 
-async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, ongoingRank: number }[]) {
+async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[]) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     slug: `${card.source.id}:${card.slug}`,
     title: card.title,
-    status: 'ONGOING',
+    status: card.status ?? 'ONGOING',
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
     ongoingRank: card.ongoingRank,
@@ -620,7 +620,7 @@ async function syncOngoingCatalog(): Promise<void> {
   const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
   let ongoingRank = 0
   for (const source of getSources()) {
-    const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, ongoingRank: number }[] = []
+    const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
     const first = await attempt(
       source.ongoingFresh(1),
       error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
@@ -628,7 +628,7 @@ async function syncOngoingCatalog(): Promise<void> {
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
         ongoingRank++
-        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
+        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
       }
       const pages: number[] = []
       for (let page = 2; page <= Math.min(ONGOING_PAGES, first.totalPages); page++) pages.push(page)
@@ -640,7 +640,7 @@ async function syncOngoingCatalog(): Promise<void> {
         if (result === null) continue
         for (const card of result.anime) {
           ongoingRank++
-          cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, ongoingRank })
+          cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
         }
       }
     }

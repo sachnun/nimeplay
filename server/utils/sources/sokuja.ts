@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { kvNamespace } from '../kv'
 import { getSpoofHeaders } from '../spoof'
 import { sealStreamToken } from '../streamUrl'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
@@ -102,19 +103,63 @@ async function latestEpisodeMap(): Promise<Map<string, number>> {
   return map
 }
 
+async function mergeLatestEpisodes(cards: ScrapedAnimeCard[]): Promise<void> {
+  if (cards.length === 0) return
+  const latest = await latestEpisodeMap().catch(() => new Map<string, number>())
+  for (const card of cards) {
+    const number = latest.get(card.slug)
+    if (number !== undefined) card.episode = `episode-${number}`
+  }
+}
+
 async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
   const url = `${BASE_URL}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
   const html = await fetchHTML(url)
   const $ = cheerio.load(html)
   const anime = parseCards($)
-  if (status === 'ongoing' && page === 1 && anime.length > 0) {
-    const latest = await latestEpisodeMap().catch(() => new Map<string, number>())
-    for (const card of anime) {
-      const number = latest.get(card.slug)
-      if (number !== undefined) card.episode = `episode-${number}`
+  if (status === 'ongoing' && page === 1) await mergeLatestEpisodes(anime)
+  return { anime, totalPages: parseTotalPages($, page) }
+}
+
+const BACKFILL_KEY = 'nimeplay:v1:sokuja_backfilled'
+
+async function scrapeFullCatalog(): Promise<ScrapedAnimeCard[]> {
+  const html = await fetchHTML(`${BASE_URL}/anime/list-mode/`)
+  const $ = cheerio.load(html)
+  const cards: ScrapedAnimeCard[] = []
+  $('a[href]').each((_, el) => {
+    const slug = ($(el).attr('href') || '').match(/^\/anime\/([^/]+)\/$/)?.[1]
+    if (!slug || slug === 'list-mode') return
+    const spans = $(el).find('span')
+    const title = cleanTitle(spans.eq(0).text().trim())
+    if (!title) return
+    const meta = spans.eq(1).text()
+    const status = /completed|tamat/i.test(meta) ? 'COMPLETED' as const : /ongoing/i.test(meta) ? 'ONGOING' as const : undefined
+    cards.push({ title, slug, thumbnail: '', episode: '', day: '', date: '', ...(status ? { status } : {}) })
+  })
+  return cards
+}
+
+async function isBackfilled(): Promise<boolean> {
+  const kv = kvNamespace()
+  return kv ? (await kv.get(BACKFILL_KEY, 'text')) === '1' : false
+}
+
+async function markBackfilled(): Promise<void> {
+  const kv = kvNamespace()
+  if (kv) await kv.put(BACKFILL_KEY, '1')
+}
+
+async function scrapeOngoingFresh(page: number): Promise<ListResult> {
+  if (page === 1 && !(await isBackfilled())) {
+    const full = await scrapeFullCatalog()
+    if (full.length > 0) {
+      await markBackfilled()
+      await mergeLatestEpisodes(full)
+      return { anime: full, totalPages: 1 }
     }
   }
-  return { anime, totalPages: parseTotalPages($, page) }
+  return scrapeListFresh('ongoing', page)
 }
 
 function parseInfo($: cheerio.CheerioAPI): Record<string, string> {
@@ -226,7 +271,7 @@ export const sokuja: AnimeSource = {
   id: 'sokuja',
   name: 'Sokuja',
   baseUrl: BASE_URL,
-  ongoingFresh: page => scrapeListFresh('ongoing', page),
+  ongoingFresh: scrapeOngoingFresh,
   completedFresh: page => scrapeListFresh('completed', page),
   detailFresh: scrapeAnimeDetailFresh,
   episodeFresh: scrapeEpisodeFresh,

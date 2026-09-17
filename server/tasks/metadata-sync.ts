@@ -1,12 +1,13 @@
 import { runMetadataSync } from '../utils/refresh'
+import { triggerInternal } from '../utils/internal'
 
 export default defineTask({
   meta: {
     name: 'metadata-sync',
-    description: 'Resolve MAL metadata backlog into D1',
+    description: 'Trigger placed metadata sync via internal API',
   },
   async run() {
-    await runMetadataSync()
+    await triggerInternal('metadata-sync', runMetadataSync)
     return { result: 'ok' }
   },
 })

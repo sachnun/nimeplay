@@ -1,12 +1,13 @@
 import { runCatalogSync } from '../utils/refresh'
+import { triggerInternal } from '../utils/internal'
 
 export default defineTask({
   meta: {
     name: 'catalog-sync',
-    description: 'Sync ongoing catalog from sources into D1',
+    description: 'Trigger placed catalog sync via internal API',
   },
   async run() {
-    await runCatalogSync()
+    await triggerInternal('catalog-sync', runCatalogSync)
     return { result: 'ok' }
   },
 })

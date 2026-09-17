@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
 import { db } from './db'
+import { kvNamespace } from './kv'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { toR2Url } from './r2'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
@@ -23,6 +24,8 @@ const STALE_ONGOING_BUDGET = 2
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
+const BACKFILL_PAGES_PER_RUN = 4
+const BACKFILL_WALL_MS = 20000
 
 function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
@@ -519,7 +522,7 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
   waitUntil(event, task)
 }
 
-async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[]) {
+async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     slug: `${card.source.id}:${card.slug}`,
@@ -527,7 +530,7 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     status: card.status ?? 'ONGOING',
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
-    ongoingRank: card.ongoingRank,
+    ongoingRank: card.ongoingRank ?? null,
     sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
   const client = db()
@@ -613,6 +616,43 @@ async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise
   return refreshed
 }
 
+async function backfillCompleted(source: AnimeSource, deadline: number): Promise<number> {
+  const key = `nimeplay:v1:backfill:${source.id}`
+  const kv = kvNamespace()
+  const cursor = kv ? await kv.get(key, 'text') : null
+  if (cursor === 'done') return 0
+  let page = Number(cursor) || 1
+  if (page < 1) page = 1
+  let totalPages = page
+  let registered = 0
+  for (let fetched = 0; fetched < BACKFILL_PAGES_PER_RUN && page <= totalPages && Date.now() < deadline; fetched++) {
+    const result = await attempt(
+      source.completedFresh(page),
+      error => console.warn(`[catalog] ${source.id} completed page ${page} failed:`, error instanceof Error ? error.message : error),
+    )
+    if (result === null) break
+    totalPages = Math.max(1, result.totalPages)
+    if (result.anime.length > 0) {
+      const cards = result.anime.map(card => ({
+        source,
+        slug: card.slug,
+        title: card.title,
+        day: card.day,
+        date: card.date,
+        status: 'COMPLETED' as const,
+      }))
+      const done = await attempt(
+        registerOngoingCards(cards),
+        error => console.warn(`[catalog] ${source.id} completed register failed:`, error instanceof Error ? error.message : error),
+      )
+      if (done !== null) registered += result.anime.length
+    }
+    page++
+  }
+  if (kv) await kv.put(key, page > totalPages ? 'done' : String(page))
+  return registered
+}
+
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
   const deadline = startedAt.getTime() + SYNC_WALL_MS
@@ -670,6 +710,13 @@ async function syncOngoingCatalog(): Promise<void> {
 
   const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
   const staleRefreshed = await refreshStaleOngoing(seen, deadline)
+
+  const backfillDeadline = Date.now() + BACKFILL_WALL_MS
+  let backfilled = 0
+  for (const source of getSources()) {
+    backfilled += await backfillCompleted(source, backfillDeadline)
+  }
+  if (backfilled > 0) console.log(`[catalog] completed backfill: ${backfilled} registered`)
 
   const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0

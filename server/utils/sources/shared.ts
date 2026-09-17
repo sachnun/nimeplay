@@ -55,7 +55,7 @@ export function parseEpisodeDate(raw: string): Date | null {
   if (lower === 'hari ini') return new Date()
   if (lower === 'kemarin') return new Date(Date.now() - 86_400_000)
 
-  const relativeMatch = lower.match(/^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu)\w*\s+lalu$/)
+  const relativeMatch = lower.match(/^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu|month|bulan|year|tahun)\w*\s+lalu$/)
   if (relativeMatch) {
     const num = Number(relativeMatch[1])
     const unit = relativeMatch[2]
@@ -69,6 +69,10 @@ export function parseEpisodeDate(raw: string): Date | null {
       hari: 86400 * 1000,
       week: 7 * 86400 * 1000,
       minggu: 7 * 86400 * 1000,
+      month: 30 * 86400 * 1000,
+      bulan: 30 * 86400 * 1000,
+      year: 365 * 86400 * 1000,
+      tahun: 365 * 86400 * 1000,
     }
     const ms = unit ? msMap[unit] ?? 0 : 0
     const delta = ms * num

@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import { cache } from '../cache'
 import { animein } from './animein'
 import { otakudesu } from './otakudesu'
+import { sokuja } from './sokuja'
 import { ylnime } from './ylnime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 
@@ -11,6 +12,7 @@ const MIRROR_TTL = 10 * 60 * 1000
 export const sources: Record<string, AnimeSource> = {
   animein,
   otakudesu,
+  sokuja,
   ylnime,
 }
 

@@ -1,6 +1,5 @@
 import type { H3Event } from 'h3'
 import { createError, getHeader, getRequestURL } from 'h3'
-import { cloudflareEnv } from './env'
 import { kvNamespace } from './kv'
 
 export const INTERNAL_KEY = 'nimeplay'
@@ -27,8 +26,6 @@ export function rememberOrigin(event: H3Event): void {
 }
 
 async function resolveOrigin(): Promise<string | null> {
-  const override = cloudflareEnv().WORKER_ORIGIN
-  if (typeof override === 'string' && override) return override
   if (knownOrigin) return knownOrigin
   const kv = kvNamespace()
   const stored = kv ? await kv.get(ORIGIN_KEY, 'text') : null

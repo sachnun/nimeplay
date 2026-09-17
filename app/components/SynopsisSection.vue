@@ -59,7 +59,7 @@ watch([text, expanded, () => props.loading], () => {
     <div v-if="hasId || hasEn">
       <p
         ref="textRef"
-        class="text-sm text-zinc-300 leading-relaxed [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"
+        class="text-sm text-zinc-300 leading-relaxed whitespace-pre-line [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"
         :class="!expanded ? 'lg:line-clamp-none line-clamp-4' : ''"
       >
         {{ text }}

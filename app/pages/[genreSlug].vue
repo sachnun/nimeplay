@@ -8,8 +8,9 @@ const { data: genresData } = await useAsyncData<{ data: Genre[] }>('genres', () 
   default: () => ({ data: [] }),
 })
 
-const homeCache = useNuxtData<{ genres: Genre[] }>('home')
-const genres = computed<Genre[]>(() => genresData.value.data.length > 0 ? genresData.value.data : (homeCache.data.value?.genres ?? []))
+const nuxtApp = useNuxtApp()
+const homeGenres = computed<Genre[]>(() => (nuxtApp.payload.data.home as { genres?: Genre[] } | undefined)?.genres ?? [])
+const genres = computed<Genre[]>(() => genresData.value.data.length > 0 ? genresData.value.data : homeGenres.value)
 const selectedGenre = computed(() => genres.value.find((g) => g.slug === genreSlug.value) ?? null)
 
 if (genres.value.length > 0 && !selectedGenre.value) {

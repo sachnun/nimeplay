@@ -172,7 +172,7 @@ export function isYuplod(url: string): boolean {
 async function fetchNestedHtml(url: string, referer: string): Promise<string> {
   try {
     const res = await fetch(url, {
-      headers: getSpoofHeaders(referer, 'iframe'),
+      headers: embedPageHeadersFor(referer),
       signal: AbortSignal.timeout(8000),
     })
     return await res.text()
@@ -226,7 +226,11 @@ export function upstreamRefererFor(url: string): string | null {
   return null
 }
 
-const VIDEO_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+export const VIDEO_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+
+export function embedPageHeadersFor(url: string): Record<string, string> {
+  return { ...getSpoofHeaders(url, 'iframe'), 'User-Agent': VIDEO_UA }
+}
 
 export function upstreamHeadersFor(url: string, range?: string): Record<string, string> {
   let referer = upstreamRefererFor(url)

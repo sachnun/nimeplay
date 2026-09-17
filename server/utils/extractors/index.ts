@@ -1,8 +1,7 @@
-import { getSpoofHeaders } from '../spoof'
 import { isNekoclouds, extractNekoclouds } from './nekoclouds'
 import { isOdcloud, extractOdcloud } from './odcloud'
 import { isVidhide, extractVidhide } from './vidhide'
-import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, upstreamHeadersFor } from './hosts'
+import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, embedPageHeadersFor, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
 
 type HostExtractor = {
@@ -28,7 +27,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
 async function fetchEmbedHtml(embedUrl: string): Promise<string> {
   try {
     const res = await fetch(embedUrl, {
-      headers: getSpoofHeaders(embedUrl, 'iframe'),
+      headers: embedPageHeadersFor(embedUrl),
       signal: AbortSignal.timeout(8000),
     })
     return await res.text()

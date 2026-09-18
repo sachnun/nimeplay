@@ -1,8 +1,0 @@
-process.loadEnvFile('.env.local')
-const { db } = await import('./server/utils/db')
-const q=async(s:string)=>Number(((await db().execute(s as any)).rows[0] as any).n)
-const a=await q('select count(*)::int n from anime where mal_id is not null')
-await new Promise(r=>setTimeout(r,100000))
-const b=await q('select count(*)::int n from anime where mal_id is not null')
-console.log('meta', a, '->', b, 'rate/min', ((b-a)*0.6).toFixed(1))
-process.exit(0)

@@ -14,8 +14,12 @@ Credentials load from `.env.local` (`neon link` / `neon env pull`); see `.env.ex
 ```bash
 pnpm install
 pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
+
+`pnpm db:seed` fills the catalog with demo anime, genres, episodes, and characters.
+It is idempotent, safe to rerun, and refuses to run with `NODE_ENV=production`.
 
 Open `http://localhost:3000`.
 

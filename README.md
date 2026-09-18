@@ -22,17 +22,18 @@ Open `http://localhost:3000`.
 | Anime, episodes, genres, characters | Neon Postgres | `/api/*` |
 | Images | Neon Object Storage | `/media/*` |
 
-Metadata writes queue images in the `media` table; `media-sync` mirrors them to Object
-Storage before `/media/<key>` serves them.
+Metadata writes queue images in the `media` table; `metadata-sync` mirrors them to
+Object Storage before `/media/<key>` serves them.
 
 | Task | Schedule | Does |
 | --- | --- | --- |
-| `catalog-sync` | `0 */3 * * *` | Scrape sources, register anime and episodes |
-| `metadata-sync` | `0 */3 * * *` | Resolve MAL metadata, write characters, queue images |
-| `media-sync` | `0 */3 * * *` | Mirror queued images into Object Storage |
+| `ongoing-sync` | `0 */3 * * *` | Scrape ongoing catalog, refresh fresh episodes |
+| `finished-sync` | `0 3 * * *` | Backfill completed lists |
+| `metadata-sync` | `*/5 * * * *` | Resolve AniList metadata, write characters, queue and mirror images |
+| `episodes-sync` | `*/10 * * * *` | Fill missing episodes |
 
 Workers Free caps an invocation at 50 subrequests, so jobs run Neon queries through a
-WebSocket pool (`withPool` in `server/utils/db.ts`) and `media-sync` mirrors a bounded
+WebSocket pool (`withPool` in `server/utils/db.ts`) and `metadata-sync` mirrors a bounded
 batch per run. Schema changes: `pnpm db:generate && pnpm db:migrate`.
 
 Public API under `/api/v1/*`, reference at `/docs`.

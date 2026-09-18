@@ -1,4 +1,5 @@
 import { AwsClient } from 'aws4fetch'
+import { toWebp } from './image'
 import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
@@ -79,6 +80,30 @@ export function keyToOrigin(key: string): string | null {
   return null
 }
 
+export interface MediaRef {
+  key: string
+  sourceUrl: string
+}
+
+export function mediaRef(url: string | null | undefined, type: MediaType): MediaRef | null {
+  if (!url) return null
+  const key = mediaKey(url, type)
+  if (key) {
+    const origin = keyToOrigin(key)
+    if (origin) return { key, sourceUrl: origin }
+  }
+  if (!/^https?:\/\//.test(url)) return null
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean)
+    const tail = parts.slice(-2).join('/').replace(/[^a-zA-Z0-9_.-]/g, '_')
+    if (!tail) return null
+    return { key: `${type}/x/${tail}`, sourceUrl: url }
+  }
+  catch {
+    return null
+  }
+}
+
 export interface MediaObject {
   body: ReadableStream | null
   contentType: string
@@ -98,15 +123,17 @@ export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   }
 }
 
-export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<void> {
+export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<{ contentType: string, byteSize: number }> {
+  const encoded = await toWebp(data, contentType)
   const client = mediaClient()
   const url = objectUrl(key)
-  if (!client || !url) return
+  if (!client || !url) return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
   await client.fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
-    body: data,
+    headers: { 'Content-Type': encoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    body: encoded.bytes,
   })
+  return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {

@@ -3,7 +3,7 @@ import { anime, animeGenres, appState, characters, episodes, genres, media } fro
 import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { fetchRemoteMedia, isValidMediaKey, keyToOrigin, mediaKey, storeMedia } from './media'
+import { fetchRemoteMedia, isValidMediaKey, mediaRef, storeMedia, type MediaRef } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -273,15 +273,11 @@ async function syncGenres(animeId: number, names: string[]) {
   }
 }
 
-async function enqueueMedia(keys: (string | null)[]): Promise<void> {
-  const rows = [...new Map(
-    keys
-      .filter((key): key is string => !!key && isValidMediaKey(key))
-      .map(key => [key, { key, sourceUrl: keyToOrigin(key) ?? '', status: 'pending' }] as const),
-  ).values()].filter(row => row.sourceUrl)
-  if (rows.length === 0) return
-  for (const chunk of chunkValues(rows, 100)) {
-    await db().insert(media).values(chunk).onConflictDoNothing()
+async function enqueueMedia(refs: MediaRef[]): Promise<void> {
+  const unique = [...new Map(refs.map(ref => [ref.key, ref])).values()].filter(ref => isValidMediaKey(ref.key))
+  if (unique.length === 0) return
+  for (const chunk of chunkValues(unique, 100)) {
+    await db().insert(media).values(chunk.map(ref => ({ key: ref.key, sourceUrl: ref.sourceUrl, status: 'pending' }))).onConflictDoNothing()
   }
 }
 
@@ -290,24 +286,31 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
   if (!target) return
   const animeId = target.id
 
-  const posterKey = mal.poster ? mediaKey(mal.poster, 'posters') : null
-  const characterRows = mal.characters.map((c, index) => ({
-    animeId,
-    malId: null,
-    name: c.name,
-    role: c.role,
-    imageKey: c.imageUrl ? mediaKey(c.imageUrl, 'characters') : null,
-    voiceActorName: c.voiceActor?.name ?? null,
-    voiceActorKey: c.voiceActor?.imageUrl ? mediaKey(c.voiceActor.imageUrl, 'voiceactors') : null,
-    sortOrder: index,
-  }))
+  const posterRef = mediaRef(mal.poster, 'posters')
+  const refs: MediaRef[] = posterRef ? [posterRef] : []
+  const characterRows = mal.characters.map((c, index) => {
+    const imageRef = mediaRef(c.imageUrl, 'characters')
+    const vaRef = mediaRef(c.voiceActor?.imageUrl, 'voiceactors')
+    if (imageRef) refs.push(imageRef)
+    if (vaRef) refs.push(vaRef)
+    return {
+      animeId,
+      malId: null,
+      name: c.name,
+      role: c.role,
+      imageKey: imageRef?.key ?? null,
+      voiceActorName: c.voiceActor?.name ?? null,
+      voiceActorKey: vaRef?.key ?? null,
+      sortOrder: index,
+    }
+  })
 
   await db()
     .update(anime)
     .set({
       malId: mal.malId,
       synopsis: mal.synopsis,
-      posterKey,
+      posterKey: posterRef?.key ?? null,
       rating: mal.score,
       rank: mal.rank,
       popularity: mal.popularity,
@@ -328,7 +331,7 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
   for (const chunk of chunkValues(characterRows, 50)) {
     await db().insert(characters).values(chunk).onConflictDoNothing()
   }
-  await enqueueMedia([posterKey, ...characterRows.flatMap(row => [row.imageKey, row.voiceActorKey])])
+  await enqueueMedia(refs)
   await syncGenres(animeId, mal.genres)
 }
 
@@ -361,14 +364,14 @@ async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<bo
   }
 }
 
-async function resolveMetadata(slug: string, title: string): Promise<boolean> {
+export async function resolveAnimeMetadata(slug: string, title: string): Promise<boolean> {
   const merged = new Map<number, { id: number, title: string }>()
   for (const variant of malSearchVariants(title)) {
     const batch = await searchMalAnimeEntries(variant)
     for (const entry of batch) {
       if (!merged.has(entry.id)) merged.set(entry.id, entry)
     }
-    if (merged.size >= 15) break
+    if (merged.size > 0) break
   }
   const entries = [...merged.values()].slice(0, 15)
   const ranked = rankMalAnimeMatches(title, entries)
@@ -390,7 +393,7 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   }
   let yearFallback: { mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>, diff: number } | null = null
 
-  for (const candidate of ranked.slice(0, 6)) {
+  for (const candidate of ranked.slice(0, 3)) {
     const mal = await fetchMalAnime(candidate.id)
     if (!mal) {
       const reason = `MAL fetch returned empty for id ${candidate.id}`
@@ -527,7 +530,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
     }
   }
   else if (refreshMetadata) {
-    await resolveMetadata(slug, title)
+    await resolveAnimeMetadata(slug, title)
   }
 }
 
@@ -688,7 +691,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
   return registered
 }
 
-async function syncOngoingCatalog(): Promise<void> {
+async function syncOngoingCatalog(options: { backfill?: boolean } = {}): Promise<void> {
   const startedAt = new Date()
   const deadline = startedAt.getTime() + SYNC_WALL_MS
   const sourcesRegistered: Record<string, number> = {}
@@ -746,12 +749,14 @@ async function syncOngoingCatalog(): Promise<void> {
   const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
   const staleRefreshed = await refreshStaleOngoing(seen, deadline)
 
-  const backfillDeadline = Date.now() + BACKFILL_WALL_MS
-  let backfilled = 0
-  for (const source of getSources()) {
-    backfilled += await backfillCompleted(source, backfillDeadline)
+  if (options.backfill) {
+    const backfillDeadline = Date.now() + BACKFILL_WALL_MS
+    let backfilled = 0
+    for (const source of getSources()) {
+      backfilled += await backfillCompleted(source, backfillDeadline)
+    }
+    if (backfilled > 0) console.log(`[catalog] completed backfill: ${backfilled} registered`)
   }
-  if (backfilled > 0) console.log(`[catalog] completed backfill: ${backfilled} registered`)
 
   const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0
@@ -771,27 +776,31 @@ async function syncOngoingCatalog(): Promise<void> {
 
 let metadataSyncRunning = false
 
-export async function runMetadataSync(): Promise<void> {
+export async function runMetadataSync(options: { limit?: number, scope?: 'ongoing' | 'all' } = {}): Promise<void> {
   if (metadataSyncRunning) return
   metadataSyncRunning = true
   try {
+    const limit = options.limit ?? CATALOG_META_BUDGET
+    const scope = options.scope ?? 'ongoing'
     const startedAt = new Date()
     const deadline = startedAt.getTime() + METADATA_WALL_MS
     const now = new Date()
     const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
     const totalPending = totalResult?.count ?? 0
+    const filters = [isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))]
+    if (scope === 'ongoing') filters.push(eq(anime.status, 'ONGOING'))
     const pending = await db()
       .select({ slug: anime.slug, title: anime.title })
       .from(anime)
-      .where(and(isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))))
+      .where(and(...filters))
       .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
-      .limit(CATALOG_META_BUDGET)
+      .limit(limit)
     console.log(`[metadata] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
     let resolved = 0
     for (const row of pending) {
       if (Date.now() > deadline) break
       const ok = await attempt(
-        resolveMetadata(row.slug, row.title),
+        resolveAnimeMetadata(row.slug, row.title),
         error => console.warn(`[metadata] deferred ${row.slug}:`, error instanceof Error ? error.message : error),
       )
       if (ok) {
@@ -819,11 +828,11 @@ export async function runMetadataSync(): Promise<void> {
   }
 }
 
-export async function runCatalogSync(): Promise<void> {
+export async function runCatalogSync(options: { backfill?: boolean } = {}): Promise<void> {
   if (catalogSyncRunning) return
   catalogSyncRunning = true
   try {
-    await syncOngoingCatalog()
+    await syncOngoingCatalog(options)
   }
   catch (error) {
     console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error)
@@ -855,11 +864,11 @@ export async function runMediaSync(): Promise<void> {
     for (const item of pending) {
       try {
         const { contentType, bytes } = await fetchRemoteMedia(item.sourceUrl)
-        await storeMedia(item.key, bytes, contentType)
+        const stored = await storeMedia(item.key, bytes, contentType)
         await db().update(media).set({
           status: 'ready',
-          contentType,
-          byteSize: bytes.byteLength,
+          contentType: stored.contentType,
+          byteSize: stored.byteSize,
           mirroredAt: new Date(),
           attempts: sql`${media.attempts} + 1`,
           lastError: null,

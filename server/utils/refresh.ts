@@ -9,7 +9,6 @@ import { parseEpisodeDate } from './sources/shared'
 
 const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-const SYNC_WALL_MS = 25000
 const CATALOG_META_BUDGET = 8
 const METADATA_WALL_MS = 120000
 const ONGOING_PAGES = 1
@@ -637,9 +636,6 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
 }
 
 async function syncOngoingCatalog(): Promise<void> {
-  const startedAt = new Date()
-  const deadline = startedAt.getTime() + SYNC_WALL_MS
-  const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
   let ongoingRank = 0
   for (const source of getSources()) {
     const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
@@ -670,24 +666,8 @@ async function syncOngoingCatalog(): Promise<void> {
       registerOngoingCards(cards),
       error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
     )
-    if (registered !== null) {
-      allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
-      console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
-    }
+    if (registered !== null) console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
-
-  await refreshFreshEpisodes(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
-    deadline,
-  )
-
-  await refreshUnknownSlugs(
-    allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
-    deadline,
-  )
-
-  const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
-  await refreshStaleOngoing(seen, deadline)
 }
 
 let metadataSyncRunning = false
@@ -843,6 +823,19 @@ export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: 
 
 const EPISODES_FILL = 6
 const FILL_EPISODES_WALL_MS = 60000
+const EPISODE_COOLDOWN_MS = 20 * 60 * 1000
+
+async function activeEpisodeCooldowns(): Promise<string[]> {
+  const sources = getSources()
+  const now = Date.now()
+  const active: string[] = []
+  await Promise.all(sources.map(async (source) => {
+    const value = await getAppState(`epcooldown:${source.id}`)
+    const at = value ? Date.parse(value) : Number.NaN
+    if (Number.isFinite(at) && now - at < EPISODE_COOLDOWN_MS) active.push(source.id)
+  }))
+  return active
+}
 
 let finishedSyncRunning = false
 let episodesSyncRunning = false
@@ -897,11 +890,16 @@ export async function runFinishedSync(): Promise<boolean> {
 }
 
 async function fillEpisodes(limit: number): Promise<number> {
+  const cooled = await activeEpisodeCooldowns()
+  const exclude = cooled.length > 0
+    ? sql` and split_part(a.slug, ':', 1) not in (${sql.join(cooled.map(id => sql`${id}`), sql`, `)})`
+    : sql``
   const result = await db().execute(sql`
     select a.slug as slug, a.title as title
     from anime a
     where a.mal_id is not null
       and not exists (select 1 from episodes e where e.anime_id = a.id)
+      ${exclude}
     order by case when a.status = 'ONGOING' then 0 else 1 end, a.updated_at asc
     limit ${limit}
   `)
@@ -915,6 +913,8 @@ async function fillEpisodes(limit: number): Promise<number> {
       done++
     }
     catch (error) {
+      const sourceId = splitSource(row.slug)?.source.id
+      if (sourceId) await setAppState(`epcooldown:${sourceId}`, new Date().toISOString()).catch(() => {})
       await db().update(anime).set({ updatedAt: new Date() }).where(eq(anime.slug, row.slug)).catch(() => {})
       console.warn(`[episodes] failed ${row.slug}:`, error instanceof Error ? error.message : error)
     }

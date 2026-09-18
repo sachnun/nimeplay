@@ -3,7 +3,7 @@ import { anime, animeGenres, appState, episodes, genres } from '../database/sche
 import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { toR2Url } from './media'
+import { mirrorPoster, toR2Url } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -295,6 +295,7 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
       metadataRetryAt: null,
     })
     .where(eq(anime.slug, slug))
+  await mirrorPoster(poster)
   await syncGenres(slug, mal.genres)
 }
 

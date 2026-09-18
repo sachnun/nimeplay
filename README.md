@@ -4,13 +4,9 @@
   <img src="https://github.com/user-attachments/assets/1b96e046-6f46-44b4-8ee1-5c1f12787744" alt="Nimeplay" width="880">
 </p>
 
-Watch anime with no ads, no comments, no popups, and no distractions. Just watch and enjoy.
+Watch anime without ads, comments, or popups. Just watch.
 
-## Requirements
-
-Node >=26, pnpm, a Neon project with Postgres + Object Storage, and a configured Wrangler login.
-
-## Quick start
+## Get running
 
 ```bash
 pnpm install
@@ -18,72 +14,40 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Credentials come from `.env.local` (see `.env.example`),
+written by `neon link` / `neon env pull`.
 
-## Data
+## How it works
 
-| Data | Store | Served by |
+| Data | Lives in | Served from |
 | --- | --- | --- |
-| Anime, episodes, genres | Neon Postgres | `/api/*` |
-| Characters | Neon Postgres (`characters`) | `/api/*` |
+| Anime, episodes, genres, characters | Neon Postgres | `/api/*` |
 | Images (posters, characters, voice actors) | Neon Object Storage | `/media/*` |
 
-Nothing is fetched from the origin on the read path. Every image is queued in the
-`media` table when metadata is written and mirrored to Object Storage by the
-`media-sync` job before `/media/<key>` serves it. Cloudflare KV is no longer used;
-hot reads are cached in memory per isolate.
+Three jobs run every 3 hours: `catalog-sync` (scrape sources), `metadata-sync` (resolve
+MAL metadata, queue images), and `media-sync` (mirror images to Object Storage).
+Everything is cached, so reads never hit the origin.
 
-Local credentials come from `.env.local`, written by `neon link` / `neon env pull`
-(`DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`,
-`AWS_REGION`). See `.env.example`.
-
-## Jobs
-
-| Task | Schedule | Does |
-| --- | --- | --- |
-| `catalog-sync` | `0 */3 * * *` | Scrape sources, register anime and episodes |
-| `metadata-sync` | `0 */3 * * *` | Resolve MAL metadata, write characters, queue images |
-| `media-sync` | `0 */3 * * *` | Mirror queued images into Object Storage |
-
-Workers Free caps a single invocation at 50 subrequests. The write-heavy jobs run all
-their Neon queries through a WebSocket pool (`withPool` in `server/utils/db.ts`), and
-`media-sync` mirrors a bounded batch per run.
-
-Schema changes:
-
-```bash
-pnpm db:generate
-pnpm db:migrate
-```
+Changed the schema? `pnpm db:generate && pnpm db:migrate`.
 
 ## API
 
-Public endpoints live under `/api/v1/*`.
+Public endpoints live under `/api/v1/*`, with a browsable reference at `/docs`.
 
-Interactive reference: `/docs` (source: `/openapi.json`).
-
-## Production
+## Deploy
 
 ```bash
 pnpm build
 npx wrangler --cwd .output deploy
 ```
 
-Set Worker secrets once:
+Set the Worker secrets once (same names as `.env.local`):
 
 ```bash
-npx wrangler secret put DATABASE_URL --cwd .output
-npx wrangler secret put AWS_ACCESS_KEY_ID --cwd .output
-npx wrangler secret put AWS_SECRET_ACCESS_KEY --cwd .output
-npx wrangler secret put AWS_ENDPOINT_URL_S3 --cwd .output
-npx wrangler secret put AWS_REGION --cwd .output
+for s in DATABASE_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 AWS_REGION; do
+  npx wrangler secret put "$s" --cwd .output
+done
 ```
 
-`MEDIA_BUCKET` and `APP_ORIGIN` are plain vars in `wrangler.jsonc`; set `APP_ORIGIN` to
-the deployed Worker URL so scheduled tasks can route through the placed API.
-
-Preview a production build locally:
-
-```bash
-npx wrangler --cwd .output dev
-```
+`MEDIA_BUCKET` and `APP_ORIGIN` are plain vars in `wrangler.jsonc`; point `APP_ORIGIN`
+at the deployed Worker URL.

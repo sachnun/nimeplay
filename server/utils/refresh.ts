@@ -289,9 +289,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
   const refs: MediaRef[] = posterRef ? [posterRef] : []
   const characterRows = mal.characters.map((c, index) => {
     const imageRef = mediaRef(c.imageUrl, 'characters')
-    const vaRef = mediaRef(c.voiceActor?.imageUrl, 'voiceactors')
     if (imageRef) refs.push(imageRef)
-    if (vaRef) refs.push(vaRef)
     return {
       animeId,
       malId: null,
@@ -299,7 +297,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
       role: c.role,
       imageKey: imageRef?.key ?? null,
       voiceActorName: c.voiceActor?.name ?? null,
-      voiceActorKey: vaRef?.key ?? null,
+      voiceActorKey: null,
       sortOrder: index,
     }
   })

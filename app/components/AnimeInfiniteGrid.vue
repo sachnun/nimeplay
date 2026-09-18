@@ -137,7 +137,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
         :key="`${anime.malId}-${i}`"
         :to="to"
-        class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        class="block rounded-t-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
         @pointerdown="onProgressCardPointerDown($event, progress ? anime.malId : null)"
         @pointermove="onProgressCardPointerMove"
         @pointerup="onProgressCardPointerEnd"
@@ -147,10 +147,11 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         @contextmenu="onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
+          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
           <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ badge }}
           </div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100" />
           <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
             <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
             <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">Lanjutkan EP {{ progress.episodeNumber }}</p>

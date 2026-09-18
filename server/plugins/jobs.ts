@@ -1,5 +1,6 @@
 import { withPool } from '../utils/db'
-import { runJob, type JobKind } from '../utils/jobs'
+import { runJob } from '../utils/jobs'
+import type { JobKind } from '../utils/queue'
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('cloudflare:queue', async ({ batch }) => {

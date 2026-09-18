@@ -1,4 +1,4 @@
-import { sendJob } from '../utils/jobs'
+import { sendJob } from '../utils/queue'
 
 export default defineTask({
   meta: {

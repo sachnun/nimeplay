@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
 import { db } from './db'
+import { sendJob } from './queue'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { fetchRemoteMedia, isValidMediaKey, mediaRef, storeMedia, type MediaRef } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
@@ -21,8 +22,8 @@ const STALE_ONGOING_BUDGET = 1
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
-const BACKFILL_PAGES_PER_RUN = 1
-const BACKFILL_WALL_MS = 20000
+const BACKFILL_PAGES_PER_RUN = 5
+const BACKFILL_WALL_MS = 60000
 
 function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
@@ -73,6 +74,30 @@ interface CatalogStats {
 }
 
 let lastCatalogStats: CatalogStats | null = null
+
+const CATALOG_STATS_KEY = 'stats:catalog'
+
+async function persistCatalogStats(stats: CatalogStats): Promise<void> {
+  lastCatalogStats = stats
+  try {
+    await setAppState(CATALOG_STATS_KEY, JSON.stringify(stats))
+  }
+  catch {
+    console.warn('[state] catalog stats persist failed')
+  }
+}
+
+async function loadCatalogStats(): Promise<CatalogStats | null> {
+  if (lastCatalogStats) return lastCatalogStats
+  const raw = await getAppState(CATALOG_STATS_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as CatalogStats
+  }
+  catch {
+    return null
+  }
+}
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
@@ -151,7 +176,8 @@ export async function getCatalogHealth() {
     checkedAt: new Date().toISOString(),
     pendingMetadata: row?.count ?? 0,
     pendingMedia: mediaRow?.count ?? 0,
-    lastCatalogSync: lastCatalogStats,
+    lastCatalogSync: await loadCatalogStats(),
+    backfill: await backfillCursors(),
     config: {
       ongoingPages: ONGOING_PAGES,
       completedPages: COMPLETED_PAGES,
@@ -538,6 +564,7 @@ export function scheduleAnimeRefresh(malId: number): Promise<void> {
 
     if ((row.status === 'ONGOING' && stale) || !hasEpisodes || needsMetadata) {
       await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
+      await sendJob('media')
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
 }
@@ -636,13 +663,14 @@ async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise
   return refreshed
 }
 
-async function backfillCompleted(source: AnimeSource, deadline: number): Promise<number> {
+async function backfillCompleted(source: AnimeSource, deadline: number): Promise<{ pages: number, registered: number }> {
   const key = `backfill:${source.id}`
   const cursor = await getAppState(key)
-  if (cursor === 'done') return 0
+  if (cursor === 'done') return { pages: 0, registered: 0 }
   let page = Number(cursor) || 1
   if (page < 1) page = 1
   let totalPages = page
+  let pages = 0
   let registered = 0
   for (let fetched = 0; fetched < BACKFILL_PAGES_PER_RUN && page <= totalPages && Date.now() < deadline; fetched++) {
     const result = await attempt(
@@ -650,6 +678,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
       error => console.warn(`[catalog] ${source.id} completed page ${page} failed:`, error instanceof Error ? error.message : error),
     )
     if (result === null) break
+    pages++
     totalPages = Math.max(1, result.totalPages)
     if (result.anime.length > 0) {
       const cards = result.anime.map(card => ({
@@ -669,7 +698,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
     page++
   }
   await setAppState(key, page > totalPages ? 'done' : String(page))
-  return registered
+  return { pages, registered }
 }
 
 async function syncOngoingCatalog(): Promise<void> {
@@ -733,7 +762,7 @@ async function syncOngoingCatalog(): Promise<void> {
   const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0
 
-  lastCatalogStats = {
+  await persistCatalogStats({
     startedAt: startedAt.toISOString(),
     finishedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt.getTime(),
@@ -743,12 +772,12 @@ async function syncOngoingCatalog(): Promise<void> {
     staleRefreshed,
     metadataPending: totalPending,
     metadataResolved: lastCatalogStats?.metadataResolved ?? 0,
-  }
+  })
 }
 
 let metadataSyncRunning = false
 
-export async function runMetadataSync(options: { limit?: number, scope?: 'ongoing' | 'all' } = {}): Promise<void> {
+export async function runMetadataSync(options: { limit?: number, scope?: 'ongoing' | 'completed' } = {}): Promise<void> {
   if (metadataSyncRunning) return
   metadataSyncRunning = true
   try {
@@ -761,6 +790,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
     const totalPending = totalResult?.count ?? 0
     const filters = [isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))]
     if (scope === 'ongoing') filters.push(eq(anime.status, 'ONGOING'))
+    if (scope === 'completed') filters.push(eq(anime.status, 'COMPLETED'))
     const pending = await db()
       .select({ slug: anime.slug, title: anime.title })
       .from(anime)
@@ -780,7 +810,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
         console.log(`[metadata] resolved: ${row.slug}`)
       }
     }
-    lastCatalogStats = {
+    await persistCatalogStats({
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       durationMs: Date.now() - startedAt.getTime(),
@@ -790,7 +820,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
       staleRefreshed: lastCatalogStats?.staleRefreshed ?? 0,
       metadataPending: totalPending,
       metadataResolved: resolved,
-    }
+    })
   }
   catch (error) {
     console.warn('[metadata] sync failed:', error instanceof Error ? error.message : error)
@@ -804,6 +834,13 @@ let mediaSyncRunning = false
 const MEDIA_BATCH = 18
 const MEDIA_CONCURRENCY = 6
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
+
+function mediaDue(now: Date) {
+  return or(
+    eq(media.status, 'pending'),
+    and(eq(media.status, 'failed'), or(isNull(media.nextRetryAt), lt(media.nextRetryAt, now))),
+  )
+}
 
 async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<boolean> {
   try {
@@ -840,10 +877,7 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
     const pending = await db()
       .select({ key: media.key, sourceUrl: media.sourceUrl })
       .from(media)
-      .where(or(
-        eq(media.status, 'pending'),
-        and(eq(media.status, 'failed'), or(isNull(media.nextRetryAt), lt(media.nextRetryAt, now))),
-      ))
+      .where(mediaDue(now))
       .orderBy(asc(media.createdAt))
       .limit(limit)
     let done = 0
@@ -866,7 +900,7 @@ async function pendingMediaCount(): Promise<number> {
   const [row] = await db()
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(media)
-    .where(eq(media.status, 'pending'))
+    .where(mediaDue(new Date()))
   return row?.count ?? 0
 }
 
@@ -895,16 +929,31 @@ export async function runOngoingSync(): Promise<void> {
   }
 }
 
-export async function runFinishedSync(): Promise<void> {
-  if (finishedSyncRunning) return
+async function backfillCursors(): Promise<Record<string, string>> {
+  const entries = await Promise.all(getSources().map(async source =>
+    [source.id, await getAppState(`backfill:${source.id}`) ?? 'pending'] as const,
+  ))
+  return Object.fromEntries(entries)
+}
+
+async function backfillRemaining(): Promise<boolean> {
+  const cursors = await backfillCursors()
+  return Object.values(cursors).some(value => value !== 'done')
+}
+
+export async function runFinishedSync(): Promise<boolean> {
+  if (finishedSyncRunning) return backfillRemaining()
   finishedSyncRunning = true
+  let pages = 0
   try {
     const deadline = Date.now() + BACKFILL_WALL_MS
-    let total = 0
+    let registered = 0
     for (const source of getSources()) {
-      total += await backfillCompleted(source, deadline)
+      const result = await backfillCompleted(source, deadline)
+      pages += result.pages
+      registered += result.registered
     }
-    if (total > 0) console.log(`[finished] registered ${total}`)
+    if (registered > 0) console.log(`[finished] registered ${registered}`)
   }
   catch (error) {
     console.warn('[finished] sync failed:', error instanceof Error ? error.message : error)
@@ -912,6 +961,7 @@ export async function runFinishedSync(): Promise<void> {
   finally {
     finishedSyncRunning = false
   }
+  return pages > 0 && await backfillRemaining()
 }
 
 async function fillEpisodes(limit: number): Promise<void> {

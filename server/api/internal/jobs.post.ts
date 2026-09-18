@@ -1,5 +1,5 @@
 import { assertInternal } from '../../utils/internal'
-import { sendJob, type JobKind } from '../../utils/jobs'
+import { sendJob, type JobKind } from '../../utils/queue'
 
 const KINDS: JobKind[] = ['ongoing', 'completed', 'media']
 

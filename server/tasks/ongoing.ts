@@ -1,12 +1,13 @@
-import { sendJob } from '../utils/queue'
+import { withPool } from '../utils/db'
+import { runOngoing } from '../utils/jobs'
 
 export default defineTask({
   meta: {
     name: 'ongoing',
-    description: 'Enqueue the ongoing sync job',
+    description: 'Sync ongoing catalog and resolve ongoing metadata',
   },
   async run() {
-    await sendJob('ongoing')
+    await withPool(() => runOngoing())
     return { result: 'ok' }
   },
 })

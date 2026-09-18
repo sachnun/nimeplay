@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
 import { db } from './db'
-import { sendJob } from './queue'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { fetchRemoteMedia, isValidMediaKey, mediaRef, storeMedia, type MediaRef } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
@@ -501,7 +500,6 @@ export function scheduleAnimeRefresh(malId: number): Promise<void> {
 
     if ((row.status === 'ONGOING' && stale) || !hasEpisodes || needsMetadata) {
       await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
-      await sendJob('media')
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
 }
@@ -733,7 +731,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
 }
 
 let mediaSyncRunning = false
-const MEDIA_BATCH = 18
+const MEDIA_BATCH = 20
 const MEDIA_CONCURRENCY = 6
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
 
@@ -830,7 +828,7 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
   }
 }
 
-async function pendingMediaCount(): Promise<number> {
+export async function pendingMediaCount(): Promise<number> {
   const [row] = await db()
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(media)
@@ -843,7 +841,7 @@ export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: 
   return { pending: await pendingMediaCount() }
 }
 
-const EPISODES_FILL = 5
+const EPISODES_FILL = 6
 const FILL_EPISODES_WALL_MS = 60000
 
 let finishedSyncRunning = false
@@ -875,19 +873,6 @@ async function backfillRemaining(): Promise<boolean> {
   return Object.values(cursors).some(value => value !== 'done')
 }
 
-export async function completedMetadataDue(): Promise<number> {
-  const now = new Date()
-  const [row] = await db()
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(anime)
-    .where(and(
-      eq(anime.status, 'COMPLETED'),
-      isNull(anime.malId),
-      or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)),
-    ))
-  return row?.count ?? 0
-}
-
 export async function runFinishedSync(): Promise<boolean> {
   if (finishedSyncRunning) return backfillRemaining()
   finishedSyncRunning = true
@@ -911,7 +896,7 @@ export async function runFinishedSync(): Promise<boolean> {
   return pages > 0 && await backfillRemaining()
 }
 
-async function fillEpisodes(limit: number): Promise<void> {
+async function fillEpisodes(limit: number): Promise<number> {
   const result = await db().execute(sql`
     select a.slug as slug, a.title as title
     from anime a
@@ -929,19 +914,24 @@ async function fillEpisodes(limit: number): Promise<void> {
       await refreshAnimeBySlug(row.slug, row.title, false)
       done++
     }
-    catch {}
+    catch (error) {
+      await db().update(anime).set({ updatedAt: new Date() }).where(eq(anime.slug, row.slug)).catch(() => {})
+      console.warn(`[episodes] failed ${row.slug}:`, error instanceof Error ? error.message : error)
+    }
   }
   if (list.length > 0) console.log(`[episodes] filled ${done}/${list.length}`)
+  return done
 }
 
-export async function runEpisodesFill(): Promise<void> {
-  if (episodesSyncRunning) return
+export async function runEpisodesFill(): Promise<number> {
+  if (episodesSyncRunning) return 0
   episodesSyncRunning = true
   try {
-    await fillEpisodes(EPISODES_FILL)
+    return await fillEpisodes(EPISODES_FILL)
   }
   catch (error) {
     console.warn('[episodes] sync failed:', error instanceof Error ? error.message : error)
+    return 0
   }
   finally {
     episodesSyncRunning = false

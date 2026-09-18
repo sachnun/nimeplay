@@ -14,7 +14,7 @@ const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
 const EGRESS_KEY = 'nimeplay'
 
-function egressFetch(url: string): Promise<Response> {
+async function egressFetch(url: string): Promise<Response> {
   const origin = cloudflareEnv().APP_ORIGIN
   const headers = { 'x-nimeplay-key': EGRESS_KEY }
   const signal = AbortSignal.timeout(HTML_TIMEOUT_MS)

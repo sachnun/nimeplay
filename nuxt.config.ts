@@ -19,6 +19,7 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks: {
+      '* * * * *': ['tick'],
       '*/30 * * * *': ['ongoing'],
       '0 3 * * *': ['completed'],
     },

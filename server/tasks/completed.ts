@@ -1,12 +1,13 @@
-import { sendJob } from '../utils/queue'
+import { withPool } from '../utils/db'
+import { runCompleted } from '../utils/jobs'
 
 export default defineTask({
   meta: {
     name: 'completed',
-    description: 'Enqueue the completed sync job',
+    description: 'Backfill completed catalog',
   },
   async run() {
-    await sendJob('completed')
+    await withPool(() => runCompleted())
     return { result: 'ok' }
   },
 })

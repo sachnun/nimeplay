@@ -1,33 +1,29 @@
-import { completedMetadataDue, mirrorMediaQueue, runEpisodesFill, runFinishedSync, runMetadataSync, runOngoingSync } from './refresh'
-import { sendJob, type JobKind } from './queue'
+import { mirrorMediaQueue, pendingMediaCount, runEpisodesFill, runFinishedSync, runMetadataSync, runOngoingSync } from './refresh'
 
-const METADATA_JOB_LIMIT = 5
-const MEDIA_CONTINUE_DELAY_S = 5
-const BACKFILL_CONTINUE_DELAY_S = 10
+const MEDIA_DRAIN = 22
+const MEDIA_TICK = 10
+const METADATA_TICK_LIMIT = 3
+const ONGOING_METADATA_LIMIT = 6
+const MEDIA_BACKPRESSURE = 800
 
-async function runOngoingJob(): Promise<void> {
+export async function runTick(): Promise<void> {
+  const pending = await pendingMediaCount()
+  if (pending > MEDIA_BACKPRESSURE) {
+    await mirrorMediaQueue(MEDIA_DRAIN)
+    return
+  }
+  await mirrorMediaQueue(MEDIA_TICK)
+  await runMetadataSync({ limit: METADATA_TICK_LIMIT, scope: 'completed' })
+  await runEpisodesFill()
+}
+
+export async function runOngoing(): Promise<void> {
   await runOngoingSync()
-  await runEpisodesFill()
-  await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'ongoing' })
-  await sendJob('media')
+  await runMetadataSync({ limit: ONGOING_METADATA_LIMIT, scope: 'ongoing' })
+  await mirrorMediaQueue(MEDIA_TICK)
 }
 
-async function runCompletedJob(): Promise<void> {
-  const backfillMore = await runFinishedSync()
-  await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'completed' })
-  await runEpisodesFill()
-  await sendJob('media')
-  const more = backfillMore || (await completedMetadataDue()) > 0
-  if (more) await sendJob('completed', BACKFILL_CONTINUE_DELAY_S)
-}
-
-async function runMediaJob(): Promise<void> {
-  const { pending } = await mirrorMediaQueue()
-  if (pending > 0) await sendJob('media', MEDIA_CONTINUE_DELAY_S)
-}
-
-export function runJob(kind: JobKind): Promise<void> {
-  if (kind === 'ongoing') return runOngoingJob()
-  if (kind === 'completed') return runCompletedJob()
-  return runMediaJob()
+export async function runCompleted(): Promise<void> {
+  await runFinishedSync()
+  await mirrorMediaQueue(MEDIA_TICK)
 }

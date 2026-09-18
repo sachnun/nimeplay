@@ -7,23 +7,7 @@
     "region": "gcp:asia-southeast2"
   },
   "triggers": {
-    "crons": ["*/30 * * * *", "0 3 * * *"]
-  },
-  "queues": {
-    "producers": [
-      {
-        "queue": "nimeplay-jobs",
-        "binding": "JOBS"
-      }
-    ],
-    "consumers": [
-      {
-        "queue": "nimeplay-jobs",
-        "max_batch_size": 1,
-        "max_retries": 3,
-        "retry_delay": 30
-      }
-    ]
+    "crons": ["* * * * *", "*/30 * * * *", "0 3 * * *"]
   },
   "vars": {
     "MEDIA_BUCKET": "nimeplay",

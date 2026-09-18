@@ -21,9 +21,9 @@ const UNKNOWN_BUDGET = 1
 const STALE_ONGOING_BUDGET = 1
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
-const POSTER_RETRY_MS = 15 * 60 * 1000
+const SOFT_RETRY_MS = 30 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
-const BACKFILL_PAGES_PER_RUN = 5
+const BACKFILL_PAGES_PER_RUN = 1
 const BACKFILL_WALL_MS = 60000
 
 function chunkValues<T>(values: T[], size: number): T[][] {
@@ -147,19 +147,14 @@ async function setAppState(key: string, value: string): Promise<void> {
   }
 }
 
-class PosterUnavailableError extends Error {}
-
-function retryDelay(error: unknown): number {
-  return error instanceof PosterUnavailableError ? POSTER_RETRY_MS : RETRY_MS
-}
-
-function recordFailure(slug: string, message: string, delayMs = RETRY_MS): Promise<void> {
+function recordFailure(slug: string, message: string): Promise<void> {
+  const soft = message.includes('Too many subrequests') || message.startsWith('poster ')
   return db()
     .update(anime)
     .set({
       metadataAttempts: sql`${anime.metadataAttempts} + 1`,
       metadataLastError: message.slice(0, 500),
-      metadataRetryAt: new Date(Date.now() + delayMs),
+      metadataRetryAt: new Date(Date.now() + (soft ? SOFT_RETRY_MS : RETRY_MS)),
     })
     .where(eq(anime.slug, slug))
     .then(
@@ -390,7 +385,7 @@ async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<bo
   }
   catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    await recordFailure(slug, reason, retryDelay(error))
+    await recordFailure(slug, reason)
     console.warn(`[metadata] linked refresh failed ${slug}: ${reason}`)
     return false
   }
@@ -462,7 +457,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
       () => true,
       error => {
         const reason = error instanceof Error ? error.message : String(error)
-        return recordFailure(slug, reason, retryDelay(error)).then(() => {
+        return recordFailure(slug, reason).then(() => {
           console.warn(`[metadata] failed ${slug}: ${reason}`)
           return false
         })
@@ -481,7 +476,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
         () => true,
         error => {
           const reason = error instanceof Error ? error.message : String(error)
-          return recordFailure(slug, reason, retryDelay(error)).then(() => {
+          return recordFailure(slug, reason).then(() => {
             console.warn(`[metadata] failed ${slug}: ${reason}`)
             return false
           })
@@ -906,7 +901,7 @@ async function ensurePosterReady(ref: MediaRef): Promise<void> {
     })
   }
   catch (error) {
-    throw new PosterUnavailableError(`poster ${ref.key}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`poster ${ref.key}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -950,7 +945,7 @@ export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: 
   return { pending: await pendingMediaCount() }
 }
 
-const EPISODES_FILL = 30
+const EPISODES_FILL = 5
 const FILL_EPISODES_WALL_MS = 60000
 
 let finishedSyncRunning = false
@@ -980,6 +975,19 @@ async function backfillCursors(): Promise<Record<string, string>> {
 async function backfillRemaining(): Promise<boolean> {
   const cursors = await backfillCursors()
   return Object.values(cursors).some(value => value !== 'done')
+}
+
+export async function completedMetadataDue(): Promise<number> {
+  const now = new Date()
+  const [row] = await db()
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(anime)
+    .where(and(
+      eq(anime.status, 'COMPLETED'),
+      isNull(anime.malId),
+      or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now)),
+    ))
+  return row?.count ?? 0
 }
 
 export async function runFinishedSync(): Promise<boolean> {

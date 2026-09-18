@@ -1,7 +1,7 @@
-import { mirrorMediaQueue, runEpisodesFill, runFinishedSync, runMetadataSync, runOngoingSync } from './refresh'
+import { completedMetadataDue, mirrorMediaQueue, runEpisodesFill, runFinishedSync, runMetadataSync, runOngoingSync } from './refresh'
 import { sendJob, type JobKind } from './queue'
 
-const METADATA_JOB_LIMIT = 200
+const METADATA_JOB_LIMIT = 5
 const MEDIA_CONTINUE_DELAY_S = 5
 const BACKFILL_CONTINUE_DELAY_S = 10
 
@@ -9,15 +9,15 @@ async function runOngoingJob(): Promise<void> {
   await runOngoingSync()
   await runEpisodesFill()
   await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'ongoing' })
-  await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'completed' })
   await sendJob('media')
 }
 
 async function runCompletedJob(): Promise<void> {
-  const more = await runFinishedSync()
+  const backfillMore = await runFinishedSync()
   await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'completed' })
   await runEpisodesFill()
   await sendJob('media')
+  const more = backfillMore || (await completedMetadataDue()) > 0
   if (more) await sendJob('completed', BACKFILL_CONTINUE_DELAY_S)
 }
 

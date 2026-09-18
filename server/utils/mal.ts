@@ -169,7 +169,9 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
       return body.data ?? null
     }
     catch (error) {
-      console.warn('[anilist] fetch error:', error instanceof Error ? error.message : error)
+      const message = error instanceof Error ? error.message : error
+      console.warn('[anilist] fetch error:', message)
+      if (typeof message === 'string' && message.includes('Too many subrequests')) return null
       await new Promise(resolve => setTimeout(resolve, 500))
     }
   }

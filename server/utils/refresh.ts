@@ -281,7 +281,7 @@ async function enqueueMedia(refs: MediaRef[]): Promise<void> {
   }
 }
 
-async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
+export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
   const [target] = await db().select({ id: anime.id }).from(anime).where(eq(anime.slug, slug)).limit(1)
   if (!target) return
   const animeId = target.id
@@ -846,7 +846,7 @@ let mediaSyncRunning = false
 const MEDIA_BATCH = 18
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
 
-export async function runMediaSync(): Promise<void> {
+export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
   if (mediaSyncRunning) return
   mediaSyncRunning = true
   try {
@@ -859,7 +859,7 @@ export async function runMediaSync(): Promise<void> {
         and(eq(media.status, 'failed'), or(isNull(media.nextRetryAt), lt(media.nextRetryAt, now))),
       ))
       .orderBy(asc(media.createdAt))
-      .limit(MEDIA_BATCH)
+      .limit(limit)
     let done = 0
     for (const item of pending) {
       try {
@@ -893,5 +893,88 @@ export async function runMediaSync(): Promise<void> {
   }
   finally {
     mediaSyncRunning = false
+  }
+}
+
+const METADATA_FILL = 15
+const EPISODES_FILL = 30
+const MEDIA_FILL = 8
+const FILL_EPISODES_WALL_MS = 60000
+
+let finishedSyncRunning = false
+let episodesSyncRunning = false
+
+export async function runOngoingSync(): Promise<void> {
+  if (catalogSyncRunning) return
+  catalogSyncRunning = true
+  try {
+    await syncOngoingCatalog()
+  }
+  catch (error) {
+    console.warn('[ongoing] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    catalogSyncRunning = false
+  }
+}
+
+export async function runFinishedSync(): Promise<void> {
+  if (finishedSyncRunning) return
+  finishedSyncRunning = true
+  try {
+    const deadline = Date.now() + BACKFILL_WALL_MS
+    let total = 0
+    for (const source of getSources()) {
+      total += await backfillCompleted(source, deadline)
+    }
+    if (total > 0) console.log(`[finished] registered ${total}`)
+  }
+  catch (error) {
+    console.warn('[finished] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    finishedSyncRunning = false
+  }
+}
+
+async function fillEpisodes(limit: number): Promise<void> {
+  const result = await db().execute(sql`
+    select a.slug as slug, a.title as title
+    from anime a
+    where a.mal_id is not null
+      and not exists (select 1 from episodes e where e.anime_id = a.id)
+    order by a.updated_at asc
+    limit ${limit}
+  `)
+  const list = result.rows as unknown as { slug: string, title: string }[]
+  const deadline = Date.now() + FILL_EPISODES_WALL_MS
+  let done = 0
+  for (const row of list) {
+    if (Date.now() > deadline) break
+    try {
+      await refreshAnimeBySlug(row.slug, row.title, false)
+      done++
+    }
+    catch {}
+  }
+  if (list.length > 0) console.log(`[episodes] filled ${done}/${list.length}`)
+}
+
+export async function runMetadataFill(): Promise<void> {
+  await runMetadataSync({ limit: METADATA_FILL, scope: 'all' })
+}
+
+export async function runEpisodesFill(): Promise<void> {
+  if (episodesSyncRunning) return
+  episodesSyncRunning = true
+  try {
+    await fillEpisodes(EPISODES_FILL)
+    await runMediaSync(MEDIA_FILL)
+  }
+  catch (error) {
+    console.warn('[episodes] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    episodesSyncRunning = false
   }
 }

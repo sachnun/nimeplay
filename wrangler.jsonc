@@ -7,7 +7,7 @@
     "region": "gcp:asia-southeast2"
   },
   "triggers": {
-    "crons": ["0 */3 * * *"]
+    "crons": ["0 */3 * * *", "0 3 * * *", "*/5 * * * *", "*/10 * * * *"]
   },
   "vars": {
     "MEDIA_BUCKET": "nimeplay",

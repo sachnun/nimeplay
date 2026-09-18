@@ -15,6 +15,13 @@ export interface MalSearchEntry {
   id: number
   title: string
   format?: string | null
+  poster?: string | null
+  score?: number | null
+  popularity?: number | null
+  season?: string | null
+  year?: number | null
+  status?: string | null
+  genres?: string[]
 }
 
 export interface MalAnime {
@@ -40,6 +47,13 @@ const SEARCH_QUERY = `query ($search: String) {
       id
       idMal
       format
+      status
+      averageScore
+      popularity
+      season
+      seasonYear
+      genres
+      coverImage { extraLarge large }
       title { romaji english native }
     }
   }
@@ -81,6 +95,13 @@ interface AniListSearchMedia {
   id: number
   idMal: number | null
   format?: string | null
+  status?: string | null
+  averageScore?: number | null
+  popularity?: number | null
+  season?: string | null
+  seasonYear?: number | null
+  genres?: string[] | null
+  coverImage?: { extraLarge?: string | null, large?: string | null } | null
   title: JikanTitle
 }
 
@@ -111,7 +132,11 @@ interface AniListMedia {
 let lastRequestAt = 0
 let blockedUntil = 0
 
-async function throttle(): Promise<void> {
+export function blockAniList(ms: number): void {
+  blockedUntil = Math.max(blockedUntil, Date.now() + ms)
+}
+
+export async function acquireAniListSlot(): Promise<void> {
   for (;;) {
     const now = Date.now()
     const wait = Math.max(blockedUntil - now, MIN_INTERVAL_MS - (now - lastRequestAt))
@@ -123,7 +148,7 @@ async function throttle(): Promise<void> {
 
 async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
   for (let attempt = 0; attempt < 4; attempt++) {
-    await throttle()
+    await acquireAniListSlot()
     try {
       const res = await fetch(ANILIST_URL, {
         method: 'POST',
@@ -333,7 +358,20 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
   const entries = new Map<number, MalSearchEntry>()
   for (const item of media) {
     if (item.idMal == null) continue
-    if (!entries.has(item.idMal)) entries.set(item.idMal, { id: item.idMal, title: matchTitleOf(item.title), format: item.format ?? null })
+    if (!entries.has(item.idMal)) {
+      entries.set(item.idMal, {
+        id: item.idMal,
+        title: matchTitleOf(item.title),
+        format: item.format ?? null,
+        poster: item.coverImage?.extraLarge ?? item.coverImage?.large ?? null,
+        score: item.averageScore != null ? Math.round(item.averageScore) / 10 : null,
+        popularity: item.popularity ?? null,
+        season: item.season ? item.season.toLowerCase() : null,
+        year: item.seasonYear ?? null,
+        status: item.status ?? null,
+        genres: item.genres ?? [],
+      })
+    }
   }
   return [...entries.values()]
 }

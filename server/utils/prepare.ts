@@ -69,6 +69,7 @@ export async function prepareMirror(dataContent: string, origin: string): Promis
   const directUrl = await extractStreamUrl(embedUrl)
   if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
   const kind = await detectStreamKind(directUrl)
+  if (splitSource(mirrorId)?.source.id !== 'otakudesu') return { playUrl: directUrl, kind, ok: true }
   const token = await sealStreamToken(directUrl)
   return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
 }

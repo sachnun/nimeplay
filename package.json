@@ -18,7 +18,8 @@
     "predev": "node scripts/gen-wasm.mjs",
     "pretypecheck": "node scripts/gen-wasm.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx server/database/seed.ts"
   },
   "dependencies": {
     "@jsquash/jpeg": "^1.6.0",

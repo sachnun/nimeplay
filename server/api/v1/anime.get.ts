@@ -1,6 +1,6 @@
 import { getQuery } from 'h3'
 import { listAnimePage, searchAnime } from '../../utils/queries'
-import { toAbsoluteUrl } from '../../utils/r2'
+import { toAbsoluteUrl } from '../../utils/media'
 
 defineRouteMeta({
   openAPI: {
@@ -41,8 +41,9 @@ export default defineEventHandler(async (event) => {
   const q = String(query.q ?? '').trim()
   if (q) {
     setHeader(event, 'Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
-    const rows = await searchAnime(q, event)
-    return { data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, event) })), page: 1, totalPages: 1 }
+    const origin = getRequestURL(event).origin
+    const rows = await searchAnime(q)
+    return { data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, origin) })), page: 1, totalPages: 1 }
   }
 
   const rawType = String(query.type || 'ongoing').toUpperCase()
@@ -50,6 +51,6 @@ export default defineEventHandler(async (event) => {
   const page = Math.max(1, Number(query.page) || 1)
 
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
-  const result = await listAnimePage(status, page, event)
-  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, event) })), page, totalPages: result.totalPages }
+  const result = await listAnimePage(status, page)
+  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin) })), page, totalPages: result.totalPages }
 })

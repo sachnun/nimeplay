@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { runCatalogSync, runMetadataSync } from '../../../utils/refresh'
+import { withPool } from '../../../utils/db'
 import { assertInternal } from '../../../utils/internal'
 
 const TASKS = {
@@ -14,7 +15,7 @@ export default defineEventHandler((event) => {
   const run = task ? TASKS[task] : undefined
   if (!run) throw createError({ statusCode: 404, statusMessage: 'Unknown task' })
 
-  const done = run().catch(() => {})
+  const done = withPool(run).catch(() => {})
   const waitUntil = (event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
   if (waitUntil) waitUntil(done)
   else done.catch(() => {})

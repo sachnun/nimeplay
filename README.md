@@ -8,30 +8,42 @@ Watch anime with no ads, no comments, no popups, and no distractions. Just watch
 
 ## Requirements
 
-Node >=22 and a configured Wrangler login.
+Node >=26, pnpm, a Neon project with Postgres + Object Storage, and a configured Wrangler login.
 
 ## Quick start
 
 ```bash
-npm install
-npm run db:migrate:local
-npm run dev
+pnpm install
+pnpm db:migrate
+pnpm dev
 ```
 
 Open `http://localhost:3000`.
 
-Local bindings emulate D1 (`DB`), KV (`CACHE`), and R2 (`R2`) via `wrangler.jsonc`.
+Data lives on Neon:
+
+| Data | Store |
+| --- | --- |
+| Catalog (anime, episodes, genres) | Neon Postgres |
+| Posters, characters, voice actors | Neon Object Storage (S3) |
+| Hot cache | in-memory per isolate (KV is gone) |
+
+Local credentials come from `.env.local`, written by `neon link` / `neon env pull`
+(`DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`,
+`AWS_REGION`). See `.env.example`.
 
 ## Catalog sync
 
-`catalog-sync` and `metadata-sync` run every 3 hours via Nitro `scheduledTasks` and the Workers cron trigger.
+`catalog-sync` and `metadata-sync` run every 3 hours via Nitro `scheduledTasks` and the
+Workers cron trigger. The write-heavy sync runs its Neon queries through a WebSocket
+pool (`withPool` in `server/utils/db.ts`) so it stays within the Workers Free
+50-subrequest limit; ordinary requests use the HTTP driver.
 
 Schema changes:
 
 ```bash
-npm run db:generate
-npm run db:migrate:local
-npm run db:migrate      # production database
+pnpm db:generate
+pnpm db:migrate
 ```
 
 ## API
@@ -43,12 +55,25 @@ Interactive reference: `/docs` (source: `/openapi.json`).
 ## Production
 
 ```bash
-npm run build
-npx wrangler deploy
+pnpm build
+npx wrangler --cwd .output deploy
 ```
+
+Set Worker secrets once:
+
+```bash
+npx wrangler secret put DATABASE_URL --cwd .output
+npx wrangler secret put AWS_ACCESS_KEY_ID --cwd .output
+npx wrangler secret put AWS_SECRET_ACCESS_KEY --cwd .output
+npx wrangler secret put AWS_ENDPOINT_URL_S3 --cwd .output
+npx wrangler secret put AWS_REGION --cwd .output
+```
+
+`MEDIA_BUCKET` and `APP_ORIGIN` are plain vars in `wrangler.jsonc`; set `APP_ORIGIN` to
+the deployed Worker URL so scheduled tasks can route through the placed API.
 
 Preview a production build locally:
 
 ```bash
-npx wrangler dev
+npx wrangler --cwd .output dev
 ```

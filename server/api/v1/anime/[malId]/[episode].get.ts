@@ -1,6 +1,6 @@
 import { createError, getQuery, getRouterParam } from 'h3'
 import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/queries'
-import { toAbsoluteUrl } from '../../../../utils/r2'
+import { toAbsoluteUrl } from '../../../../utils/media'
 import { prepareMirror, selectDefaultCandidate } from '../../../../utils/prepare'
 import { scrapeEpisode } from '../../../../utils/sources'
 
@@ -61,8 +61,8 @@ export default defineEventHandler(async (event) => {
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
-    scrapeEpisode(resolved.sourceSlug, event),
-    getEpisodeNumbers(resolved.animeSlug, event),
+    scrapeEpisode(resolved.sourceSlug),
+    getEpisodeNumbers(resolved.animeSlug),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 
@@ -100,7 +100,7 @@ export default defineEventHandler(async (event) => {
   let stream: { playUrl: string, kind: 'hls' | 'file', quality: string, server: string } | null = null
   for (const candidate of ordered.slice(0, 3)) {
     try {
-      const result = await prepareMirror(candidate.dataContent, origin, event)
+      const result = await prepareMirror(candidate.dataContent, origin)
       if (result.ok && result.playUrl && result.kind) {
         stream = { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
         break
@@ -110,10 +110,10 @@ export default defineEventHandler(async (event) => {
   }
 
   return {
-    anime: { malId, title: resolved.anime.title, thumbnail: toAbsoluteUrl(resolved.anime.thumbnail, event) },
+    anime: { malId, title: resolved.anime.title, thumbnail: toAbsoluteUrl(resolved.anime.thumbnail, origin) },
     episodeNumber,
     title: scraped.title || resolved.episodeTitle,
-    thumbnail: toAbsoluteUrl(scraped.thumbnail || resolved.anime.thumbnail, event),
+    thumbnail: toAbsoluteUrl(scraped.thumbnail || resolved.anime.thumbnail, origin),
     episodes: episodeNumbers,
     servers,
     stream,

@@ -1,11 +1,9 @@
-import type { H3Event } from 'h3'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { anime, animeGenres, episodes, genres } from '../database/schema'
+import { anime, animeGenres, appState, episodes, genres } from '../database/schema'
 import { cache } from './cache'
 import { db } from './db'
-import { kvNamespace } from './kv'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { toR2Url } from './r2'
+import { toR2Url } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -16,15 +14,15 @@ const CATALOG_SYNC_MS = 10 * 60 * 1000
 const SYNC_WALL_MS = 25000
 const CATALOG_META_BUDGET = 8
 const METADATA_WALL_MS = 120000
-const ONGOING_PAGES = 3
-const COMPLETED_PAGES = 3
-const FRESH_BUDGET = 6
+const ONGOING_PAGES = 1
+const COMPLETED_PAGES = 1
+const FRESH_BUDGET = 3
 const UNKNOWN_BUDGET = 1
-const STALE_ONGOING_BUDGET = 2
+const STALE_ONGOING_BUDGET = 1
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
-const BACKFILL_PAGES_PER_RUN = 4
+const BACKFILL_PAGES_PER_RUN = 1
 const BACKFILL_WALL_MS = 20000
 
 function chunkValues<T>(values: T[], size: number): T[][] {
@@ -79,15 +77,6 @@ let lastCatalogStats: CatalogStats | null = null
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
-function waitUntil(event: H3Event, promise: Promise<unknown>): void {
-  const withWaitUntil = event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }
-  if (withWaitUntil.waitUntil) {
-    withWaitUntil.waitUntil(promise)
-    return
-  }
-  promise.catch(() => {})
-}
-
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
@@ -111,6 +100,28 @@ function parseOdYear(value: string | null | undefined): number | null {
   return year >= 1990 && year <= 2100 ? year : null
 }
 
+async function getAppState(key: string): Promise<string | null> {
+  const [row] = await db()
+    .select({ value: appState.value })
+    .from(appState)
+    .where(eq(appState.key, key))
+    .limit(1)
+  return row?.value ?? null
+}
+
+async function setAppState(key: string, value: string): Promise<void> {
+  try {
+    await db().execute(sql`insert into app_state (key, value, updated_at)
+      values (${key}, ${value}, now())
+      on conflict (key) do update set value = ${value}, updated_at = now()`)
+  }
+  catch (error) {
+    const cause = (error as { cause?: unknown }).cause
+    console.warn('[state] write failed:', error instanceof Error ? error.message : error, cause instanceof Error ? cause.message : cause)
+    throw error
+  }
+}
+
 function recordFailure(slug: string, message: string): Promise<void> {
   return db()
     .update(anime)
@@ -130,7 +141,7 @@ function recordFailure(slug: string, message: string): Promise<void> {
 
 export async function getCatalogHealth() {
   const [row] = await db()
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(anime)
     .where(isNull(anime.malId))
   return {
@@ -206,23 +217,20 @@ async function upsertEpisodes(
     .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)
 
   const client = db()
-  const statements = [
-    ...chunkValues(rows, 15).map(chunk =>
-      client.insert(episodes).values(chunk.map(({ entry, number }) => ({
-        animeSlug,
-        slug: `${sourcePrefix}${entry.slug}`,
-        number,
-        title: entry.title,
-        releaseDate: entry.date || null,
-      }))).onConflictDoNothing(),
-    ),
-    client.update(anime).set({
-      ...updates,
-      episodeCount: sql<number>`(select count(*) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
-      latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
-    }).where(eq(anime.slug, animeSlug)),
-  ]
-  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
+  for (const chunk of chunkValues(rows, 15)) {
+    await client.insert(episodes).values(chunk.map(({ entry, number }) => ({
+      animeSlug,
+      slug: `${sourcePrefix}${entry.slug}`,
+      number,
+      title: entry.title,
+      releaseDate: entry.date || null,
+    }))).onConflictDoNothing()
+  }
+  await client.update(anime).set({
+    ...updates,
+    episodeCount: sql<number>`(select cast(count(*) as integer) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
+    latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
+  }).where(eq(anime.slug, animeSlug))
 }
 
 async function syncGenres(animeSlug: string, names: string[]) {
@@ -235,10 +243,9 @@ async function syncGenres(animeSlug: string, names: string[]) {
   const wantedSlugs = [...new Set(rows.map(row => row.slug))]
 
   const client = db()
-  const genreStatements = chunkValues(rows, 30).map(chunk =>
-    client.insert(genres).values(chunk).onConflictDoNothing(),
-  )
-  await client.batch(genreStatements as [typeof genreStatements[number], ...typeof genreStatements[number][]])
+  for (const chunk of chunkValues(rows, 30)) {
+    await client.insert(genres).values(chunk).onConflictDoNothing()
+  }
   const stored = await db()
     .select({ id: genres.id, slug: genres.slug })
     .from(genres)
@@ -251,15 +258,10 @@ async function syncGenres(animeSlug: string, names: string[]) {
     .map(id => ({ animeSlug, genreId: id }))
 
   const writeClient = db()
-  const linkStatements = [
-    writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug)),
-    ...chunkValues(links, 30).map(chunk => writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()),
-  ]
-  if (links.length === 0) {
-    await writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
-    return
+  await writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
+  for (const chunk of chunkValues(links, 30)) {
+    await writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()
   }
-  await writeClient.batch(linkStatements as [typeof linkStatements[number], ...typeof linkStatements[number][]])
 }
 
 async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
@@ -494,8 +496,8 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
   }
 }
 
-export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
-  const task = (async () => {
+export function scheduleAnimeRefresh(malId: number): Promise<void> {
+  return (async () => {
     const [row] = await db()
       .select({
         slug: anime.slug,
@@ -503,7 +505,7 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
         status: anime.status,
         updatedAt: anime.updatedAt,
         metadataSyncedAt: anime.metadataSyncedAt,
-        episodeCount: sql<number>`(select count(*) from episodes e where e.anime_slug = ${anime.slug})`,
+        episodeCount: sql<number>`(select cast(count(*) as integer) from episodes e where e.anime_slug = ${anime.slug})`,
       })
       .from(anime)
       .where(eq(anime.malId, malId))
@@ -519,7 +521,6 @@ export function scheduleAnimeRefresh(event: H3Event, malId: number): void {
       await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
-  waitUntil(event, task)
 }
 
 async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
@@ -534,18 +535,17 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
     sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
   const client = db()
-  const statements = chunkValues(rows, 10).map(chunk =>
-    client.insert(anime).values(chunk).onConflictDoUpdate({
+  for (const chunk of chunkValues(rows, 10)) {
+    await client.insert(anime).values(chunk).onConflictDoUpdate({
       target: anime.slug,
       set: {
         status: sql`excluded.status`,
         day: sql`coalesce(excluded.day, ${anime.day})`,
-        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, latest_episode_at)`,
+        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${anime.latestEpisodeAt})`,
         ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
       },
-    }),
-  )
-  await client.batch(statements as [typeof statements[number], ...typeof statements[number][]])
+    })
+  }
 }
 
 async function refreshFreshEpisodes(
@@ -617,9 +617,8 @@ async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise
 }
 
 async function backfillCompleted(source: AnimeSource, deadline: number): Promise<number> {
-  const key = `nimeplay:v1:backfill:${source.id}`
-  const kv = kvNamespace()
-  const cursor = kv ? await kv.get(key, 'text') : null
+  const key = `backfill:${source.id}`
+  const cursor = await getAppState(key)
   if (cursor === 'done') return 0
   let page = Number(cursor) || 1
   if (page < 1) page = 1
@@ -649,7 +648,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
     }
     page++
   }
-  if (kv) await kv.put(key, page > totalPages ? 'done' : String(page))
+  await setAppState(key, page > totalPages ? 'done' : String(page))
   return registered
 }
 
@@ -718,7 +717,7 @@ async function syncOngoingCatalog(): Promise<void> {
   }
   if (backfilled > 0) console.log(`[catalog] completed backfill: ${backfilled} registered`)
 
-  const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
+  const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0
 
   lastCatalogStats = {
@@ -743,7 +742,7 @@ export async function runMetadataSync(): Promise<void> {
     const startedAt = new Date()
     const deadline = startedAt.getTime() + METADATA_WALL_MS
     const now = new Date()
-    const [totalResult] = await db().select({ count: sql<number>`count(*)` }).from(anime).where(isNull(anime.malId))
+    const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
     const totalPending = totalResult?.count ?? 0
     const pending = await db()
       .select({ slug: anime.slug, title: anime.title })

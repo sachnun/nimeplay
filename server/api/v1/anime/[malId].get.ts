@@ -1,6 +1,7 @@
+import type { H3Event } from 'h3'
 import { createError, getRouterParam } from 'h3'
 import { getAnimeDetail } from '../../../utils/queries'
-import { toAbsoluteUrl } from '../../../utils/r2'
+import { toAbsoluteUrl } from '../../../utils/media'
 import { scheduleAnimeRefresh } from '../../../utils/refresh'
 
 defineRouteMeta({
@@ -30,9 +31,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id' })
   }
 
-  const detail = await getAnimeDetail(malId, event)
+  const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
-  scheduleAnimeRefresh(event, malId)
-  return { ...detail, thumbnail: toAbsoluteUrl(detail.thumbnail, event) }
+  const waitUntil = (event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
+  const refresh = scheduleAnimeRefresh(malId)
+  if (waitUntil) waitUntil(refresh)
+  return { ...detail, thumbnail: toAbsoluteUrl(detail.thumbnail, getRequestURL(event).origin) }
 })

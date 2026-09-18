@@ -2,12 +2,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nimeplay",
   "compatibility_date": "2026-09-11",
-  "r2_buckets": [
-    {
-      "binding": "R2",
-      "bucket_name": "nimeplay"
-    }
-  ],
   "placement": {
     "mode": "targeted",
     "region": "gcp:asia-southeast2"
@@ -15,18 +9,8 @@
   "triggers": {
     "crons": ["0 */3 * * *"]
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "nimeplay",
-      "database_id": "aa1c7419-d7e1-4b32-94db-400b48573073",
-      "migrations_dir": "server/database/migrations"
-    }
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "CACHE",
-      "id": "6e97826a11de4cccba9c26325de2a09d"
-    }
-  ]
+  "vars": {
+    "MEDIA_BUCKET": "nimeplay",
+    "APP_ORIGIN": "https://nimeplay.sachnun.workers.dev"
+  }
 }

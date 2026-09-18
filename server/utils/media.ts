@@ -1,5 +1,4 @@
-import type { H3Event } from 'h3'
-import { getRequestURL } from 'h3'
+import { AwsClient } from 'aws4fetch'
 import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
@@ -7,28 +6,32 @@ const MAL_CDN = 'https://cdn.myanimelist.net/images/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
 
-interface R2HttpMetadata {
-  contentType?: string
+let s3: AwsClient | null | undefined
+let bucketUrl: string | null | undefined
+
+function mediaClient(): AwsClient | null {
+  if (s3 !== undefined) return s3
+  const env = cloudflareEnv()
+  const accessKeyId = env.AWS_ACCESS_KEY_ID
+  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY
+  const endpoint = env.AWS_ENDPOINT_URL_S3
+  if (typeof accessKeyId !== 'string' || typeof secretAccessKey !== 'string' || typeof endpoint !== 'string') {
+    s3 = null
+    return s3
+  }
+  bucketUrl = `${endpoint.replace(/\/$/, '')}/${typeof env.MEDIA_BUCKET === 'string' ? env.MEDIA_BUCKET : 'nimeplay'}`
+  s3 = new AwsClient({
+    accessKeyId,
+    secretAccessKey,
+    region: typeof env.AWS_REGION === 'string' ? env.AWS_REGION : 'us-east-1',
+    service: 's3',
+  })
+  return s3
 }
 
-interface R2ObjectHead {
-  httpEtag?: string
-  httpMetadata?: R2HttpMetadata
-}
-
-interface R2ObjectBody extends R2ObjectHead {
-  body?: ReadableStream | null
-}
-
-interface R2BucketLike {
-  get(key: string): Promise<R2ObjectBody | null>
-  head(key: string): Promise<R2ObjectHead | null>
-  put(key: string, value: ArrayBuffer | ReadableStream, options?: { httpMetadata?: R2HttpMetadata }): Promise<unknown>
-}
-
-export function r2Bucket(): R2BucketLike | null {
-  const env = cloudflareEnv() as { R2?: R2BucketLike, POSTERS?: R2BucketLike }
-  return env?.R2 ?? env?.POSTERS ?? null
+function objectUrl(key: string): string | null {
+  mediaClient()
+  return bucketUrl ? `${bucketUrl}/${key}` : null
 }
 
 export function isValidMediaKey(key: string): boolean {
@@ -60,16 +63,16 @@ export function posterSrc(value: string | null | undefined): string {
   return toR2Url(value, 'posters')
 }
 
-export function toAbsoluteUrl(path: string | null | undefined, event?: H3Event): string {
+export function toAbsoluteUrl(path: string | null | undefined, origin?: string): string {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://')) return path
   if (!path.startsWith('/r2/')) return path
-  if (!event) return path
-  return `${getRequestURL(event).origin}${path}`
+  if (!origin) return path
+  return `${origin}${path}`
 }
 
-export function absolutePosterSrc(value: string | null | undefined, event?: H3Event): string {
-  return toAbsoluteUrl(posterSrc(value), event)
+export function absolutePosterSrc(value: string | null | undefined, origin?: string): string {
+  return toAbsoluteUrl(posterSrc(value), origin)
 }
 
 export function keyToOrigin(key: string): string | null {
@@ -83,10 +86,11 @@ export function keyToOrigin(key: string): string | null {
 }
 
 export async function hasCachedMedia(key: string): Promise<boolean> {
-  const bucket = r2Bucket()
-  if (!bucket) return false
-  const head = await bucket.head(key).catch(() => null)
-  return head !== null
+  const client = mediaClient()
+  const url = objectUrl(key)
+  if (!client || !url) return false
+  const res = await client.fetch(url, { method: 'HEAD' }).catch(() => null)
+  return !!res && res.ok
 }
 
 export interface MediaObject {
@@ -96,28 +100,33 @@ export interface MediaObject {
 }
 
 export async function getCachedMedia(key: string): Promise<MediaObject | null> {
-  const bucket = r2Bucket()
-  if (!bucket) return null
-  const object = await bucket.get(key).catch(() => null)
-  if (!object) return null
+  const client = mediaClient()
+  const url = objectUrl(key)
+  if (!client || !url) return null
+  const res = await client.fetch(url).catch(() => null)
+  if (!res || !res.ok) return null
   return {
-    body: object.body ?? null,
-    contentType: object.httpMetadata?.contentType ?? 'image/jpeg',
-    etag: object.httpEtag,
+    body: res.body,
+    contentType: res.headers.get('content-type') ?? 'image/jpeg',
+    etag: res.headers.get('etag') ?? undefined,
   }
 }
 
 export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<void> {
-  const bucket = r2Bucket()
-  if (!bucket) return
-  await bucket.put(key, data, { httpMetadata: { contentType } })
+  const client = mediaClient()
+  const url = objectUrl(key)
+  if (!client || !url) return
+  await client.fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    body: data,
+  })
 }
 
 export async function mirrorMediaItem(r2Path: string): Promise<boolean> {
   const key = r2Path.startsWith('/r2/') ? r2Path.slice(4) : r2Path
   if (!isValidMediaKey(key)) return false
-  const bucket = r2Bucket()
-  if (!bucket) return false
+  if (!mediaClient()) return false
   if (await hasCachedMedia(key)) return true
   const origin = keyToOrigin(key)
   if (!origin) return false

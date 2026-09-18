@@ -5,7 +5,7 @@ import {
   isValidMediaKey,
   keyToOrigin,
   storeMedia,
-} from '../../utils/r2'
+} from '../../utils/media'
 
 const MEDIA_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=31536000, immutable'
 

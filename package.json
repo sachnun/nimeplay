@@ -2,10 +2,9 @@
   "name": "nimeplay",
   "type": "module",
   "private": true,
-  "packageManager": "npm@11.19.1",
+  "packageManager": "pnpm@12.4.2",
   "engines": {
-    "node": ">=26",
-    "npm": ">=11"
+    "node": ">=26"
   },
   "scripts": {
     "build": "nuxt build",
@@ -15,11 +14,12 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply nimeplay --remote",
-    "db:migrate:local": "wrangler d1 migrations apply nimeplay --local"
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
+    "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
     "hls.js": "^1.7.3",
@@ -39,13 +39,5 @@
     "typescript": "^6.0.3",
     "vue-tsc": "^3.3.9",
     "wrangler": "^4.131.1"
-  },
-  "allowScripts": {
-    "esbuild@0.18.20": true,
-    "esbuild@0.25.12": true,
-    "esbuild@0.27.7": true,
-    "esbuild@0.28.2": true,
-    "esbuild@0.28.1": true,
-    "workerd@1.20260911.1": true
   }
 }

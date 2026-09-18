@@ -27,3 +27,4 @@ logs
 !.env.example
 .dev.vars
 .dev.vars.*
+.neon

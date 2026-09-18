@@ -1,14 +1,36 @@
-import type { D1Database } from '@cloudflare/workers-types'
-import { drizzle } from 'drizzle-orm/d1'
+import { neon, Pool } from '@neondatabase/serverless'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import type { NeonHttpDatabase } from 'drizzle-orm/neon-http'
+import { drizzle as httpDrizzle } from 'drizzle-orm/neon-http'
+import { drizzle as wsDrizzle } from 'drizzle-orm/neon-serverless'
 import * as schema from '../database/schema'
 import { cloudflareEnv } from './env'
 
-function binding(): D1Database {
-  const value = cloudflareEnv().DB
-  if (!value) throw new Error('D1 binding "DB" is not available (run inside a Worker or with wrangler dev emulation)')
-  return value as D1Database
+type Database = NeonHttpDatabase<typeof schema>
+
+const store = new AsyncLocalStorage<Database>()
+let http: Database | undefined
+
+function connectionString(): string {
+  const value = cloudflareEnv().DATABASE_URL
+  if (typeof value !== 'string' || !value) throw new Error('DATABASE_URL is not set')
+  return value
 }
 
-export function db() {
-  return drizzle(binding(), { schema })
+export function db(): Database {
+  const scoped = store.getStore()
+  if (scoped) return scoped
+  if (!http) http = httpDrizzle(neon(connectionString()), { schema })
+  return http
+}
+
+export async function withPool<T>(fn: () => Promise<T>): Promise<T> {
+  const pool = new Pool({ connectionString: connectionString() })
+  const client = wsDrizzle(pool, { schema }) as unknown as Database
+  try {
+    return await store.run(client, fn)
+  }
+  finally {
+    await pool.end().catch(() => {})
+  }
 }

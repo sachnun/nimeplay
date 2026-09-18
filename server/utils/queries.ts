@@ -1,9 +1,8 @@
-import type { H3Event } from 'h3'
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/sqlite-core'
+import { alias } from 'drizzle-orm/pg-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
-import { posterSrc } from './r2'
+import { posterSrc } from './media'
 import { anime, animeGenres, episodes, genres } from '../database/schema'
 import { cache } from './cache'
 import { cleanSynopsis } from './synopsis'
@@ -80,8 +79,6 @@ function formatSeason(season: string | null): string {
   return season.replace(/(^|\s)\S/g, part => part.toUpperCase())
 }
 
-
-
 const SEASON_RANK = sql`case
   when ${anime.season} like 'winter%' then 1
   when ${anime.season} like 'spring%' then 2
@@ -90,39 +87,38 @@ const SEASON_RANK = sql`case
   else 0 end`
 
 const SEASON_YEAR = sql`case
-  when length(${anime.season}) >= 4 and substr(${anime.season}, -4) glob '[0-9][0-9][0-9][0-9]'
-  then cast(substr(${anime.season}, -4) as integer)
+  when length(${anime.season}) >= 4 and right(${anime.season}, 4) ~ '^[0-9]{4}$'
+  then cast(right(${anime.season}, 4) as integer)
   else 0 end`
 
-export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number, event?: H3Event): Promise<{ anime: AnimeCard[], totalPages: number }> {
-  return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page, event), event ? { event } : undefined) as Promise<{ anime: AnimeCard[], totalPages: number }>
+export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number): Promise<{ anime: AnimeCard[], totalPages: number }> {
+  return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>
 }
 
-function getStatusCount(status: 'ONGOING' | 'COMPLETED', event?: H3Event): Promise<number> {
+function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> {
   return cache.get('counts', `status:${status}`, COUNT_TTL_MS, async () => {
     const [row] = await db()
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(anime)
       .where(and(eq(anime.status, status), METADATA_READY))
     return row?.count ?? 0
-  }, event ? { event } : undefined) as Promise<number>
+  }) as Promise<number>
 }
 
-function getGenreCount(genreId: number, event?: H3Event): Promise<number> {
+function getGenreCount(genreId: number): Promise<number> {
   return cache.get('counts', `genre:${genreId}`, COUNT_TTL_MS, async () => {
     const [row] = await db()
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(animeGenres)
       .innerJoin(anime, eq(anime.slug, animeGenres.animeSlug))
       .where(and(eq(animeGenres.genreId, genreId), METADATA_READY))
     return row?.count ?? 0
-  }, event ? { event } : undefined) as Promise<number>
+  }) as Promise<number>
 }
 
 async function listAnimePageFresh(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
-  event?: H3Event,
 ): Promise<{ anime: AnimeCard[], totalPages: number }> {
   const filter = and(eq(anime.status, status), METADATA_READY)
 
@@ -146,7 +142,7 @@ async function listAnimePageFresh(
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 
-  const [total, rows] = await Promise.all([getStatusCount(status, event), rowsQuery])
+  const [total, rows] = await Promise.all([getStatusCount(status), rowsQuery])
   if (rows.length === 0) {
     return { anime: [], totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
   }
@@ -179,8 +175,8 @@ async function listAnimePageFresh(
   }
 }
 
-export function getGenreList(event?: H3Event): Promise<Genre[]> {
-  return cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh(), event ? { event } : undefined) as Promise<Genre[]>
+export function getGenreList(): Promise<Genre[]> {
+  return cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh()) as Promise<Genre[]>
 }
 
 async function getGenreListFresh(): Promise<Genre[]> {
@@ -188,16 +184,16 @@ async function getGenreListFresh(): Promise<Genre[]> {
   return rows
 }
 
-export function searchAnime(query: string, event?: H3Event): Promise<SearchResult[]> {
+export function searchAnime(query: string): Promise<SearchResult[]> {
   const key = query.trim().toLowerCase().slice(0, 80)
   if (!key) return Promise.resolve([])
-  return cache.get('search', key, SEARCH_TTL_MS, () => searchAnimeFresh(query.trim()), event ? { event } : undefined) as Promise<SearchResult[]>
+  return cache.get('search', key, SEARCH_TTL_MS, () => searchAnimeFresh(query.trim())) as Promise<SearchResult[]>
 }
 
 async function searchAnimeFresh(query: string): Promise<SearchResult[]> {
   const match = toFtsQuery(query)
   if (!match) return []
-  const rows = await db().all<{
+  const result = await db().execute<{
     malId: number | null
     title: string
     thumbnail: string
@@ -205,21 +201,22 @@ async function searchAnimeFresh(query: string): Promise<SearchResult[]> {
     rating: string
     genres: string
   }>(sql`
-    select a.mal_id as malId, a.title as title,
+    select a.mal_id as "malId", a.title as title,
       coalesce(a.poster, '') as thumbnail,
       coalesce(a.status, '') as status,
       coalesce(cast(a.rating as text), '') as rating,
-      coalesce(group_concat(g.name, ', '), '') as genres
-    from anime_fts f
-    inner join anime a on a.rowid = f.rowid
+      coalesce(string_agg(g.name, ', '), '') as genres
+    from anime a
     left join anime_genres ag on ag.anime_slug = a.slug
     left join genres g on g.id = ag.genre_id
-    where f.title match ${match} and a.mal_id is not null
+    where a.mal_id is not null
+      and to_tsvector('simple', a.title) @@ to_tsquery('simple', ${match})
     group by a.slug
+    order by ts_rank(to_tsvector('simple', a.title), to_tsquery('simple', ${match})) desc
     limit 20
   `)
 
-  return rows.map(row => ({ ...row, thumbnail: posterSrc(row.thumbnail), malId: row.malId! }))
+  return result.rows.map(row => ({ ...row, thumbnail: posterSrc(row.thumbnail), malId: row.malId! }))
 }
 
 export async function getGenresForAnime(animeSlug: string): Promise<Genre[]> {
@@ -265,8 +262,8 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
   return row ? { ...row, malId: row.malId! } : null
 }
 
-export function getAnimeDetail(malId: number, event?: H3Event): Promise<AnimeDetail | null> {
-  return cache.get('detail', malId, DETAIL_TTL_MS, () => getAnimeDetailFresh(malId), event ? { event } : undefined) as Promise<AnimeDetail | null>
+export function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {
+  return cache.get('detail', malId, DETAIL_TTL_MS, () => getAnimeDetailFresh(malId)) as Promise<AnimeDetail | null>
 }
 
 async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
@@ -333,7 +330,7 @@ export async function resolveEpisode(
   }
 }
 
-export function getEpisodeNumbers(animeSlug: string, event?: H3Event): Promise<number[]> {
+export function getEpisodeNumbers(animeSlug: string): Promise<number[]> {
   return cache.get('episodes', animeSlug, DETAIL_TTL_MS, async () => {
     const rows = await db()
       .select({ number: episodes.number })
@@ -341,21 +338,19 @@ export function getEpisodeNumbers(animeSlug: string, event?: H3Event): Promise<n
       .where(eq(episodes.animeSlug, animeSlug))
       .orderBy(asc(episodes.number))
     return rows.map(entry => entry.number)
-  }, event ? { event } : undefined) as Promise<number[]>
+  }) as Promise<number[]>
 }
 
 export function getGenreAnimePage(
   slug: string,
   page: number,
-  event?: H3Event,
 ): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
-  return cache.get('genre-page', `${slug}:${page}`, GENRE_PAGE_TTL_MS, () => getGenreAnimePageFresh(slug, page, event), event ? { event } : undefined) as Promise<{ anime: GenreAnimeCard[], totalPages: number } | null>
+  return cache.get('genre-page', `${slug}:${page}`, GENRE_PAGE_TTL_MS, () => getGenreAnimePageFresh(slug, page)) as Promise<{ anime: GenreAnimeCard[], totalPages: number } | null>
 }
 
 async function getGenreAnimePageFresh(
   slug: string,
   page: number,
-  event?: H3Event,
 ): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
   const [genre] = await db().select({ id: genres.id }).from(genres).where(eq(genres.slug, slug)).limit(1)
   if (!genre) return null
@@ -372,7 +367,7 @@ async function getGenreAnimePageFresh(
       thumbnail: sql<string>`coalesce(${anime.poster}, '')`,
       rating: sql<string>`coalesce(cast(${anime.rating} as text), '')`,
       season: anime.season,
-      genres: sql<string>`coalesce(group_concat(${allGenres.name}, ', '), '')`,
+      genres: sql<string>`coalesce(string_agg(${allGenres.name}, ', '), '')`,
     })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.slug, animeGenres.animeSlug))
@@ -384,7 +379,7 @@ async function getGenreAnimePageFresh(
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 
-  const [total, rows] = await Promise.all([getGenreCount(genre.id, event), rowsQuery])
+  const [total, rows] = await Promise.all([getGenreCount(genre.id), rowsQuery])
 
   const cards: GenreAnimeCard[] = rows.map(row => ({
     malId: row.malId!,

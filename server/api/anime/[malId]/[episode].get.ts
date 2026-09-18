@@ -1,11 +1,10 @@
 import { createError, getQuery, getRouterParam } from 'h3'
 import { eq } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
-import { cache } from '../../../utils/cache'
 import { db } from '../../../utils/db'
 import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
 import { refreshAnimeBySlug } from '../../../utils/refresh'
-import { scrapeEpisode, scrapeEpisodeFresh } from '../../../utils/sources'
+import { scrapeEpisode } from '../../../utils/sources'
 
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
@@ -27,29 +26,16 @@ export default defineEventHandler(async (event) => {
       catch (error) {
         console.warn(`[episode] on-demand refresh failed ${malId}:`, error instanceof Error ? error.message : error)
       }
-      if (refresh) cache.delete('episodes', row.id)
       resolved = await resolveEpisode(malId, episodeNumber)
     }
   }
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
-    refresh ? scrapeEpisodeFresh(resolved.sourceSlug) : scrapeEpisode(resolved.sourceSlug),
+    scrapeEpisode(resolved.sourceSlug),
     getEpisodeNumbers(resolved.animeId),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
-
-  const defaultCandidate = selectDefaultCandidate(scraped.mirrors)
-  let initialSource: { playUrl: string, kind: 'hls' | 'file', quality: string, dataContent: string } | null = null
-  if (defaultCandidate && !refresh) {
-    try {
-      const cached = await peekPreparedResult(defaultCandidate.dataContent)
-      if (cached?.ok && cached.playUrl && cached.kind) {
-        initialSource = { playUrl: cached.playUrl, kind: cached.kind, quality: defaultCandidate.quality, dataContent: defaultCandidate.dataContent }
-      }
-    }
-    catch {}
-  }
 
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
@@ -60,6 +46,5 @@ export default defineEventHandler(async (event) => {
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },
     episodes: episodeNumbers,
-    initialSource,
   }
 })

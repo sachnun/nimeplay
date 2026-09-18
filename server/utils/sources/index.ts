@@ -1,12 +1,8 @@
-import { cache } from '../cache'
 import { animein } from './animein'
 import { otakudesu } from './otakudesu'
 import { sokuja } from './sokuja'
 import { ylnime } from './ylnime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
-
-const EPISODE_TTL = 30 * 60 * 1000
-const MIRROR_TTL = 10 * 60 * 1000
 
 export const sources: Record<string, AnimeSource> = {
   animein,
@@ -37,24 +33,11 @@ export function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail
 export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
   const split = splitSource(slug)
   if (!split) return Promise.resolve(null)
-  return cache.get('episode', slug, EPISODE_TTL, () => {
-    return split.source.episodeFresh(split.rest)
-  }) as Promise<EpisodeData | null>
-}
-
-export function invalidateEpisodeCache(slug: string): void {
-  cache.delete('episode', slug)
-}
-
-export function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  invalidateEpisodeCache(slug)
-  return scrapeEpisode(slug)
+  return split.source.episodeFresh(split.rest)
 }
 
 export function resolvemirror(dataContent: string): Promise<string | null> {
   const split = splitSource(dataContent)
   if (!split) return Promise.resolve(null)
-  return cache.get('mirror', dataContent, MIRROR_TTL, () => {
-    return split.source.resolveMirror(split.rest)
-  }) as Promise<string | null>
+  return split.source.resolveMirror(split.rest)
 }

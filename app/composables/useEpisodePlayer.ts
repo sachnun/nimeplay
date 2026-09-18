@@ -3,7 +3,7 @@ import { loadHls, preloadHls } from '~/utils/hls'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
 import { useEpisodePlayerResolution } from './player/resolution'
-import type { EpisodeData, EpisodePageData, InitialSource, SkipTime } from '~/utils/types'
+import type { EpisodeData, EpisodePageData, SkipTime } from '~/utils/types'
 
 interface EpisodePlayerProps {
   malId: number
@@ -12,7 +12,6 @@ interface EpisodePlayerProps {
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
-  initialSource?: InitialSource | null
 }
 
 function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
@@ -268,8 +267,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     clearIdleTimer()
   }
 
-  const initialSource = ref<InitialSource | null>(props.initialSource ?? null)
-
   const {
     invalidatePlaybackSession,
     playWithFallback,
@@ -281,7 +278,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     episode,
     loadingMessage,
     resolving,
-    initialSource,
     onExhausted: (tried) => {
       void autoRefreshUpstream(tried)
     },
@@ -294,7 +290,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       const data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${currentEpisodeNum.value}?refresh=1`)
       if (!data) return false
       suppressEpisodeWatch = true
-      initialSource.value = data.initialSource ?? null
       episode.value = data.episode
       const start = buildFallbackOrder(data.episode.mirrors, '720p').find((candidate) => !exclude.includes(candidate.dataContent)) ?? null
       if (!start) return false
@@ -366,7 +361,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       resolving.value = false
       return
     }
-    initialSource.value = data.initialSource ?? null
     episode.value = data.episode
     currentEpisodeNum.value = data.episodeNumber
     window.history.replaceState(null, '', `/anime/${props.malId}/${data.episodeNumber}`)

@@ -4,7 +4,6 @@ import { db } from './db'
 import { toFtsQuery } from './fts'
 import { posterSrc } from './media'
 import { anime, animeGenres, characters, episodes, genres } from '../database/schema'
-import { cache } from './cache'
 import { cleanSynopsis } from './synopsis'
 
 export interface Genre {
@@ -72,13 +71,6 @@ export interface AnimeCharacter {
 const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
 
-const LIST_TTL_MS = 10 * 60 * 1000
-const GENRE_TTL_MS = 60 * 60 * 1000
-const GENRE_PAGE_TTL_MS = 10 * 60 * 1000
-const DETAIL_TTL_MS = 10 * 60 * 1000
-const SEARCH_TTL_MS = 10 * 60 * 1000
-const COUNT_TTL_MS = 30 * 60 * 1000
-
 const METADATA_READY = sql`${anime.malId} is not null`
 
 function formatSeason(season: string | null, year: number | null): string {
@@ -94,32 +86,24 @@ const SEASON_RANK = sql`case
   when ${anime.season} = 'fall' then 4
   else 0 end`
 
-export function listAnimePage(status: 'ONGOING' | 'COMPLETED', page: number): Promise<{ anime: AnimeCard[], totalPages: number }> {
-  return cache.get('list', `${status}:${page}`, LIST_TTL_MS, () => listAnimePageFresh(status, page)) as Promise<{ anime: AnimeCard[], totalPages: number }>
+async function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> {
+  const [row] = await db()
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(anime)
+    .where(and(eq(anime.status, status), METADATA_READY))
+  return row?.count ?? 0
 }
 
-function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> {
-  return cache.get('counts', `status:${status}`, COUNT_TTL_MS, async () => {
-    const [row] = await db()
-      .select({ count: sql<number>`cast(count(*) as integer)` })
-      .from(anime)
-      .where(and(eq(anime.status, status), METADATA_READY))
-    return row?.count ?? 0
-  }) as Promise<number>
+async function getGenreCount(genreId: number): Promise<number> {
+  const [row] = await db()
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(animeGenres)
+    .innerJoin(anime, eq(anime.id, animeGenres.animeId))
+    .where(and(eq(animeGenres.genreId, genreId), METADATA_READY))
+  return row?.count ?? 0
 }
 
-function getGenreCount(genreId: number): Promise<number> {
-  return cache.get('counts', `genre:${genreId}`, COUNT_TTL_MS, async () => {
-    const [row] = await db()
-      .select({ count: sql<number>`cast(count(*) as integer)` })
-      .from(animeGenres)
-      .innerJoin(anime, eq(anime.id, animeGenres.animeId))
-      .where(and(eq(animeGenres.genreId, genreId), METADATA_READY))
-    return row?.count ?? 0
-  }) as Promise<number>
-}
-
-async function listAnimePageFresh(
+export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
 ): Promise<{ anime: AnimeCard[], totalPages: number }> {
@@ -179,23 +163,15 @@ async function listAnimePageFresh(
   }
 }
 
-export function getGenreList(): Promise<Genre[]> {
-  return cache.get('genres', 'all', GENRE_TTL_MS, () => getGenreListFresh()) as Promise<Genre[]>
-}
-
-async function getGenreListFresh(): Promise<Genre[]> {
+export async function getGenreList(): Promise<Genre[]> {
   const rows = await db().select({ name: genres.name, slug: genres.slug }).from(genres).orderBy(asc(genres.name))
   return rows
 }
 
-export function searchAnime(query: string): Promise<SearchResult[]> {
-  const key = query.trim().toLowerCase().slice(0, 80)
-  if (!key) return Promise.resolve([])
-  return cache.get('search', key, SEARCH_TTL_MS, () => searchAnimeFresh(query.trim())) as Promise<SearchResult[]>
-}
-
-async function searchAnimeFresh(query: string): Promise<SearchResult[]> {
-  const match = toFtsQuery(query)
+export async function searchAnime(query: string): Promise<SearchResult[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+  const match = toFtsQuery(trimmed)
   if (!match) return []
   const result = await db().execute(sql`
     select a.mal_id as "malId", a.title as title, a.poster_key as "posterKey",
@@ -292,11 +268,7 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
   return row ? { ...row, malId: row.malId! } : null
 }
 
-export function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {
-  return cache.get('detail', malId, DETAIL_TTL_MS, () => getAnimeDetailFresh(malId)) as Promise<AnimeDetail | null>
-}
-
-async function getAnimeDetailFresh(malId: number): Promise<AnimeDetail | null> {
+export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {
   const row = await getAnimeByMalId(malId)
   if (!row) return null
 
@@ -362,25 +334,16 @@ export async function resolveEpisode(
   }
 }
 
-export function getEpisodeNumbers(animeId: number): Promise<number[]> {
-  return cache.get('episodes', animeId, DETAIL_TTL_MS, async () => {
-    const rows = await db()
-      .select({ number: episodes.number })
-      .from(episodes)
-      .where(eq(episodes.animeId, animeId))
-      .orderBy(asc(episodes.number))
-    return rows.map(entry => entry.number)
-  }) as Promise<number[]>
+export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
+  const rows = await db()
+    .select({ number: episodes.number })
+    .from(episodes)
+    .where(eq(episodes.animeId, animeId))
+    .orderBy(asc(episodes.number))
+  return rows.map(entry => entry.number)
 }
 
-export function getGenreAnimePage(
-  slug: string,
-  page: number,
-): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
-  return cache.get('genre-page', `${slug}:${page}`, GENRE_PAGE_TTL_MS, () => getGenreAnimePageFresh(slug, page)) as Promise<{ anime: GenreAnimeCard[], totalPages: number } | null>
-}
-
-async function getGenreAnimePageFresh(
+export async function getGenreAnimePage(
   slug: string,
   page: number,
 ): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {

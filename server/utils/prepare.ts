@@ -22,8 +22,6 @@ export interface DefaultMirrorCandidate {
   name: string
 }
 
-export const MIRROR_PREPARE_TTL = 10 * 60 * 1000
-
 const SOURCE_PRIORITY_GROUPS = [
   ['animeverse', 'nekoclouds'],
   ['puterin', 'putarin'],
@@ -63,20 +61,14 @@ export function selectDefaultCandidate(mirrors: MirrorGroup[]): DefaultMirrorCan
   return null
 }
 
-export function prepareMirror(dataContent: string, origin: string): Promise<PrepareResult> {
-  return cache.get('prepare', dataContent, MIRROR_PREPARE_TTL, async (): Promise<PrepareResult> => {
-    const mirrorId = await openStreamToken(dataContent)
-    if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyPrepareResult()
-    const embedUrl = await resolvemirror(mirrorId)
-    if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
-    const directUrl = await extractStreamUrl(embedUrl)
-    if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
-    const kind = await detectStreamKind(directUrl)
-    const token = await sealStreamToken(directUrl)
-    return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
-  }) as Promise<PrepareResult>
-}
-
-export function peekPreparedResult(dataContent: string): Promise<PrepareResult> | undefined {
-  return cache.peek('prepare', dataContent) as Promise<PrepareResult> | undefined
+export async function prepareMirror(dataContent: string, origin: string): Promise<PrepareResult> {
+  const mirrorId = await openStreamToken(dataContent)
+  if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyPrepareResult()
+  const embedUrl = await resolvemirror(mirrorId)
+  if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
+  const directUrl = await extractStreamUrl(embedUrl)
+  if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
+  const kind = await detectStreamKind(directUrl)
+  const token = await sealStreamToken(directUrl)
+  return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
 }

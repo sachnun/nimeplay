@@ -1,6 +1,5 @@
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
-import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { fetchRemoteMedia, isValidMediaKey, mediaRef, storeMedia, type MediaRef } from './media'
@@ -464,19 +463,6 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
   return false
 }
 
-function invalidateAnimeCaches(animeId: number, malId: number | null, statusChanged: boolean): void {
-  cache.delete('episodes', animeId)
-  if (!malId) return
-  cache.delete('detail', malId)
-  cache.clear('list')
-  cache.delete('list', 'ONGOING:1')
-  cache.delete('list', 'COMPLETED:1')
-  if (statusChanged) {
-    cache.delete('counts', 'status:ONGOING')
-    cache.delete('counts', 'status:COMPLETED')
-  }
-}
-
 export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean, known?: AnimeRefreshState): Promise<void> {
   let state = known
   if (!state) {
@@ -518,9 +504,6 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       ...(hasNewEpisodes ? { lastNewEpisodeAt: new Date() } : {}),
       updatedAt: new Date(),
     })
-    if (hasNewEpisodes || statusChanged) {
-      invalidateAnimeCaches(animeRow.id, animeRow.malId, statusChanged)
-    }
   }
   const linkedMalId = animeRow.malId
   const metadataStale = !animeRow.metadataSyncedAt || Date.now() - animeRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS

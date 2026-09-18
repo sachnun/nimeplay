@@ -48,7 +48,6 @@ const showPlane = computed(() => !pending.value && !pageData.value && !metaData.
 
 const anime = computed(() => pageData.value?.anime ?? metaData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)
-const initialSource = computed(() => pageData.value?.initialSource ?? null)
 const headerTitle = computed(() => pageData.value?.episode.title || metaData.value?.episodeTitle || '')
 const pendingEpisodeNum = computed(() => Number(episodeParam.value) || metaData.value?.episodeNumber || 0)
 const pendingPrev = computed(() => {
@@ -123,6 +122,5 @@ onMounted(() => {
     :episodes="pageData!.episodes"
     :anime-title="anime?.title || ''"
     :anime-thumbnail="anime?.thumbnail || ''"
-    :initial-source="initialSource"
   />
 </template>

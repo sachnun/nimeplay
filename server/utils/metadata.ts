@@ -4,10 +4,7 @@ import { toFtsQuery } from './fts'
 import { anime } from '../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from './mal'
 import { cleanSynopsis } from './synopsis'
-import { cache } from './cache'
 import { getCharactersForAnime, type AnimeCharacter } from './queries'
-
-const METADATA_TTL = 24 * 60 * 60 * 1000
 
 export interface MetadataRequestBody {
   title?: string
@@ -111,48 +108,45 @@ export async function resolveMetadata(body: MetadataRequestBody): Promise<unknow
 
   if (!malId && !title) return null
 
-  const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
-  return cache.get('metadata', cacheKey, METADATA_TTL, async () => {
-    const row = await lookupInDb({ ...body, title })
-    if (row?.malId) {
-      const chars = await getCharactersForAnime(row.id)
-      if (row.synopsis || chars.length > 0) {
-        if (body?.idOnly === true) return { malId: row.malId }
-        return toMetadataPayload({
-          malId: row.malId,
-          synopsis: row.synopsis ?? '',
-          score: row.rating,
-          rank: row.rank,
-          popularity: row.popularity,
-          season: row.season,
-          year: row.year,
-          trailerId: row.trailerId,
-          characters: chars,
-        })
-      }
+  const row = await lookupInDb({ ...body, title })
+  if (row?.malId) {
+    const chars = await getCharactersForAnime(row.id)
+    if (row.synopsis || chars.length > 0) {
+      if (body?.idOnly === true) return { malId: row.malId }
+      return toMetadataPayload({
+        malId: row.malId,
+        synopsis: row.synopsis ?? '',
+        score: row.rating,
+        rank: row.rank,
+        popularity: row.popularity,
+        season: row.season,
+        year: row.year,
+        trailerId: row.trailerId,
+        characters: chars,
+      })
     }
+  }
 
-    let resolvedMalId = malId ?? row?.malId ?? null
-    if (!resolvedMalId) {
-      resolvedMalId = await searchMalAnime(japaneseTitle || title)
-        ?? (japaneseTitle && title ? await searchMalAnime(title) : null)
-    }
-    if (!resolvedMalId) return null
+  let resolvedMalId = malId ?? row?.malId ?? null
+  if (!resolvedMalId) {
+    resolvedMalId = await searchMalAnime(japaneseTitle || title)
+      ?? (japaneseTitle && title ? await searchMalAnime(title) : null)
+  }
+  if (!resolvedMalId) return null
 
-    const fetched = await fetchMalAnime(resolvedMalId)
-    if (!fetched) return null
+  const fetched = await fetchMalAnime(resolvedMalId)
+  if (!fetched) return null
 
-    if (body?.idOnly === true) return { malId: fetched.malId }
-    return toMetadataPayload({
-      malId: fetched.malId,
-      synopsis: fetched.synopsis,
-      score: fetched.score,
-      rank: fetched.rank,
-      popularity: fetched.popularity,
-      season: fetched.season,
-      year: fetched.year,
-      trailerId: fetched.trailerId,
-      characters: fetched.characters,
-    })
+  if (body?.idOnly === true) return { malId: fetched.malId }
+  return toMetadataPayload({
+    malId: fetched.malId,
+    synopsis: fetched.synopsis,
+    score: fetched.score,
+    rank: fetched.rank,
+    popularity: fetched.popularity,
+    season: fetched.season,
+    year: fetched.year,
+    trailerId: fetched.trailerId,
+    characters: fetched.characters,
   })
 }

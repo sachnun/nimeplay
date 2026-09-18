@@ -167,8 +167,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
 
     <EmptyState v-if="showPlane" />
     <div ref="sentinelRef" class="py-4">
-      <p v-if="isEnd && hasAnyCard" class="text-sm text-zinc-600 text-center">No more anime to load</p>
-      <button v-else-if="loadError && !showPlane" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
+      <button v-if="loadError && !showPlane" type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" @click="loadMore">
         Gagal memuat anime. Coba lagi
       </button>
     </div>

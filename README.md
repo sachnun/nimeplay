@@ -6,6 +6,8 @@
 
 Watch anime with no ads, no comments, no popups, and no distractions.
 
+## Get running
+
 Needs Node >=26, pnpm, a Neon project with Postgres + Object Storage, and Wrangler login.
 Credentials load from `.env.local` (`neon link` / `neon env pull`); see `.env.example`.
 
@@ -17,10 +19,12 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
-| Data | Store | Served by |
+## How it works
+
+| Data | Lives in | Served from |
 | --- | --- | --- |
 | Anime, episodes, genres, characters | Neon Postgres | `/api/*` |
-| Images | Neon Object Storage | `/media/*` |
+| Images (posters, characters, voice actors) | Neon Object Storage | `/media/*` |
 
 Metadata writes queue images in the `media` table; queue jobs mirror them to Object
 Storage before `/media/<key>` serves them.
@@ -34,9 +38,13 @@ Queue (binding `JOBS`), each job wrapped in a Neon WebSocket pool.
 | `0 3 * * *` | `completed` | Backfill completed lists, resolve metadata, mirror images |
 | chained | `media` | Mirror queued images; re-enqueues itself until none are pending |
 
-Schema changes: `pnpm db:generate && pnpm db:migrate`.
+Changed the schema? `pnpm db:generate && pnpm db:migrate`.
 
-Public API under `/api/v1/*`, reference at `/docs`.
+## API
+
+Public endpoints live under `/api/v1/*`, with a browsable reference at `/docs`.
+
+## Deploy
 
 ```bash
 pnpm build
@@ -49,15 +57,14 @@ Create the queue once before the first deploy:
 npx wrangler queues create nimeplay-jobs
 ```
 
-Set Worker secrets once:
+Set the Worker secrets once (same names as `.env.local`):
 
 ```bash
-npx wrangler secret put DATABASE_URL --cwd .output
-npx wrangler secret put AWS_ACCESS_KEY_ID --cwd .output
-npx wrangler secret put AWS_SECRET_ACCESS_KEY --cwd .output
-npx wrangler secret put AWS_ENDPOINT_URL_S3 --cwd .output
-npx wrangler secret put AWS_REGION --cwd .output
+for s in DATABASE_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_ENDPOINT_URL_S3 AWS_REGION; do
+  npx wrangler secret put "$s" --cwd .output
+done
 ```
 
-`MEDIA_BUCKET` and `APP_ORIGIN` are plain vars in `wrangler.jsonc`; set `APP_ORIGIN` to
-the deployed Worker URL. Preview locally with `npx wrangler --cwd .output dev`.
+`MEDIA_BUCKET` and `APP_ORIGIN` are plain vars in `wrangler.jsonc`; point `APP_ORIGIN`
+at the deployed Worker URL. Preview a production build locally with
+`npx wrangler --cwd .output dev`.

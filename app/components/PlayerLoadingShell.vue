@@ -210,7 +210,7 @@ onMounted(() => {
           </svg>
         </button>
         <div v-else class="w-9 h-9 rounded-full bg-white/15 animate-pulse" />
-        <h1 v-if="title" class="min-w-0 flex-1 text-sm md:text-base font-semibold text-white/90 truncate">{{ title.replace('Subtitle Indonesia', '').trim() }}</h1>
+        <h1 v-if="title" class="min-w-0 flex-1 text-sm md:text-base font-semibold text-white/90 truncate">{{ title }}</h1>
         <div v-else class="h-4 w-48 bg-white/10 rounded animate-pulse" />
       </div>
     </div>

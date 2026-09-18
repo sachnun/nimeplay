@@ -112,7 +112,7 @@ export default defineEventHandler(async (event) => {
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: toAbsoluteUrl(resolved.anime.thumbnail, origin) },
     episodeNumber,
-    title: scraped.title || resolved.episodeTitle,
+    title: `${resolved.anime.title} Episode ${episodeNumber}`,
     thumbnail: toAbsoluteUrl(scraped.thumbnail || resolved.anime.thumbnail, origin),
     episodes: episodeNumbers,
     servers,

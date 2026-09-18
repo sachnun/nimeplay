@@ -41,7 +41,7 @@ function goBack() {
           </svg>
         </div>
         <h1 class="text-sm md:text-base font-semibold text-white/90 truncate">
-          {{ title.replace('Subtitle Indonesia', '').trim() }}
+          {{ title }}
         </h1>
       </button>
       <div class="flex-1" />

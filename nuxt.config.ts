@@ -20,8 +20,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       '* * * * *': ['tick'],
-      '*/30 * * * *': ['ongoing'],
-      '0 3 * * *': ['completed'],
+      '*/30 * * * *': ['catalog'],
     },
     cloudflare: {
       deployConfig: true,

@@ -1,6 +1,6 @@
 import { cleanSynopsis } from './synopsis'
 
-const ANILIST_URL = 'https://graphql.anilist.co'
+const ANILIST_URL = 'https://unroxy.koyeb.app/https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
 const MIN_INTERVAL_MS = 700
 
@@ -161,11 +161,15 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
         blockedUntil = Date.now() + retryAfter * 1000
         continue
       }
-      if (!res.ok) return null
+      if (!res.ok) {
+        console.warn(`[anilist] ${res.status} ${res.statusText}`)
+        return null
+      }
       const body = await res.json() as { data?: T }
       return body.data ?? null
     }
-    catch {
+    catch (error) {
+      console.warn('[anilist] fetch error:', error instanceof Error ? error.message : error)
       await new Promise(resolve => setTimeout(resolve, 500))
     }
   }

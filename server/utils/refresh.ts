@@ -21,6 +21,7 @@ const UNKNOWN_BUDGET = 1
 const STALE_ONGOING_BUDGET = 1
 const REFRESH_CONCURRENCY = 4
 const RETRY_MS = 24 * 60 * 60 * 1000
+const POSTER_RETRY_MS = 15 * 60 * 1000
 const BIND_CHUNK_SIZE = 40
 const BACKFILL_PAGES_PER_RUN = 5
 const BACKFILL_WALL_MS = 60000
@@ -146,13 +147,19 @@ async function setAppState(key: string, value: string): Promise<void> {
   }
 }
 
-function recordFailure(slug: string, message: string): Promise<void> {
+class PosterUnavailableError extends Error {}
+
+function retryDelay(error: unknown): number {
+  return error instanceof PosterUnavailableError ? POSTER_RETRY_MS : RETRY_MS
+}
+
+function recordFailure(slug: string, message: string, delayMs = RETRY_MS): Promise<void> {
   return db()
     .update(anime)
     .set({
       metadataAttempts: sql`${anime.metadataAttempts} + 1`,
       metadataLastError: message.slice(0, 500),
-      metadataRetryAt: new Date(Date.now() + RETRY_MS),
+      metadataRetryAt: new Date(Date.now() + delayMs),
     })
     .where(eq(anime.slug, slug))
     .then(
@@ -383,7 +390,7 @@ async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<bo
   }
   catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    await recordFailure(slug, reason)
+    await recordFailure(slug, reason, retryDelay(error))
     console.warn(`[metadata] linked refresh failed ${slug}: ${reason}`)
     return false
   }
@@ -455,7 +462,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
       () => true,
       error => {
         const reason = error instanceof Error ? error.message : String(error)
-        return recordFailure(slug, reason).then(() => {
+        return recordFailure(slug, reason, retryDelay(error)).then(() => {
           console.warn(`[metadata] failed ${slug}: ${reason}`)
           return false
         })
@@ -474,7 +481,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
         () => true,
         error => {
           const reason = error instanceof Error ? error.message : String(error)
-          return recordFailure(slug, reason).then(() => {
+          return recordFailure(slug, reason, retryDelay(error)).then(() => {
             console.warn(`[metadata] failed ${slug}: ${reason}`)
             return false
           })
@@ -874,28 +881,33 @@ async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<bo
 async function ensurePosterReady(ref: MediaRef): Promise<void> {
   const [existing] = await db().select({ status: media.status }).from(media).where(eq(media.key, ref.key)).limit(1)
   if (existing?.status === 'ready') return
-  const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
-  const stored = await storeMedia(ref.key, bytes, contentType)
-  await db().insert(media).values({
-    key: ref.key,
-    sourceUrl: ref.sourceUrl,
-    status: 'ready',
-    contentType: stored.contentType,
-    byteSize: stored.byteSize,
-    mirroredAt: new Date(),
-    attempts: 1,
-  }).onConflictDoUpdate({
-    target: media.key,
-    set: {
+  try {
+    const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
+    const stored = await storeMedia(ref.key, bytes, contentType)
+    await db().insert(media).values({
+      key: ref.key,
+      sourceUrl: ref.sourceUrl,
       status: 'ready',
       contentType: stored.contentType,
       byteSize: stored.byteSize,
       mirroredAt: new Date(),
-      attempts: sql`${media.attempts} + 1`,
-      lastError: null,
-      nextRetryAt: null,
-    },
-  })
+      attempts: 1,
+    }).onConflictDoUpdate({
+      target: media.key,
+      set: {
+        status: 'ready',
+        contentType: stored.contentType,
+        byteSize: stored.byteSize,
+        mirroredAt: new Date(),
+        attempts: sql`${media.attempts} + 1`,
+        lastError: null,
+        nextRetryAt: null,
+      },
+    })
+  }
+  catch (error) {
+    throw new PosterUnavailableError(`poster ${ref.key}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {

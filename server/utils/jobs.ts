@@ -9,6 +9,7 @@ async function runOngoingJob(): Promise<void> {
   await runOngoingSync()
   await runEpisodesFill()
   await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'ongoing' })
+  await runMetadataSync({ limit: METADATA_JOB_LIMIT, scope: 'completed' })
   await sendJob('media')
 }
 

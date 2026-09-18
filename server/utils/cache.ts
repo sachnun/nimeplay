@@ -18,6 +18,16 @@ function pruneTable(table: Map<string, Entry>, now: number): void {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('cache load timed out')), ms)
+    promise.then(
+      value => { clearTimeout(timer); resolve(value) },
+      error => { clearTimeout(timer); reject(error) },
+    )
+  })
+}
+
 export const cache = {
   get(namespace: string, key: string | number, ttlMs: number, load: () => Promise<unknown>): Promise<unknown> {
     let table = tables.get(namespace)
@@ -30,7 +40,7 @@ export const cache = {
     const hit = table.get(k)
     if (hit && hit.expiresAt > now) return hit.value
 
-    const pending = load()
+    const pending = withTimeout(load(), Math.max(ttlMs, 15000))
 
     const tracked = pending.catch((error) => {
       if (table!.get(k)?.value === tracked) table!.delete(k)

@@ -2,7 +2,7 @@ import { cleanSynopsis } from './synopsis'
 
 const ANILIST_URL = 'https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
-const MIN_INTERVAL_MS = 1500
+const MIN_INTERVAL_MS = 700
 
 export interface MalCharacter {
   name: string

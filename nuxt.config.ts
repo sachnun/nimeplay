@@ -19,10 +19,8 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks: {
-      '0 */3 * * *': ['ongoing-sync'],
-      '0 3 * * *': ['finished-sync'],
-      '*/5 * * * *': ['metadata-sync'],
-      '*/10 * * * *': ['episodes-sync'],
+      '*/30 * * * *': ['ongoing'],
+      '0 3 * * *': ['completed'],
     },
     cloudflare: {
       deployConfig: true,

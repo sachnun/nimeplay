@@ -672,7 +672,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
   return registered
 }
 
-async function syncOngoingCatalog(options: { backfill?: boolean } = {}): Promise<void> {
+async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
   const deadline = startedAt.getTime() + SYNC_WALL_MS
   const sourcesRegistered: Record<string, number> = {}
@@ -729,15 +729,6 @@ async function syncOngoingCatalog(options: { backfill?: boolean } = {}): Promise
 
   const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
   const staleRefreshed = await refreshStaleOngoing(seen, deadline)
-
-  if (options.backfill) {
-    const backfillDeadline = Date.now() + BACKFILL_WALL_MS
-    let backfilled = 0
-    for (const source of getSources()) {
-      backfilled += await backfillCompleted(source, backfillDeadline)
-    }
-    if (backfilled > 0) console.log(`[catalog] completed backfill: ${backfilled} registered`)
-  }
 
   const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
   const totalPending = totalResult?.count ?? 0
@@ -809,20 +800,6 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
   }
 }
 
-export async function runCatalogSync(options: { backfill?: boolean } = {}): Promise<void> {
-  if (catalogSyncRunning) return
-  catalogSyncRunning = true
-  try {
-    await syncOngoingCatalog(options)
-  }
-  catch (error) {
-    console.warn('[catalog] sync failed:', error instanceof Error ? error.message : error)
-  }
-  finally {
-    catalogSyncRunning = false
-  }
-}
-
 let mediaSyncRunning = false
 const MEDIA_BATCH = 18
 const MEDIA_CONCURRENCY = 6
@@ -885,9 +862,20 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
   }
 }
 
-const METADATA_FILL = 15
+async function pendingMediaCount(): Promise<number> {
+  const [row] = await db()
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(media)
+    .where(eq(media.status, 'pending'))
+  return row?.count ?? 0
+}
+
+export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: number }> {
+  await runMediaSync(limit)
+  return { pending: await pendingMediaCount() }
+}
+
 const EPISODES_FILL = 30
-const MEDIA_FILL = 18
 const FILL_EPISODES_WALL_MS = 60000
 
 let finishedSyncRunning = false
@@ -947,11 +935,6 @@ async function fillEpisodes(limit: number): Promise<void> {
     catch {}
   }
   if (list.length > 0) console.log(`[episodes] filled ${done}/${list.length}`)
-}
-
-export async function runMetadataFill(): Promise<void> {
-  await runMetadataSync({ limit: METADATA_FILL, scope: 'all' })
-  await runMediaSync(MEDIA_FILL)
 }
 
 export async function runEpisodesFill(): Promise<void> {

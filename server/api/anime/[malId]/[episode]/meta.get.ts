@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
-    episodeTitle: resolved.episodeTitle,
+    episodeTitle: `${resolved.anime.title} Episode ${episodeNumber}`,
     episodes: episodeNumbers,
   }
 })

@@ -370,7 +370,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     episode.value = data.episode
     currentEpisodeNum.value = data.episodeNumber
     window.history.replaceState(null, '', `/anime/${props.malId}/${data.episodeNumber}`)
-    document.title = data.episode.title
+    document.title = `${data.episode.title} - Nimeplay`
   }
 
   function navigateEpisode(epNum: number) {

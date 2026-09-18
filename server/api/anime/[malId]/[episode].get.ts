@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
     episode: {
-      title: scraped.title || resolved.episodeTitle,
+      title: `${resolved.anime.title} Episode ${episodeNumber}`,
       mirrors: scraped.mirrors,
       thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     },

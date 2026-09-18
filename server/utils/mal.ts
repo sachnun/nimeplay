@@ -14,6 +14,7 @@ export interface MalCharacter {
 export interface MalSearchEntry {
   id: number
   title: string
+  format?: string | null
 }
 
 export interface MalAnime {
@@ -38,6 +39,7 @@ const SEARCH_QUERY = `query ($search: String) {
     media(search: $search, type: ANIME) {
       id
       idMal
+      format
       title { romaji english native }
     }
   }
@@ -78,6 +80,7 @@ interface JikanTitle {
 interface AniListSearchMedia {
   id: number
   idMal: number | null
+  format?: string | null
   title: JikanTitle
 }
 
@@ -282,15 +285,23 @@ function baseScore(siteBase: string, malBase: string): number {
   return score
 }
 
-const SPINOFF_HINTS = ['recap', 'special', 'movie', 'ova', 'ona', 'mini anime', 'bonus stage', 'additional time']
+const SPINOFF_STRONG = ['petit', 'chibi', 'mini anime', 'minianime', 'picture drama', 'soumatou', 'recap', 'bonus stage', 'additional time', 'gift', 'pilot', 'collage', 'specials', 'junjou', 'buddy go']
+const SPINOFF_SOFT = ['movie', 'ova', 'ona', 'special', 'short anime', 'ova series']
+
+function hasSpinoffMark(siteTitle: string, malTitle: string): boolean {
+  const site = siteTitle.toLowerCase()
+  const mal = malTitle.toLowerCase()
+  return SPINOFF_STRONG.some(hint => mal.includes(hint) && !site.includes(hint))
+}
 
 function hasSpinoffPenalty(siteTitle: string, malTitle: string): boolean {
   const site = siteTitle.toLowerCase()
   const mal = malTitle.toLowerCase()
-  return SPINOFF_HINTS.some(hint => mal.includes(hint) && !site.includes(hint))
+  return [...SPINOFF_STRONG, ...SPINOFF_SOFT].some(hint => mal.includes(hint) && !site.includes(hint))
 }
 
 export function titlesMatch(siteTitle: string, malTitle: string): boolean {
+  if (hasSpinoffMark(siteTitle, malTitle)) return false
   const siteNorm = normalizeTitle(siteTitle)
   const malNorm = normalizeTitle(malTitle)
   if (siteNorm === malNorm) return true
@@ -305,7 +316,6 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   if (siteSeason !== null && malSeason !== null && siteSeason === malSeason) adjusted += 0.6
   if (siteSeason !== null && siteSeason > 1 && malSeason === null) adjusted -= 0.5
   if (siteSeason === null && malSeason !== null && malSeason > 1) return false
-  if (hasSpinoffPenalty(siteTitle, malTitle)) adjusted -= 0.4
   if (adjusted >= 0.75) return true
   if (tokenJaccard(siteBase, malBase) >= 0.5 && adjusted >= 0.55) return true
   return isAbbrevOnBase(siteBase, malBase) && adjusted >= 0.4
@@ -320,12 +330,12 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
   if (!cleaned) return []
   const data = await graphql<{ Page?: { media?: AniListSearchMedia[] } }>(SEARCH_QUERY, { search: cleaned })
   const media = data?.Page?.media ?? []
-  const entries = new Map<number, string>()
+  const entries = new Map<number, MalSearchEntry>()
   for (const item of media) {
     if (item.idMal == null) continue
-    if (!entries.has(item.idMal)) entries.set(item.idMal, matchTitleOf(item.title))
+    if (!entries.has(item.idMal)) entries.set(item.idMal, { id: item.idMal, title: matchTitleOf(item.title), format: item.format ?? null })
   }
-  return [...entries].map(([id, title]) => ({ id, title }))
+  return [...entries.values()]
 }
 
 function matchScore(siteTitle: string, malTitle: string): number {
@@ -364,7 +374,16 @@ export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]
   if (passing.length === 0) return []
   const content = passing.filter(entry => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(entry.title)) > 0 || tokenJaccard(siteTitle, entry.title) >= 0.3)
   const pool = content.length > 0 ? content : passing
-  return [...pool].sort((a, b) => matchScore(siteTitle, b.title) - matchScore(siteTitle, a.title))
+  return [...pool].sort((a, b) => (matchScore(siteTitle, b.title) + formatBonus(b.format)) - (matchScore(siteTitle, a.title) + formatBonus(a.format)))
+}
+
+const SPINOFF_FORMATS = new Set(['OVA', 'ONA', 'SPECIAL', 'MUSIC', 'TV_SHORT'])
+
+function formatBonus(format: string | null | undefined): number {
+  if (!format) return 0
+  if (format === 'TV' || format === 'MOVIE') return 0.25
+  if (SPINOFF_FORMATS.has(format)) return -0.25
+  return 0
 }
 
 export async function searchMalAnime(title: string): Promise<number | null> {

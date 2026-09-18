@@ -32,33 +32,43 @@ async function catalog(limit: number): Promise<void> {
   }
 }
 
+const ATTEMPTABLE = `mal_id is null
+  and (metadata_retry_at is null or metadata_retry_at <= now())
+  and not exists (
+    select 1 from anime r
+    where r.mal_id is not null
+      and regexp_replace(lower(r.title), '[^a-z0-9]', '', 'g') = regexp_replace(lower(anime.title), '[^a-z0-9]', '', 'g')
+  )`
+
 async function metadata(limit: number): Promise<void> {
   let stale = 0
   let last = Infinity
   for (let round = 0; round < limit; round++) {
-    const result = await db().execute(sql`
+    const result = await db().execute(sql.raw(`
       select distinct on (regexp_replace(lower(title), '[^a-z0-9]', '', 'g')) slug, title
       from anime
-      where mal_id is null and (metadata_retry_at is null or metadata_retry_at <= now())
+      where ${ATTEMPTABLE}
       order by regexp_replace(lower(title), '[^a-z0-9]', '', 'g'),
         case when status = 'ONGOING' then 0 else 1 end,
         ongoing_rank asc nulls last
-      limit 5000
-    `)
+      limit 2000
+    `))
     const rows = result.rows as { slug: string, title: string }[]
-    if (rows.length === 0) break
+    if (rows.length === 0) {
+      console.log('[fill] metadata: nothing left to attempt')
+      break
+    }
     let ok = 0
     for (let i = 0; i < rows.length; i += concurrency) {
       const res = await Promise.all(rows.slice(i, i + concurrency).map(row => resolveAnimeMetadata(row.slug, row.title).catch(() => false)))
       ok += res.filter(Boolean).length
     }
-    const pending = await count('select count(*) n from anime where mal_id is null')
-    console.log(`[fill] metadata round=${round + 1} attempted=${rows.length} resolved=${ok} pending=${pending}`)
-    if (pending === 0) break
-    stale = pending >= last ? stale + 1 : 0
-    last = pending
-    if (stale >= 6) {
-      console.log('[fill] metadata stalled (remaining need retry window)')
+    const remaining = (await db().execute(sql.raw(`select count(*)::int n from anime where ${ATTEMPTABLE}`))).rows[0] as { n: number }
+    console.log(`[fill] metadata round=${round + 1} attempted=${rows.length} resolved=${ok} attemptable=${remaining.n}`)
+    stale = remaining.n >= last ? stale + 1 : 0
+    last = remaining.n
+    if (stale >= 40) {
+      console.log('[fill] metadata stalled')
       break
     }
   }

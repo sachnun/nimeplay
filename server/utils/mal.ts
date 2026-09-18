@@ -1,8 +1,8 @@
-import { getSpoofHeaders } from './spoof'
 import { cleanSynopsis } from './synopsis'
 
-const MAL_BASE = 'https://myanimelist.net'
-const FETCH_TIMEOUT_MS = 8000
+const ANILIST_URL = 'https://graphql.anilist.co'
+const FETCH_TIMEOUT_MS = 15000
+const MIN_INTERVAL_MS = 1500
 
 export interface MalCharacter {
   name: string
@@ -33,6 +33,117 @@ export interface MalAnime {
   characters: MalCharacter[]
 }
 
+const SEARCH_QUERY = `query ($search: String) {
+  Page(perPage: 15) {
+    media(search: $search, type: ANIME) {
+      id
+      idMal
+      title { romaji english native }
+    }
+  }
+}`
+
+const MEDIA_QUERY = `query ($idMal: Int) {
+  Media(idMal: $idMal, type: ANIME) {
+    id
+    idMal
+    title { romaji english native }
+    coverImage { extraLarge large }
+    description(asHtml: false)
+    averageScore
+    rankings { rank type }
+    popularity
+    season
+    seasonYear
+    trailer { id site }
+    studios(isMain: true) { nodes { name } }
+    genres
+    source
+    characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
+      edges {
+        role
+        node { name { full } image { large } }
+        voiceActors(language: JAPANESE) { name { full } image { large } }
+      }
+    }
+  }
+}`
+
+interface JikanTitle {
+  romaji?: string | null
+  english?: string | null
+  native?: string | null
+}
+
+interface AniListSearchMedia {
+  id: number
+  idMal: number | null
+  title: JikanTitle
+}
+
+interface AniListMedia {
+  id: number
+  idMal: number | null
+  title: JikanTitle
+  coverImage?: { extraLarge?: string | null, large?: string | null } | null
+  description?: string | null
+  averageScore?: number | null
+  rankings?: { rank: number, type: string }[] | null
+  popularity?: number | null
+  season?: string | null
+  seasonYear?: number | null
+  trailer?: { id?: string | null, site?: string | null } | null
+  studios?: { nodes?: { name: string }[] } | null
+  genres?: string[] | null
+  source?: string | null
+  characters?: {
+    edges?: {
+      role?: string | null
+      node?: { name?: { full?: string | null } | null, image?: { large?: string | null } | null } | null
+      voiceActors?: { name?: { full?: string | null } | null, image?: { large?: string | null } | null }[] | null
+    }[]
+  } | null
+}
+
+let lastRequestAt = 0
+let blockedUntil = 0
+
+async function throttle(): Promise<void> {
+  for (;;) {
+    const now = Date.now()
+    const wait = Math.max(blockedUntil - now, MIN_INTERVAL_MS - (now - lastRequestAt))
+    if (wait <= 0) break
+    await new Promise(resolve => setTimeout(resolve, wait))
+  }
+  lastRequestAt = Date.now()
+}
+
+async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await throttle()
+    try {
+      const res = await fetch(ANILIST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (res.status === 429) {
+        const retryAfter = Number(res.headers.get('retry-after')) || 5
+        blockedUntil = Date.now() + retryAfter * 1000
+        continue
+      }
+      if (!res.ok) return null
+      const body = await res.json() as { data?: T }
+      return body.data ?? null
+    }
+    catch {
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+  }
+  return null
+}
+
 function decodeEntities(value: string): string {
   return value
     .replace(/&#0?39;|&apos;/g, '\'')
@@ -43,18 +154,22 @@ function decodeEntities(value: string): string {
     .trim()
 }
 
-async function fetchPage(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: getSpoofHeaders(MAL_BASE + '/'),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    return await res.text()
-  }
-  catch {
-    return null
-  }
+function stripHtml(value: string): string {
+  return value.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+}
+
+function titleOf(title: JikanTitle): string {
+  return decodeEntities(title.english || title.romaji || title.native || '')
+}
+
+function matchTitleOf(title: JikanTitle): string {
+  return decodeEntities(title.romaji || title.english || title.native || '')
+}
+
+function sourceLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  const lower = value.toLowerCase().replace(/_/g, ' ')
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
 }
 
 const TITLE_STOPWORDS = new Set(['the', 'and', 'for', 'episode', 'movie', 'special', 'ova', 'end'])
@@ -111,10 +226,6 @@ function tokenJaccard(siteTitle: string, malTitle: string): number {
     }
   }
   return inter / Math.max(siteTokens.length, malSet.size)
-}
-
-function isAbbreviation(siteTitle: string, malTitle: string): boolean {
-  return isAbbrevOnBase(stripSeasonMarker(siteTitle), stripSeasonMarker(malTitle))
 }
 
 function isAbbrevOnBase(siteBase: string, malBase: string): boolean {
@@ -206,17 +317,15 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
     .replace(/\s+sub\s+indo.*/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-  const html = await fetchPage(`${MAL_BASE}/anime.php?q=${encodeURIComponent(cleaned)}`)
-  if (!html) return []
+  if (!cleaned) return []
+  const data = await graphql<{ Page?: { media?: AniListSearchMedia[] } }>(SEARCH_QUERY, { search: cleaned })
+  const media = data?.Page?.media ?? []
   const entries = new Map<number, string>()
-  const pattern = /href="https:\/\/myanimelist\.net\/anime\/(\d+)\/[^"]*"[^>]*>\s*<strong>([^<]+)<\/strong>/g
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(html)) !== null) {
-    const id = Number(match[1])
-    if (!entries.has(id)) entries.set(id, decodeEntities(match[2] ?? '').trim())
-    if (entries.size >= 15) break
+  for (const item of media) {
+    if (item.idMal == null) continue
+    if (!entries.has(item.idMal)) entries.set(item.idMal, matchTitleOf(item.title))
   }
-  return [...entries].map(([id, entryTitle]) => ({ id, title: entryTitle }))
+  return [...entries].map(([id, title]) => ({ id, title }))
 }
 
 function matchScore(siteTitle: string, malTitle: string): number {
@@ -324,108 +433,43 @@ export function seasonNumber(title: string): number | null {
   return null
 }
 
-function fullSizeImage(dataSrc: string): string {
-  return dataSrc.replace(/\/r\/\d+x\d+\//, '/')
-}
-
-interface CharacterChunk {
-  name: string
-  imageUrl: string
-  role: 'Main' | 'Supporting'
-  voiceActor?: { name: string, imageUrl: string }
-}
-
-function parseCharacters(html: string): MalCharacter[] {
-  const sections = html.split('h3_characters_voice_actors').slice(1)
-  const result: CharacterChunk[] = []
-
-  const images = new Map<string, string>()
-  const imgPattern = /href="https:\/\/myanimelist\.net\/character\/(\d+)\/[^"]*" class="fw-n">\s*<img[^>]*data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/characters\/[^"]*)"/g
-  let imgMatch: RegExpExecArray | null
-  while ((imgMatch = imgPattern.exec(html)) !== null) {
-    if (imgMatch[1] && imgMatch[2]) images.set(imgMatch[1], fullSizeImage(imgMatch[2]))
-  }
-
-  for (const section of sections) {
-    const end = section.indexOf('h3_characters_voice_actors')
-    const chunk = end === -1 ? section.slice(0, 3000) : section.slice(0, end)
-
-    const nameMatch = /<a href="https:\/\/myanimelist\.net\/character\/(\d+)\/[^"]*">([^<]+)<\/a>/.exec(chunk)
-    if (!nameMatch?.[1] || !nameMatch[2]) continue
-
-    const imageUrl = images.get(nameMatch[1])
-    if (!imageUrl) continue
-
-    const roleMatch = /<small>(Main|Supporting)<\/small>/.exec(chunk)?.[1]
-    if (roleMatch !== 'Main' && roleMatch !== 'Supporting') continue
-
-    const vaMatch = /<a href="https:\/\/myanimelist\.net\/people\/\d+\/[^"]*">([^<]+)<\/a><br>\s*<small>Japanese<\/small>[\s\S]*?data-src="(https:\/\/cdn\.myanimelist\.net\/[^"]*\/images\/voiceactors\/[^"]*)"/.exec(chunk)
-
-    result.push({
-      name: decodeEntities(nameMatch[2]),
-      imageUrl,
-      role: roleMatch,
-      voiceActor: vaMatch?.[1] && vaMatch[2]
-        ? { name: decodeEntities(vaMatch[1]), imageUrl: fullSizeImage(vaMatch[2]) }
+function parseCharacters(media: AniListMedia): MalCharacter[] {
+  const edges = media.characters?.edges ?? []
+  return edges.slice(0, 25).map((edge): MalCharacter => {
+    const voiceActor = edge.voiceActors?.[0]
+    const vaUrl = voiceActor?.image?.large ?? ''
+    return {
+      name: edge.node?.name?.full ?? '',
+      imageUrl: edge.node?.image?.large ?? '',
+      role: edge.role === 'MAIN' ? 'Main' : 'Supporting',
+      voiceActor: voiceActor?.name?.full && vaUrl
+        ? { name: voiceActor.name.full, imageUrl: vaUrl }
         : undefined,
-    })
-  }
-
-  return result
-}
-
-function parseInfoField(html: string, label: string): string {
-  const marker = `<span class="dark_text">${label}</span>`
-  const start = html.indexOf(marker)
-  if (start === -1) return ''
-  const chunk = html.slice(start + marker.length, html.indexOf('</div>', start))
-  const text = chunk.replace(/<a [^>]*>/g, '').replace(/<\/?[a-z][^>]*>/gi, '')
-  return decodeEntities(text).replace(/\s+/g, ' ').trim()
-}
-
-function parseGenres(html: string): string[] {
-  const names = new Set<string>()
-  const pattern = /href="\/anime\/genre\/\d+\/[^"]*"[^>]*>([^<]+)</g
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(html)) !== null) {
-    names.add(decodeEntities(match[1] ?? '').trim())
-  }
-  return [...names]
+    }
+  }).filter(character => character.name && character.imageUrl)
 }
 
 export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
-  const html = await fetchPage(`${MAL_BASE}/anime/${malId}`)
-  if (!html) return null
+  const data = await graphql<{ Media?: AniListMedia }>(MEDIA_QUERY, { idMal: malId })
+  const media = data?.Media
+  if (!media) return null
 
-  const canonicalMatch = /<link rel="canonical" href="https:\/\/myanimelist\.net\/anime\/\d+\/([^"]+)"/.exec(html)?.[1]
-  const title = canonicalMatch ? decodeURIComponent(canonicalMatch.replace(/_/g, ' ')) : ''
-  const posterMatch = /<meta property="og:image" content="([^"]+)"/.exec(html)?.[1] ?? null
-
-  const synopsisMatch = /<meta property="og:description" content="([^"]*)"/.exec(html)?.[1]
-  const scoreMatch = /itemprop="ratingValue"[^>]*>([0-9.]+)</.exec(html)?.[1]
-  const rankMatch = /Ranked:<\/span>\s*#(\d+)/.exec(html)?.[1]
-  const popularityMatch = /Popularity:<\/span>\s*#(\d+)/.exec(html)?.[1]
-  const premieredSeason = /Premiered:<\/span>\s*<a[^>]*>([A-Za-z]+) (\d{4})<\/a>/.exec(html)
-  const trailerId = /youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]+)/.exec(html)?.[1]
-  const characters = parseCharacters(html)
-
-  const hasAnyData = Boolean(synopsisMatch || scoreMatch || characters.length > 0)
-  if (!hasAnyData) return null
+  const trailer = media.trailer && media.trailer.site === 'youtube' ? media.trailer.id ?? null : null
 
   return {
     malId,
-    title,
-    poster: posterMatch && posterMatch.includes('/images/anime/') ? fullSizeImage(posterMatch) : null,
-    synopsis: synopsisMatch ? cleanSynopsis(decodeEntities(synopsisMatch.replaceAll('\\n', '\n'))) : '',
-    score: scoreMatch ? Number(scoreMatch) : null,
-    rank: rankMatch ? Number(rankMatch) : null,
-    popularity: popularityMatch ? Number(popularityMatch) : null,
-    season: premieredSeason?.[1]?.toLowerCase() ?? null,
-    year: premieredSeason?.[2] ? Number(premieredSeason[2]) : null,
-    trailerId: trailerId ?? null,
-    studio: parseInfoField(html, 'Studios:') ?? null,
-    source: parseInfoField(html, 'Source:'),
-    genres: parseGenres(html),
-    characters,
+    title: titleOf(media.title),
+    poster: media.coverImage?.extraLarge ?? media.coverImage?.large ?? null,
+    synopsis: cleanSynopsis(decodeEntities(stripHtml(media.description ?? ''))),
+    score: media.averageScore != null ? Math.round(media.averageScore) / 10 : null,
+    rank: media.rankings?.find(entry => entry.type === 'RATED')?.rank ?? null,
+    popularity: media.popularity ?? null,
+    season: media.season ? media.season.toLowerCase() : null,
+    year: media.seasonYear ?? null,
+    trailerId: trailer,
+    studio: media.studios?.nodes?.map(studio => studio.name).join(', ') || null,
+    source: sourceLabel(media.source),
+    genres: media.genres ?? [],
+    characters: parseCharacters(media),
   }
 }

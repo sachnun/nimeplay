@@ -1,4 +1,5 @@
 import { AwsClient } from 'aws4fetch'
+import { toWebp } from './image'
 import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
@@ -32,26 +33,21 @@ function mediaClient(): AwsClient | null {
   return s3
 }
 
-function mediaBase(): string | null {
+function objectUrl(key: string): string | null {
   mediaClient()
-  return base ?? null
+  return base ? `${base}/${key}` : null
 }
 
-function objectUrl(key: string): string | null {
-  const root = mediaBase()
-  return root ? `${root}/${key}` : null
+export function isValidMediaKey(key: string): boolean {
+  if (!key || key.includes('..')) return false
+  return /^(posters|characters|voiceactors)\/[a-zA-Z0-9_/.-]+$/i.test(key)
 }
 
 export function mediaKey(value: string, type: MediaType = 'posters'): string | null {
-  if (value.startsWith('/r2/')) return value.slice(4)
-  if (value.startsWith('/posters/')) return `posters/${value.slice(9)}`
-  if (value.startsWith('/characters/')) return `characters/${value.slice(12)}`
-  if (value.startsWith('/voiceactors/')) return `voiceactors/${value.slice(13)}`
-  if (value.startsWith('/img/posters/cdn.myanimelist.net/images/anime/')) {
-    return `posters/${value.slice('/img/posters/cdn.myanimelist.net/images/anime/'.length)}`
-  }
-  const root = mediaBase()
-  if (root && value.startsWith(`${root}/`)) return value.slice(root.length + 1)
+  mediaClient()
+  if (/^(posters|characters|voiceactors)\//.test(value)) return value
+  if (value.startsWith('/media/')) return value.slice(7)
+  if (base && value.startsWith(`${base}/`)) return value.slice(base.length + 1)
   const prefix = `${MEDIA_CDN}${type === 'posters' ? 'anime/' : `${type}/`}`
   if (value.startsWith(prefix)) {
     const clean = value.split('?')[0] ?? ''
@@ -60,40 +56,22 @@ export function mediaKey(value: string, type: MediaType = 'posters'): string | n
   return null
 }
 
-export function mediaPublicUrl(key: string): string {
-  if (key.startsWith('posters/')) {
-    const root = mediaBase()
-    return root ? `${root}/${key}` : `${MEDIA_CDN}anime/${key.slice(8)}`
-  }
-  return `${MEDIA_CDN}${key}`
-}
-
-export function toR2Url(url: string | null | undefined, type: MediaType): string {
+export function mediaUrl(url: string | null | undefined, type: MediaType): string {
   if (!url) return ''
-  if (url.startsWith(MEDIA_CDN)) {
-    const key = mediaKey(url, type)
-    return key ? mediaPublicUrl(key) : url
-  }
-  if (url.startsWith('http://') || url.startsWith('https://')) return url
   const key = mediaKey(url, type)
-  return key ? mediaPublicUrl(key) : url
+  return key ? `/media/${key}` : url
 }
 
 export function posterSrc(value: string | null | undefined): string {
-  return toR2Url(value, 'posters')
-}
-
-export function characterSrc(value: string | null | undefined, type: 'characters' | 'voiceactors'): string {
-  return toR2Url(value, type)
+  return mediaUrl(value, 'posters')
 }
 
 export function toAbsoluteUrl(path: string | null | undefined, origin?: string): string {
   if (!path) return ''
   if (path.startsWith('http://') || path.startsWith('https://')) return path
-  const key = mediaKey(path)
-  if (key) return mediaPublicUrl(key)
-  if (!path.startsWith('/r2/')) return path
-  return origin ? `${origin}${path}` : path
+  if (!path.startsWith('/media/')) return path
+  if (!origin) return path
+  return `${origin}${path}`
 }
 
 export function keyToOrigin(key: string): string | null {
@@ -102,22 +80,60 @@ export function keyToOrigin(key: string): string | null {
   return null
 }
 
-export async function mirrorPoster(value: string | null | undefined): Promise<void> {
-  if (!value) return
-  const key = mediaKey(value)
-  if (!key || !key.startsWith('posters/')) return
-  const origin = keyToOrigin(key)
+export interface MediaRef {
+  key: string
+  sourceUrl: string
+}
+
+export function mediaRef(url: string | null | undefined, type: MediaType): MediaRef | null {
+  if (!url) return null
+  const key = mediaKey(url, type)
+  if (key) {
+    const origin = keyToOrigin(key)
+    if (origin) return { key, sourceUrl: origin }
+  }
+  if (!/^https?:\/\//.test(url)) return null
+  try {
+    const parts = new URL(url).pathname.split('/').filter(Boolean)
+    const tail = parts.slice(-2).join('/').replace(/[^a-zA-Z0-9_.-]/g, '_')
+    if (!tail) return null
+    return { key: `${type}/x/${tail}`, sourceUrl: url }
+  }
+  catch {
+    return null
+  }
+}
+
+export interface MediaObject {
+  body: ReadableStream | null
+  contentType: string
+  etag?: string
+}
+
+export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   const client = mediaClient()
   const url = objectUrl(key)
-  if (!origin || !client || !url) return
-  try {
-    const { contentType, bytes } = await fetchRemoteMedia(origin)
-    await client.fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
-      body: bytes,
-    })
-  } catch {}
+  if (!client || !url) return null
+  const res = await client.fetch(url).catch(() => null)
+  if (!res || !res.ok) return null
+  return {
+    body: res.body,
+    contentType: res.headers.get('content-type') ?? 'image/jpeg',
+    etag: res.headers.get('etag') ?? undefined,
+  }
+}
+
+export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<{ contentType: string, byteSize: number }> {
+  const encoded = await toWebp(data, contentType)
+  const client = mediaClient()
+  const url = objectUrl(key)
+  if (!client || !url) return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
+  await client.fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': encoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    body: encoded.bytes,
+  })
+  return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {

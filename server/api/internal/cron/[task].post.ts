@@ -1,11 +1,12 @@
 import type { H3Event } from 'h3'
-import { runCatalogSync, runMetadataSync } from '../../../utils/refresh'
+import { runCatalogSync, runMediaSync, runMetadataSync } from '../../../utils/refresh'
 import { withPool } from '../../../utils/db'
 import { assertInternal } from '../../../utils/internal'
 
 const TASKS = {
   'catalog-sync': runCatalogSync,
   'metadata-sync': runMetadataSync,
+  'media-sync': runMediaSync,
 } as const
 
 export default defineEventHandler((event) => {

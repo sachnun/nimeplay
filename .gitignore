@@ -28,3 +28,6 @@ logs
 .dev.vars
 .dev.vars.*
 .neon
+
+# Generated
+server/utils/wasm-binary.ts

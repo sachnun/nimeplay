@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
 
   const [scraped, episodeNumbers] = await Promise.all([
     scrapeEpisode(resolved.sourceSlug),
-    getEpisodeNumbers(resolved.animeSlug),
+    getEpisodeNumbers(resolved.animeId),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 

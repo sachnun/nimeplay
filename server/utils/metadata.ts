@@ -1,11 +1,11 @@
 import { eq, sql } from 'drizzle-orm'
 import { db } from './db'
 import { toFtsQuery } from './fts'
-import { toR2Url } from './media'
 import { anime } from '../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from './mal'
 import { cleanSynopsis } from './synopsis'
 import { cache } from './cache'
+import { getCharactersForAnime, type AnimeCharacter } from './queries'
 
 const METADATA_TTL = 24 * 60 * 60 * 1000
 
@@ -16,6 +16,19 @@ export interface MetadataRequestBody {
   idOnly?: boolean
 }
 
+interface MetadataRecord {
+  id: number
+  slug: string
+  malId: number | null
+  synopsis: string | null
+  rating: number | null
+  rank: number | null
+  popularity: number | null
+  season: string | null
+  year: number | null
+  trailerId: string | null
+}
+
 function stripHtml(value: string): string {
   return value
     .replace(/<br\s*\/?>/gi, '\n')
@@ -24,22 +37,18 @@ function stripHtml(value: string): string {
     .trim()
 }
 
-function splitSeasonYear(season: string | null): { season: string | null, year: number | null } {
-  if (!season) return { season: null, year: null }
-  const [name, year] = season.split(' ')
-  return { season: (name ?? null)?.toLowerCase() ?? null, year: year ? Number(year) : null }
-}
-
-async function lookupInDb(body: MetadataRequestBody) {
+async function lookupInDb(body: MetadataRequestBody): Promise<MetadataRecord | null> {
   const columns = {
+    id: anime.id,
+    slug: anime.slug,
     malId: anime.malId,
     synopsis: anime.synopsis,
     rating: anime.rating,
     rank: anime.rank,
     popularity: anime.popularity,
     season: anime.season,
+    year: anime.year,
     trailerId: anime.trailerId,
-    characters: anime.characters,
   }
 
   if (body.malId) {
@@ -55,27 +64,16 @@ async function lookupInDb(body: MetadataRequestBody) {
 
   const match = toFtsQuery(title)
   if (!match) return null
-  const result = await db().execute<{
-    malId: number | null
-    synopsis: string | null
-    rating: number | null
-    rank: number | null
-    popularity: number | null
-    season: string | null
-    trailerId: string | null
-    characters: MalCharacter[]
-  }>(sql`
-    select a.mal_id as "malId", a.synopsis as synopsis, a.rating as rating,
-      a.rank as rank, a.popularity as popularity, a.season as season,
-      a.trailer_id as "trailerId", a.characters as characters
+  const result = await db().execute(sql`
+    select a.id as id, a.slug as slug, a.mal_id as "malId", a.synopsis as synopsis, a.rating as rating,
+      a.rank as rank, a.popularity as popularity, a.season as season, a.year as year,
+      a.trailer_id as "trailerId"
     from anime a
     where to_tsvector('simple', a.title) @@ to_tsquery('simple', ${match})
     order by ts_rank(to_tsvector('simple', a.title), to_tsquery('simple', ${match})) desc
     limit 1
   `)
-  const row = result.rows[0]
-  if (!row) return null
-  return { ...row, characters: Array.isArray(row.characters) ? row.characters : [] }
+  return (result.rows[0] as MetadataRecord | undefined) ?? null
 }
 
 function toMetadataPayload(source: {
@@ -87,7 +85,7 @@ function toMetadataPayload(source: {
   season: string | null
   year: number | null
   trailerId: string | null
-  characters: MalCharacter[]
+  characters: (MalCharacter | AnimeCharacter)[]
 }) {
   const main = source.characters.filter(c => c.role === 'Main')
   const supporting = source.characters.filter(c => c.role !== 'Main')
@@ -102,14 +100,7 @@ function toMetadataPayload(source: {
     season: source.season,
     year: source.year,
     trailerEmbedUrl: source.trailerId ? `https://www.youtube.com/embed/${source.trailerId}` : null,
-    characters: [...main, ...supporting.slice(0, 10)].map(c => ({
-      ...c,
-      imageUrl: toR2Url(c.imageUrl, 'characters'),
-      voiceActor: c.voiceActor ? {
-        ...c.voiceActor,
-        imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors')
-      } : undefined
-    })),
+    characters: [...main, ...supporting.slice(0, 10)],
   }
 }
 
@@ -123,20 +114,22 @@ export async function resolveMetadata(body: MetadataRequestBody): Promise<unknow
   const cacheKey = `${body?.idOnly ? 'i' : 'f'}:${malId ?? ''}:${japaneseTitle ?? ''}:${title}`
   return cache.get('metadata', cacheKey, METADATA_TTL, async () => {
     const row = await lookupInDb({ ...body, title })
-    if (row?.malId && (row.synopsis || (row.characters?.length ?? 0) > 0)) {
-      if (body?.idOnly === true) return { malId: row.malId }
-      const { season, year } = splitSeasonYear(row.season)
-      return toMetadataPayload({
-        malId: row.malId,
-        synopsis: row.synopsis ?? '',
-        score: row.rating,
-        rank: row.rank,
-        popularity: row.popularity,
-        season,
-        year,
-        trailerId: row.trailerId,
-        characters: row.characters,
-      })
+    if (row?.malId) {
+      const chars = await getCharactersForAnime(row.id)
+      if (row.synopsis || chars.length > 0) {
+        if (body?.idOnly === true) return { malId: row.malId }
+        return toMetadataPayload({
+          malId: row.malId,
+          synopsis: row.synopsis ?? '',
+          score: row.rating,
+          rank: row.rank,
+          popularity: row.popularity,
+          season: row.season,
+          year: row.year,
+          trailerId: row.trailerId,
+          characters: chars,
+        })
+      }
     }
 
     let resolvedMalId = malId ?? row?.malId ?? null

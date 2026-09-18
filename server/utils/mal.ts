@@ -37,6 +37,7 @@ export interface MalAnime {
   trailerId: string | null
   studio: string | null
   source: string | null
+  episodeTotal: number | null
   genres: string[]
   characters: MalCharacter[]
 }
@@ -75,6 +76,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
     studios(isMain: true) { nodes { name } }
     genres
     source
+    episodes
     characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
       edges {
         role
@@ -120,6 +122,7 @@ interface AniListMedia {
   studios?: { nodes?: { name: string }[] } | null
   genres?: string[] | null
   source?: string | null
+  episodes?: number | null
   characters?: {
     edges?: {
       role?: string | null
@@ -532,6 +535,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     trailerId: trailer,
     studio: media.studios?.nodes?.map(studio => studio.name).join(', ') || null,
     source: sourceLabel(media.source),
+    episodeTotal: media.episodes ?? null,
     genres: media.genres ?? [],
     characters: parseCharacters(media),
   }

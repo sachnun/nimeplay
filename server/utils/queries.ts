@@ -71,7 +71,7 @@ export interface AnimeCharacter {
 const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
 
-const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0 and not exists (select 1 from ${characters} c join ${media} m on m.key = c.image_key where c.anime_id = ${anime.id} and m.status <> 'ready')`
+const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0 and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int) and not exists (select 1 from ${characters} c join ${media} m on m.key = c.image_key where c.anime_id = ${anime.id} and m.status <> 'ready')`
 
 function formatSeason(season: string | null, year: number | null): string {
   if (!season) return year ? String(year) : ''
@@ -184,6 +184,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
     where a.mal_id is not null
       and a.episode_count > 0
       and not exists (select 1 from characters c join media m on m.key = c.image_key where c.anime_id = a.id and m.status <> 'ready')
+      and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
       and to_tsvector('simple', a.title) @@ to_tsquery('simple', ${match})
     group by a.id
     order by ts_rank(to_tsvector('simple', a.title), to_tsquery('simple', ${match})) desc

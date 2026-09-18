@@ -277,6 +277,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
       trailerId: mal.trailerId,
       studio: mal.studio,
       source: mal.source,
+      extra: { episodeTotal: mal.episodeTotal },
       metadataSyncedAt: new Date(),
       metadataAttempts: 0,
       metadataLastError: null,

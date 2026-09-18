@@ -11,7 +11,7 @@ export function assertInternal(event: H3Event): void {
 }
 
 export async function triggerInternal(
-  task: 'catalog-sync' | 'metadata-sync',
+  task: 'catalog-sync' | 'metadata-sync' | 'media-sync',
   fallback: () => Promise<void>,
 ): Promise<void> {
   if (import.meta.dev) return fallback()

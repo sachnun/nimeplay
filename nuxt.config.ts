@@ -19,7 +19,7 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks: {
-      '0 */3 * * *': ['catalog-sync', 'metadata-sync'],
+      '0 */3 * * *': ['catalog-sync', 'metadata-sync', 'media-sync'],
     },
     cloudflare: {
       deployConfig: true,

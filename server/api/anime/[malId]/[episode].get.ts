@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
   let resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved || refresh) {
-    const [row] = await db().select({ slug: anime.slug, title: anime.title }).from(anime).where(eq(anime.malId, malId)).limit(1)
+    const [row] = await db().select({ id: anime.id, slug: anime.slug, title: anime.title }).from(anime).where(eq(anime.malId, malId)).limit(1)
     if (row) {
       try {
         await refreshAnimeBySlug(row.slug, row.title, false)
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
       catch (error) {
         console.warn(`[episode] on-demand refresh failed ${malId}:`, error instanceof Error ? error.message : error)
       }
-      if (refresh) cache.delete('episodes', row.slug)
+      if (refresh) cache.delete('episodes', row.id)
       resolved = await resolveEpisode(malId, episodeNumber)
     }
   }
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
 
   const [scraped, episodeNumbers] = await Promise.all([
     refresh ? scrapeEpisodeFresh(resolved.sourceSlug) : scrapeEpisode(resolved.sourceSlug),
-    getEpisodeNumbers(resolved.animeSlug),
+    getEpisodeNumbers(resolved.animeId),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
 

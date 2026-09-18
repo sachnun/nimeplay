@@ -20,24 +20,34 @@ pnpm dev
 
 Open `http://localhost:3000`.
 
-Data lives on Neon:
+## Data
 
-| Data | Store |
-| --- | --- |
-| Catalog (anime, episodes, genres) | Neon Postgres |
-| Posters, characters, voice actors | Neon Object Storage (S3) |
-| Hot cache | in-memory per isolate (KV is gone) |
+| Data | Store | Served by |
+| --- | --- | --- |
+| Anime, episodes, genres | Neon Postgres | `/api/*` |
+| Characters | Neon Postgres (`characters`) | `/api/*` |
+| Images (posters, characters, voice actors) | Neon Object Storage | `/media/*` |
+
+Nothing is fetched from the origin on the read path. Every image is queued in the
+`media` table when metadata is written and mirrored to Object Storage by the
+`media-sync` job before `/media/<key>` serves it. Cloudflare KV is no longer used;
+hot reads are cached in memory per isolate.
 
 Local credentials come from `.env.local`, written by `neon link` / `neon env pull`
 (`DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`,
 `AWS_REGION`). See `.env.example`.
 
-## Catalog sync
+## Jobs
 
-`catalog-sync` and `metadata-sync` run every 3 hours via Nitro `scheduledTasks` and the
-Workers cron trigger. The write-heavy sync runs its Neon queries through a WebSocket
-pool (`withPool` in `server/utils/db.ts`) so it stays within the Workers Free
-50-subrequest limit; ordinary requests use the HTTP driver.
+| Task | Schedule | Does |
+| --- | --- | --- |
+| `catalog-sync` | `0 */3 * * *` | Scrape sources, register anime and episodes |
+| `metadata-sync` | `0 */3 * * *` | Resolve MAL metadata, write characters, queue images |
+| `media-sync` | `0 */3 * * *` | Mirror queued images into Object Storage |
+
+Workers Free caps a single invocation at 50 subrequests. The write-heavy jobs run all
+their Neon queries through a WebSocket pool (`withPool` in `server/utils/db.ts`), and
+`media-sync` mirrors a bounded batch per run.
 
 Schema changes:
 

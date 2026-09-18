@@ -1,9 +1,9 @@
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
-import { anime, animeGenres, appState, episodes, genres } from '../database/schema'
+import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
 import { cache } from './cache'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { mirrorPoster, toR2Url } from './media'
+import { fetchRemoteMedia, isValidMediaKey, keyToOrigin, mediaKey, storeMedia } from './media'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -144,9 +144,14 @@ export async function getCatalogHealth() {
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(anime)
     .where(isNull(anime.malId))
+  const [mediaRow] = await db()
+    .select({ count: sql<number>`cast(count(*) as integer)` })
+    .from(media)
+    .where(eq(media.status, 'pending'))
   return {
     checkedAt: new Date().toISOString(),
     pendingMetadata: row?.count ?? 0,
+    pendingMedia: mediaRow?.count ?? 0,
     lastCatalogSync: lastCatalogStats,
     config: {
       ongoingPages: ONGOING_PAGES,
@@ -164,10 +169,11 @@ async function loadMaxMap(slugs: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   const results = await Promise.all(chunkValues(slugs, BIND_CHUNK_SIZE).map(chunk =>
     db()
-      .select({ slug: episodes.animeSlug, max: sql<number | null>`max(${episodes.number})` })
-      .from(episodes)
-      .where(inArray(episodes.animeSlug, chunk))
-      .groupBy(episodes.animeSlug),
+      .select({ slug: anime.slug, max: sql<number | null>`max(${episodes.number})` })
+      .from(anime)
+      .leftJoin(episodes, eq(episodes.animeId, anime.id))
+      .where(inArray(anime.slug, chunk))
+      .groupBy(anime.id),
   ))
   for (const rows of results) {
     for (const row of rows) map.set(row.slug, Number(row.max ?? 0))
@@ -176,6 +182,7 @@ async function loadMaxMap(slugs: string[]): Promise<Map<string, number>> {
 }
 
 interface AnimeRefreshState {
+  id: number
   max: number
   malId: number | null
   status: string | null
@@ -187,13 +194,14 @@ async function loadRefreshStates(slugs: string[], max?: Map<string, number>): Pr
   if (slugs.length === 0) return states
   const results = await Promise.all(chunkValues(slugs, BIND_CHUNK_SIZE).map(chunk =>
     db()
-      .select({ slug: anime.slug, malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
+      .select({ id: anime.id, slug: anime.slug, malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
       .from(anime)
       .where(inArray(anime.slug, chunk)),
   ))
   for (const rows of results) {
     for (const row of rows) {
       states.set(row.slug, {
+        id: row.id,
         max: max?.get(row.slug) ?? 0,
         malId: row.malId,
         status: row.status,
@@ -205,6 +213,7 @@ async function loadRefreshStates(slugs: string[], max?: Map<string, number>): Pr
 }
 
 async function upsertEpisodes(
+  animeId: number,
   animeSlug: string,
   list: { title: string, slug: string, date: string }[],
   updates: Partial<typeof anime.$inferInsert>,
@@ -219,7 +228,7 @@ async function upsertEpisodes(
   const client = db()
   for (const chunk of chunkValues(rows, 15)) {
     await client.insert(episodes).values(chunk.map(({ entry, number }) => ({
-      animeSlug,
+      animeId,
       slug: `${sourcePrefix}${entry.slug}`,
       number,
       title: entry.title,
@@ -228,12 +237,12 @@ async function upsertEpisodes(
   }
   await client.update(anime).set({
     ...updates,
-    episodeCount: sql<number>`(select cast(count(*) as integer) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
-    latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeSlug} = ${animeSlug})`,
-  }).where(eq(anime.slug, animeSlug))
+    episodeCount: sql<number>`(select cast(count(*) as integer) from ${episodes} where ${episodes.animeId} = ${animeId})`,
+    latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeId} = ${animeId})`,
+  }).where(eq(anime.id, animeId))
 }
 
-async function syncGenres(animeSlug: string, names: string[]) {
+async function syncGenres(animeId: number, names: string[]) {
   if (names.length === 0) return
 
   const rows = names.map(name => ({
@@ -250,29 +259,47 @@ async function syncGenres(animeSlug: string, names: string[]) {
     .select({ id: genres.id, slug: genres.slug })
     .from(genres)
     .where(inArray(genres.slug, wantedSlugs))
-  const bySlug = new Map(stored.map((genre: any) => [genre.slug, genre.id]))
+  const bySlug = new Map(stored.map(genre => [genre.slug, genre.id]))
 
   const links = rows
     .map(row => bySlug.get(row.slug))
     .filter((id): id is number => id !== undefined)
-    .map(id => ({ animeSlug, genreId: id }))
+    .map(id => ({ animeId, genreId: id }))
 
   const writeClient = db()
-  await writeClient.delete(animeGenres).where(eq(animeGenres.animeSlug, animeSlug))
+  await writeClient.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
   for (const chunk of chunkValues(links, 30)) {
     await writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()
   }
 }
 
+async function enqueueMedia(keys: (string | null)[]): Promise<void> {
+  const rows = [...new Map(
+    keys
+      .filter((key): key is string => !!key && isValidMediaKey(key))
+      .map(key => [key, { key, sourceUrl: keyToOrigin(key) ?? '', status: 'pending' }] as const),
+  ).values()].filter(row => row.sourceUrl)
+  if (rows.length === 0) return
+  for (const chunk of chunkValues(rows, 100)) {
+    await db().insert(media).values(chunk).onConflictDoNothing()
+  }
+}
+
 async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
-  const poster = mal.poster ? toR2Url(mal.poster, 'posters') : null
-  const characters = mal.characters.map(c => ({
-    ...c,
-    imageUrl: toR2Url(c.imageUrl, 'characters'),
-    voiceActor: c.voiceActor ? {
-      ...c.voiceActor,
-      imageUrl: toR2Url(c.voiceActor.imageUrl, 'voiceactors'),
-    } : undefined,
+  const [target] = await db().select({ id: anime.id }).from(anime).where(eq(anime.slug, slug)).limit(1)
+  if (!target) return
+  const animeId = target.id
+
+  const posterKey = mal.poster ? mediaKey(mal.poster, 'posters') : null
+  const characterRows = mal.characters.map((c, index) => ({
+    animeId,
+    malId: null,
+    name: c.name,
+    role: c.role,
+    imageKey: c.imageUrl ? mediaKey(c.imageUrl, 'characters') : null,
+    voiceActorName: c.voiceActor?.name ?? null,
+    voiceActorKey: c.voiceActor?.imageUrl ? mediaKey(c.voiceActor.imageUrl, 'voiceactors') : null,
+    sortOrder: index,
   }))
 
   await db()
@@ -280,23 +307,29 @@ async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnTyp
     .set({
       malId: mal.malId,
       synopsis: mal.synopsis,
-      poster,
+      posterKey,
       rating: mal.score,
       rank: mal.rank,
       popularity: mal.popularity,
-      season: mal.season && mal.year ? `${mal.season} ${mal.year}` : mal.season,
+      season: mal.season,
+      year: mal.year,
       trailerId: mal.trailerId,
       studio: mal.studio,
       source: mal.source,
-      characters,
       metadataSyncedAt: new Date(),
       metadataAttempts: 0,
       metadataLastError: null,
       metadataRetryAt: null,
+      updatedAt: new Date(),
     })
-    .where(eq(anime.slug, slug))
-  await mirrorPoster(poster)
-  await syncGenres(slug, mal.genres)
+    .where(eq(anime.id, animeId))
+
+  await db().delete(characters).where(eq(characters.animeId, animeId))
+  for (const chunk of chunkValues(characterRows, 50)) {
+    await db().insert(characters).values(chunk).onConflictDoNothing()
+  }
+  await enqueueMedia([posterKey, ...characterRows.flatMap(row => [row.imageKey, row.voiceActorKey])])
+  await syncGenres(animeId, mal.genres)
 }
 
 async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<boolean> {
@@ -428,8 +461,8 @@ async function resolveMetadata(slug: string, title: string): Promise<boolean> {
   return false
 }
 
-function invalidateAnimeCaches(animeSlug: string, malId: number | null, statusChanged: boolean): void {
-  cache.delete('episodes', animeSlug)
+function invalidateAnimeCaches(animeId: number, malId: number | null, statusChanged: boolean): void {
+  cache.delete('episodes', animeId)
   if (!malId) return
   cache.delete('detail', malId)
   cache.clear('list')
@@ -445,11 +478,12 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
   let state = known
   if (!state) {
     const [row] = await db()
-      .select({ malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
+      .select({ id: anime.id, malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
       .from(anime)
       .where(eq(anime.slug, slug))
       .limit(1)
     state = {
+      id: row?.id ?? -1,
       max: -1,
       malId: row?.malId ?? null,
       status: row?.status ?? null,
@@ -473,7 +507,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
     }, 0)
     hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
     statusChanged = animeRow.status != null && animeRow.status !== status
-    await upsertEpisodes(slug, detail.episodes, {
+    await upsertEpisodes(animeRow.id, slug, detail.episodes, {
       title: detail.title || title,
       status,
       ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
@@ -482,7 +516,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
       updatedAt: new Date(),
     })
     if (hasNewEpisodes || statusChanged) {
-      invalidateAnimeCaches(slug, animeRow.malId, statusChanged)
+      invalidateAnimeCaches(animeRow.id, animeRow.malId, statusChanged)
     }
   }
   const linkedMalId = animeRow.malId
@@ -506,7 +540,7 @@ export function scheduleAnimeRefresh(malId: number): Promise<void> {
         status: anime.status,
         updatedAt: anime.updatedAt,
         metadataSyncedAt: anime.metadataSyncedAt,
-        episodeCount: sql<number>`(select cast(count(*) as integer) from episodes e where e.anime_slug = ${anime.slug})`,
+        episodeCount: sql<number>`(select cast(count(*) as integer) from episodes e where e.anime_id = ${anime.id})`,
       })
       .from(anime)
       .where(eq(anime.malId, malId))
@@ -583,10 +617,11 @@ async function refreshUnknownSlugs(
   const withEpisodes = new Set<string>()
   const results = await Promise.all(chunkValues(unique, BIND_CHUNK_SIZE).map(chunk =>
     db()
-      .select({ slug: episodes.animeSlug })
-      .from(episodes)
-      .where(inArray(episodes.animeSlug, chunk.map(item => item.slug)))
-      .groupBy(episodes.animeSlug),
+      .select({ slug: anime.slug })
+      .from(anime)
+      .innerJoin(episodes, eq(episodes.animeId, anime.id))
+      .where(inArray(anime.slug, chunk.map(item => item.slug)))
+      .groupBy(anime.id),
   ))
   for (const rows of results) {
     for (const row of rows) withEpisodes.add(row.slug)
@@ -795,5 +830,59 @@ export async function runCatalogSync(): Promise<void> {
   }
   finally {
     catalogSyncRunning = false
+  }
+}
+
+let mediaSyncRunning = false
+const MEDIA_BATCH = 18
+const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
+
+export async function runMediaSync(): Promise<void> {
+  if (mediaSyncRunning) return
+  mediaSyncRunning = true
+  try {
+    const now = new Date()
+    const pending = await db()
+      .select({ key: media.key, sourceUrl: media.sourceUrl })
+      .from(media)
+      .where(or(
+        eq(media.status, 'pending'),
+        and(eq(media.status, 'failed'), or(isNull(media.nextRetryAt), lt(media.nextRetryAt, now))),
+      ))
+      .orderBy(asc(media.createdAt))
+      .limit(MEDIA_BATCH)
+    let done = 0
+    for (const item of pending) {
+      try {
+        const { contentType, bytes } = await fetchRemoteMedia(item.sourceUrl)
+        await storeMedia(item.key, bytes, contentType)
+        await db().update(media).set({
+          status: 'ready',
+          contentType,
+          byteSize: bytes.byteLength,
+          mirroredAt: new Date(),
+          attempts: sql`${media.attempts} + 1`,
+          lastError: null,
+          nextRetryAt: null,
+        }).where(eq(media.key, item.key))
+        done++
+      }
+      catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await db().update(media).set({
+          status: 'failed',
+          attempts: sql`${media.attempts} + 1`,
+          lastError: message.slice(0, 300),
+          nextRetryAt: new Date(Date.now() + MEDIA_RETRY_MS),
+        }).where(eq(media.key, item.key))
+      }
+    }
+    if (pending.length > 0) console.log(`[media] mirrored ${done}/${pending.length}`)
+  }
+  catch (error) {
+    console.warn('[media] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    mediaSyncRunning = false
   }
 }

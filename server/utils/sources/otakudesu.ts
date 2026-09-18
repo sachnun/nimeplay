@@ -104,13 +104,13 @@ function titleFromInfo(info: Record<string, string>, fallback: string): string {
 
 async function scrapeAnimeListFresh(path: string, page: number): Promise<ListResult> {
   const url = page > 1 ? `${BASE_URL}/${path}/page/${page}/` : `${BASE_URL}/${path}/`
-  const html = await fetchHTML(url)
+  const html = await fetchHTML(url, true)
   const $ = cheerio.load(html)
   return { anime: parseAnimeCards($), totalPages: getTotalPages($) }
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
+  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`, true)
   const $ = cheerio.load(html)
   const h1Title = cleanTitle($('.jdlrx h1').text().trim())
   if (!h1Title) return null
@@ -136,7 +136,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${BASE_URL}/episode/${slug}/`)
+  const html = await fetchHTML(`${BASE_URL}/episode/${slug}/`, true)
   const $ = cheerio.load(html)
   const title = $('.posttl').text().trim()
   if (!title) return null

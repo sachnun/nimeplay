@@ -902,7 +902,7 @@ async function fillEpisodes(limit: number): Promise<number> {
     from anime a
     where a.mal_id is not null
       and not exists (select 1 from episodes e where e.anime_id = a.id)
-    order by a.updated_at asc
+    order by case when a.status = 'ONGOING' then 0 else 1 end, a.updated_at asc
     limit ${limit}
   `)
   const list = result.rows as unknown as { slug: string, title: string }[]

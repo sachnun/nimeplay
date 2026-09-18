@@ -4,6 +4,8 @@ import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
 const MEDIA_CDN = 'https://cdn.myanimelist.net/images/'
+const ANILIST_CDN = 'https://s4.anilist.co/'
+const UNROXY = 'https://unroxy.koyeb.app/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
 
@@ -137,7 +139,8 @@ export async function storeMedia(key: string, data: ArrayBuffer, contentType: st
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
-  const response = await fetch(url, {
+  const target = url.startsWith(ANILIST_CDN) ? `${UNROXY}${url}` : url
+  const response = await fetch(target, {
     headers: getSpoofHeaders(MAL_REFERER, 'cors'),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })

@@ -312,7 +312,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
   const animeId = target.id
 
   const posterRef = mediaRef(mal.poster, 'posters')
-  const refs: MediaRef[] = posterRef ? [posterRef] : []
+  const refs: MediaRef[] = []
   const characterRows = mal.characters.map((c, index) => {
     const imageRef = mediaRef(c.imageUrl, 'characters')
     if (imageRef) refs.push(imageRef)
@@ -327,6 +327,8 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
       sortOrder: index,
     }
   })
+
+  if (posterRef) await ensurePosterReady(posterRef)
 
   await db()
     .update(anime)
@@ -867,6 +869,33 @@ async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<bo
     }).where(eq(media.key, item.key))
     return false
   }
+}
+
+async function ensurePosterReady(ref: MediaRef): Promise<void> {
+  const [existing] = await db().select({ status: media.status }).from(media).where(eq(media.key, ref.key)).limit(1)
+  if (existing?.status === 'ready') return
+  const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
+  const stored = await storeMedia(ref.key, bytes, contentType)
+  await db().insert(media).values({
+    key: ref.key,
+    sourceUrl: ref.sourceUrl,
+    status: 'ready',
+    contentType: stored.contentType,
+    byteSize: stored.byteSize,
+    mirroredAt: new Date(),
+    attempts: 1,
+  }).onConflictDoUpdate({
+    target: media.key,
+    set: {
+      status: 'ready',
+      contentType: stored.contentType,
+      byteSize: stored.byteSize,
+      mirroredAt: new Date(),
+      attempts: sql`${media.attempts} + 1`,
+      lastError: null,
+      nextRetryAt: null,
+    },
+  })
 }
 
 export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {

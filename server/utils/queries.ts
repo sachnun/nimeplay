@@ -71,7 +71,7 @@ export interface AnimeCharacter {
 const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
 
-const METADATA_READY = sql`${anime.malId} is not null`
+const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0`
 
 function formatSeason(season: string | null, year: number | null): string {
   if (!season) return year ? String(year) : ''
@@ -90,7 +90,7 @@ async function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> 
   const [row] = await db()
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(anime)
-    .where(and(eq(anime.status, status), METADATA_READY))
+    .where(and(eq(anime.status, status), CATALOG_READY))
   return row?.count ?? 0
 }
 
@@ -99,7 +99,7 @@ async function getGenreCount(genreId: number): Promise<number> {
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.id, animeGenres.animeId))
-    .where(and(eq(animeGenres.genreId, genreId), METADATA_READY))
+    .where(and(eq(animeGenres.genreId, genreId), CATALOG_READY))
   return row?.count ?? 0
 }
 
@@ -107,7 +107,7 @@ export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
 ): Promise<{ anime: AnimeCard[], totalPages: number }> {
-  const filter = and(eq(anime.status, status), METADATA_READY)
+  const filter = and(eq(anime.status, status), CATALOG_READY)
 
   const orderBy = status === 'ONGOING'
     ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
@@ -182,6 +182,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
     left join anime_genres ag on ag.anime_id = a.id
     left join genres g on g.id = ag.genre_id
     where a.mal_id is not null
+      and a.episode_count > 0
       and to_tsvector('simple', a.title) @@ to_tsquery('simple', ${match})
     group by a.id
     order by ts_rank(to_tsvector('simple', a.title), to_tsquery('simple', ${match})) desc
@@ -263,7 +264,7 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
       source: anime.source,
     })
     .from(anime)
-    .where(and(eq(anime.malId, malId), METADATA_READY))
+    .where(and(eq(anime.malId, malId), CATALOG_READY))
     .limit(1)
   return row ? { ...row, malId: row.malId! } : null
 }
@@ -350,7 +351,7 @@ export async function getGenreAnimePage(
   const [genre] = await db().select({ id: genres.id }).from(genres).where(eq(genres.slug, slug)).limit(1)
   if (!genre) return null
 
-  const filter = and(eq(animeGenres.genreId, genre.id), METADATA_READY)
+  const filter = and(eq(animeGenres.genreId, genre.id), CATALOG_READY)
 
   const allGenres = alias(genres, 'all_genres')
   const allAnimeGenres = alias(animeGenres, 'all_anime_genres')

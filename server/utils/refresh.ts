@@ -10,12 +10,10 @@ import { parseEpisodeDate } from './sources/shared'
 
 const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-const CATALOG_SYNC_MS = 10 * 60 * 1000
 const SYNC_WALL_MS = 25000
 const CATALOG_META_BUDGET = 8
 const METADATA_WALL_MS = 120000
 const ONGOING_PAGES = 1
-const COMPLETED_PAGES = 1
 const FRESH_BUDGET = 3
 const UNKNOWN_BUDGET = 1
 const STALE_ONGOING_BUDGET = 1
@@ -61,44 +59,6 @@ async function runBatches<T>(
 }
 
 let catalogSyncRunning = false
-
-interface CatalogStats {
-  startedAt: string
-  finishedAt: string
-  durationMs: number
-  sourcesRegistered: Record<string, number>
-  freshRefreshed: number
-  unknownRefreshed: number
-  staleRefreshed: number
-  metadataPending: number
-  metadataResolved: number
-}
-
-let lastCatalogStats: CatalogStats | null = null
-
-const CATALOG_STATS_KEY = 'stats:catalog'
-
-async function persistCatalogStats(stats: CatalogStats): Promise<void> {
-  lastCatalogStats = stats
-  try {
-    await setAppState(CATALOG_STATS_KEY, JSON.stringify(stats))
-  }
-  catch {
-    console.warn('[state] catalog stats persist failed')
-  }
-}
-
-async function loadCatalogStats(): Promise<CatalogStats | null> {
-  if (lastCatalogStats) return lastCatalogStats
-  const raw = await getAppState(CATALOG_STATS_KEY)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as CatalogStats
-  }
-  catch {
-    return null
-  }
-}
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
@@ -163,33 +123,6 @@ function recordFailure(slug: string, message: string): Promise<void> {
         console.warn(`[metadata] record failure failed ${slug}:`, error instanceof Error ? error.message : error)
       },
     )
-}
-
-export async function getCatalogHealth() {
-  const [row] = await db()
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(anime)
-    .where(isNull(anime.malId))
-  const [mediaRow] = await db()
-    .select({ count: sql<number>`cast(count(*) as integer)` })
-    .from(media)
-    .where(eq(media.status, 'pending'))
-  return {
-    checkedAt: new Date().toISOString(),
-    pendingMetadata: row?.count ?? 0,
-    pendingMedia: mediaRow?.count ?? 0,
-    lastCatalogSync: await loadCatalogStats(),
-    backfill: await backfillCursors(),
-    config: {
-      ongoingPages: ONGOING_PAGES,
-      completedPages: COMPLETED_PAGES,
-      catalogMetaBudget: CATALOG_META_BUDGET,
-      catalogSyncMs: CATALOG_SYNC_MS,
-      freshBudget: FRESH_BUDGET,
-      unknownBudget: UNKNOWN_BUDGET,
-      staleOngoingBudget: STALE_ONGOING_BUDGET,
-    },
-  }
 }
 
 async function loadMaxMap(slugs: string[]): Promise<Map<string, number>> {
@@ -708,7 +641,6 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
 async function syncOngoingCatalog(): Promise<void> {
   const startedAt = new Date()
   const deadline = startedAt.getTime() + SYNC_WALL_MS
-  const sourcesRegistered: Record<string, number> = {}
   const allCards: { source: AnimeSource, slug: string, title: string, episode: string }[] = []
   let ongoingRank = 0
   for (const source of getSources()) {
@@ -742,41 +674,22 @@ async function syncOngoingCatalog(): Promise<void> {
     )
     if (registered !== null) {
       allCards.push(...cards.map(card => ({ source: card.source, slug: card.slug, title: card.title, episode: card.episode })))
-      sourcesRegistered[source.id] = cards.length
       console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
-    }
-    else {
-      sourcesRegistered[source.id] = 0
     }
   }
 
-  const freshRefreshed = await refreshFreshEpisodes(
+  await refreshFreshEpisodes(
     allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title, episode: item.episode })),
     deadline,
   )
 
-  const unknownRefreshed = await refreshUnknownSlugs(
+  await refreshUnknownSlugs(
     allCards.map(item => ({ slug: `${item.source.id}:${item.slug}`, title: item.title })),
     deadline,
   )
 
   const seen = new Set(allCards.filter(item => episodeNumber(item.episode) !== null).map(item => `${item.source.id}:${item.slug}`))
-  const staleRefreshed = await refreshStaleOngoing(seen, deadline)
-
-  const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
-  const totalPending = totalResult?.count ?? 0
-
-  await persistCatalogStats({
-    startedAt: startedAt.toISOString(),
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt.getTime(),
-    sourcesRegistered,
-    freshRefreshed,
-    unknownRefreshed,
-    staleRefreshed,
-    metadataPending: totalPending,
-    metadataResolved: lastCatalogStats?.metadataResolved ?? 0,
-  })
+  await refreshStaleOngoing(seen, deadline)
 }
 
 let metadataSyncRunning = false
@@ -802,29 +715,14 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
       .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
       .limit(limit)
     console.log(`[metadata] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
-    let resolved = 0
     for (const row of pending) {
       if (Date.now() > deadline) break
       const ok = await attempt(
         resolveAnimeMetadata(row.slug, row.title),
         error => console.warn(`[metadata] deferred ${row.slug}:`, error instanceof Error ? error.message : error),
       )
-      if (ok) {
-        resolved++
-        console.log(`[metadata] resolved: ${row.slug}`)
-      }
+      if (ok) console.log(`[metadata] resolved: ${row.slug}`)
     }
-    await persistCatalogStats({
-      startedAt: startedAt.toISOString(),
-      finishedAt: new Date().toISOString(),
-      durationMs: Date.now() - startedAt.getTime(),
-      sourcesRegistered: lastCatalogStats?.sourcesRegistered ?? {},
-      freshRefreshed: lastCatalogStats?.freshRefreshed ?? 0,
-      unknownRefreshed: lastCatalogStats?.unknownRefreshed ?? 0,
-      staleRefreshed: lastCatalogStats?.staleRefreshed ?? 0,
-      metadataPending: totalPending,
-      metadataResolved: resolved,
-    })
   }
   catch (error) {
     console.warn('[metadata] sync failed:', error instanceof Error ? error.message : error)

@@ -825,7 +825,35 @@ export async function runCatalogSync(options: { backfill?: boolean } = {}): Prom
 
 let mediaSyncRunning = false
 const MEDIA_BATCH = 18
+const MEDIA_CONCURRENCY = 6
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
+
+async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<boolean> {
+  try {
+    const { contentType, bytes } = await fetchRemoteMedia(item.sourceUrl)
+    const stored = await storeMedia(item.key, bytes, contentType)
+    await db().update(media).set({
+      status: 'ready',
+      contentType: stored.contentType,
+      byteSize: stored.byteSize,
+      mirroredAt: new Date(),
+      attempts: sql`${media.attempts} + 1`,
+      lastError: null,
+      nextRetryAt: null,
+    }).where(eq(media.key, item.key))
+    return true
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    await db().update(media).set({
+      status: 'failed',
+      attempts: sql`${media.attempts} + 1`,
+      lastError: message.slice(0, 300),
+      nextRetryAt: new Date(Date.now() + MEDIA_RETRY_MS),
+    }).where(eq(media.key, item.key))
+    return false
+  }
+}
 
 export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
   if (mediaSyncRunning) return
@@ -842,30 +870,10 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
       .orderBy(asc(media.createdAt))
       .limit(limit)
     let done = 0
-    for (const item of pending) {
-      try {
-        const { contentType, bytes } = await fetchRemoteMedia(item.sourceUrl)
-        const stored = await storeMedia(item.key, bytes, contentType)
-        await db().update(media).set({
-          status: 'ready',
-          contentType: stored.contentType,
-          byteSize: stored.byteSize,
-          mirroredAt: new Date(),
-          attempts: sql`${media.attempts} + 1`,
-          lastError: null,
-          nextRetryAt: null,
-        }).where(eq(media.key, item.key))
-        done++
-      }
-      catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        await db().update(media).set({
-          status: 'failed',
-          attempts: sql`${media.attempts} + 1`,
-          lastError: message.slice(0, 300),
-          nextRetryAt: new Date(Date.now() + MEDIA_RETRY_MS),
-        }).where(eq(media.key, item.key))
-      }
+    for (let i = 0; i < pending.length; i += MEDIA_CONCURRENCY) {
+      const batch = pending.slice(i, i + MEDIA_CONCURRENCY)
+      const results = await Promise.all(batch.map(item => mirrorMedia(item)))
+      done += results.filter(Boolean).length
     }
     if (pending.length > 0) console.log(`[media] mirrored ${done}/${pending.length}`)
   }
@@ -879,7 +887,7 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
 
 const METADATA_FILL = 15
 const EPISODES_FILL = 30
-const MEDIA_FILL = 8
+const MEDIA_FILL = 18
 const FILL_EPISODES_WALL_MS = 60000
 
 let finishedSyncRunning = false

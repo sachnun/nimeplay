@@ -4,7 +4,7 @@ import { triggerInternal } from '../utils/internal'
 export default defineTask({
   meta: {
     name: 'metadata-sync',
-    description: 'Resolve AniList metadata for pending anime',
+    description: 'Resolve AniList metadata and mirror queued media',
   },
   async run() {
     await triggerInternal('metadata-sync', runMetadataFill)

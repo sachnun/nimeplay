@@ -962,6 +962,7 @@ async function fillEpisodes(limit: number): Promise<void> {
 
 export async function runMetadataFill(): Promise<void> {
   await runMetadataSync({ limit: METADATA_FILL, scope: 'all' })
+  await runMediaSync(MEDIA_FILL)
 }
 
 export async function runEpisodesFill(): Promise<void> {
@@ -969,7 +970,6 @@ export async function runEpisodesFill(): Promise<void> {
   episodesSyncRunning = true
   try {
     await fillEpisodes(EPISODES_FILL)
-    await runMediaSync(MEDIA_FILL)
   }
   catch (error) {
     console.warn('[episodes] sync failed:', error instanceof Error ? error.message : error)

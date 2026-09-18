@@ -1,8 +1,7 @@
 import { sealStreamToken } from '../streamUrl'
+import { getSpoofHeaders } from '../spoof'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
-const PROXY_URL = 'https://animeinweb.com/api/proxy'
-const PROXY_SECRET = 'animein-secure-proxy-key-123'
 const ASSET_BASE = 'https://xyz-api.animein.net'
 const REQUEST_TIMEOUT_MS = 8000
 const COMPLETED_PAGE_LIMIT = 100
@@ -56,9 +55,9 @@ interface AnimeinServer {
 
 async function apiGet<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${PROXY_URL}${path}`, {
+    const res = await fetch(`${ASSET_BASE}${path}`, {
       headers: {
-        'x-proxy-secret': PROXY_SECRET,
+        ...getSpoofHeaders(ASSET_BASE, 'cors'),
         'Accept': 'application/json',
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

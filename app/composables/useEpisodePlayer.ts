@@ -20,6 +20,7 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
 
 const CONTROLS_IDLE_MS = 3000
 const MOBILE_CONTROLS_IDLE_MS = 5000
+const START_CONTROLS_IDLE_MS = 1200
 const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
@@ -64,6 +65,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   let resumeTime = 0
   let lastSavedTime = 0
   let idleTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingStartHide = false
   let countdownTimer: ReturnType<typeof setInterval> | null = null
   let volumeTimer: ReturnType<typeof setTimeout> | null = null
   let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
@@ -147,6 +149,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage.value = 'Menyiapkan player...'
     skipFetched = false
     upstreamRefreshTried = false
+    pendingStartHide = true
     skipTimes.value = []
     clearGestureState()
 
@@ -237,11 +240,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return !isSeeking.value && !showEpisodes.value && Boolean(videoRef.value && !videoRef.value.paused)
   }
 
-  function resetIdle() {
+  function resetIdle(ms = controlsIdleMs()) {
     if (speedBoost.value) return hideControlsNow()
     showControls.value = true
     clearIdleTimer()
-    idleTimer = setTimeout(hideControlsIfIdle, controlsIdleMs())
+    idleTimer = setTimeout(hideControlsIfIdle, ms)
   }
 
   function hideControlsIfIdle() {
@@ -647,7 +650,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function updatePlayingState(playing: boolean) {
     if (playing) {
       videoLoading.value = false
-      resetIdle()
+      if (pendingStartHide) {
+        pendingStartHide = false
+        resetIdle(START_CONTROLS_IDLE_MS)
+      }
+      else resetIdle()
     }
     else showPausedControls()
     setMediaPlaybackState(playing)

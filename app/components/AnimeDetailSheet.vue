@@ -29,7 +29,7 @@ const panelStyle = computed(() => ({
   transition: dragging.value || !ready.value
     ? 'none'
     : closing.value
-      ? 'height 220ms cubic-bezier(0.4, 0, 1, 1), transform 220ms cubic-bezier(0.4, 0, 1, 1)'
+      ? 'height 150ms cubic-bezier(0.4, 0, 1, 1), transform 150ms cubic-bezier(0.4, 0, 1, 1)'
       : 'height 300ms cubic-bezier(0.16, 1, 0.3, 1), transform 300ms cubic-bezier(0.16, 1, 0.3, 1)',
 }))
 
@@ -83,7 +83,7 @@ function requestClose() {
   dragging.value = false
   contentDragging = false
   dragY.value = panelHeightPx.value
-  setTimeout(finishClose, 340)
+  setTimeout(finishClose, 260)
 }
 
 function onTransitionEnd(event: TransitionEvent) {

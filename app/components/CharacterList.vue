@@ -17,11 +17,11 @@ const displayed = computed(() => {
     <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
       Characters
     </h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-x-4 gap-y-2.5">
+    <div class="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:gap-x-4">
       <div
         v-for="char in displayed"
         :key="char.name"
-        class="flex items-center gap-2.5 min-w-0 rounded-lg px-1.5 py-1 -mx-1.5"
+        class="flex items-center gap-2 sm:gap-2.5 min-w-0 rounded-lg px-1.5 py-1 -mx-1.5"
       >
         <img
           :src="char.imageUrl"
@@ -30,7 +30,7 @@ const displayed = computed(() => {
           height="40"
           loading="lazy"
           decoding="async"
-          class="w-10 h-10 rounded-full object-cover flex-shrink-0"
+          class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
         >
         <div class="min-w-0">
           <span class="text-xs text-zinc-200 font-medium truncate block">{{ char.name }}</span>

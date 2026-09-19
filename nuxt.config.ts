@@ -38,7 +38,7 @@ export default defineNuxtConfig({
       },
     },
   },
-  modules: ['@nuxt/fonts'],
+  modules: ['@nuxt/fonts', '@nuxtjs/device'],
   hooks: {
     'prepare:types': ({ tsConfig }) => {
       const compilerOptions = (tsConfig.compilerOptions ??= {})

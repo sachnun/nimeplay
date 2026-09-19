@@ -13,8 +13,7 @@ const props = defineProps<{
 const sentinelRef = shallowRef<HTMLDivElement | null>(null)
 const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
-const pages = ref<PageData[]>([])
-const size = ref(0)
+const gridState = useState<{ pages: PageData[]; size: number }>(`genre-grid:${props.genreSlug}`, () => ({ pages: [], size: 0 }))
 const loading = ref(false)
 const loadError = ref(false)
 const loadServerError = ref(false)
@@ -32,10 +31,10 @@ onMounted(() => {
   })
 })
 
-const allAnime = computed(() => pages.value.flatMap((d) => d.anime))
+const allAnime = computed(() => gridState.value.pages.flatMap((d) => d.anime))
 const showPlane = computed(() => loadError.value && loadServerError.value && allAnime.value.length === 0)
-const totalPages = computed(() => pages.value[0]?.totalPages ?? 1)
-const isEnd = computed(() => size.value >= totalPages.value)
+const totalPages = computed(() => gridState.value.pages[0]?.totalPages ?? 1)
+const isEnd = computed(() => gridState.value.size >= totalPages.value)
 const animeCards = computed(() => allAnime.value.map((anime) => {
   const progress = progressMap.value.get(anime.malId)
   return {
@@ -49,9 +48,9 @@ async function loadPage(page: number) {
 }
 
 async function appendNextPage() {
-  const next = size.value + 1
-  pages.value.push(await loadPage(next))
-  size.value = next
+  const next = gridState.value.size + 1
+  gridState.value.pages.push(await loadPage(next))
+  gridState.value.size = next
 }
 
 async function loadMore() {
@@ -65,13 +64,9 @@ async function loadMore() {
   })
 }
 
-async function reset() {
-  pages.value = []
-  size.value = 0
-  await loadMore()
-}
-
-watch(() => props.genreSlug, () => { void reset() }, { immediate: true })
+watch(() => props.genreSlug, () => {
+  if (gridState.value.pages.length === 0) void loadMore()
+}, { immediate: true })
 
 const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
 

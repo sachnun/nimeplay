@@ -21,13 +21,13 @@ watch([text, expanded, () => props.loading], () => {
 </script>
 
 <template>
-  <section>
+  <section v-if="hasSynopsis">
     <div class="flex items-center gap-3 mb-3">
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
     </div>
-    <div v-if="hasSynopsis">
+    <div>
       <p
         ref="textRef"
         class="text-sm text-zinc-300 leading-relaxed whitespace-pre-line [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"

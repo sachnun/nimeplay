@@ -1,5 +1,4 @@
 import { getSpoofHeaders } from '../spoof'
-import { fetchImpersonated } from '../impersonate'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
@@ -14,7 +13,7 @@ const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
 
 export async function fetchHTML(url: string): Promise<string> {
-  const res = await fetchImpersonated(url, {
+  const res = await fetch(url, {
     headers: getSpoofHeaders(url, 'navigate'),
     signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
   })
@@ -25,7 +24,7 @@ export async function fetchHTML(url: string): Promise<string> {
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
   const headers = getSpoofHeaders(referer, 'cors')
   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const res = await fetchImpersonated(url, {
+  const res = await fetch(url, {
     method: 'POST',
     headers,
     body,

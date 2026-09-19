@@ -1,8 +1,9 @@
 import { sealStreamToken } from '../stream'
-import { fetchImpersonated } from '../impersonate'
+import { getSpoofHeaders } from '../spoof'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const ASSET_BASE = 'https://xyz-api.animein.net'
+const API_BASE = `https://unroxy.koyeb.app/${ASSET_BASE}`
 const REQUEST_TIMEOUT_MS = 8000
 const COMPLETED_PAGE_LIMIT = 100
 const EPISODE_PAGE_SIZE = 30
@@ -55,8 +56,11 @@ interface AnimeinServer {
 
 async function apiGet<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetchImpersonated(`${ASSET_BASE}${path}`, {
-      headers: { 'Accept': 'application/json' },
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        ...getSpoofHeaders(ASSET_BASE, 'cors'),
+        'Accept': 'application/json',
+      },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!res.ok) return null

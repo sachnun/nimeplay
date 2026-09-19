@@ -3,8 +3,8 @@ import { anime, animeGenres, appState, characters, episodes, genres, media } fro
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
 import { isValidMediaKey, mediaRef, type MediaRef } from './media'
+import { fetchRemoteMedia, storeMedia } from './media-store'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
-import { enqueueMany } from './queue'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
@@ -178,42 +178,68 @@ async function syncGenres(animeId: number, names: string[]) {
   }
 }
 
+async function ensureMedia(ref: MediaRef): Promise<string | null> {
+  const [existing] = await db()
+    .select({ key: media.key })
+    .from(media)
+    .where(eq(media.sourceUrl, ref.sourceUrl))
+    .limit(1)
+  if (existing) return existing.key
+  try {
+    const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
+    await storeMedia(ref.key, bytes, contentType)
+    await db().insert(media).values({ key: ref.key, sourceUrl: ref.sourceUrl }).onConflictDoNothing()
+    return ref.key
+  }
+  catch (error) {
+    console.warn(`[media] mirror failed ${ref.sourceUrl}:`, error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+async function mirrorRefs(refs: MediaRef[]): Promise<Map<string, string>> {
+  const unique = new Map<string, MediaRef>()
+  for (const ref of refs) {
+    if (isValidMediaKey(ref.key) && !unique.has(ref.sourceUrl)) unique.set(ref.sourceUrl, ref)
+  }
+  if (unique.size === 0) return new Map()
+  const entries = await Promise.all([...unique.values()].map(async ref => [ref.sourceUrl, await ensureMedia(ref)] as const))
+  const keys = new Map<string, string>()
+  for (const [sourceUrl, key] of entries) {
+    if (key) keys.set(sourceUrl, key)
+  }
+  return keys
+}
+
 export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
   const [target] = await db().select({ id: anime.id }).from(anime).where(eq(anime.slug, slug)).limit(1)
   if (!target) return
   const animeId = target.id
 
   const posterRef = mediaRef(mal.poster, 'posters')
-  const characterRefs = mal.characters.map(c => mediaRef(c.imageUrl, 'characters'))
-  const refs = [posterRef, ...characterRefs].filter((ref): ref is MediaRef => ref !== null && isValidMediaKey(ref.key))
-  const wanted = [...new Map(refs.map(ref => [ref.sourceUrl, ref])).values()]
-  const mirrored = wanted.length > 0
-    ? await db().select({ sourceUrl: media.sourceUrl, key: media.key }).from(media).where(inArray(media.sourceUrl, wanted.map(ref => ref.sourceUrl)))
-    : []
-  const mirroredKeys = new Map(mirrored.map(row => [row.sourceUrl, row.key]))
-  await enqueueMany(wanted
-    .filter(ref => !mirroredKeys.has(ref.sourceUrl))
-    .map(ref => ({
-      type: 'media.mirror',
-      payload: { key: ref.key, sourceUrl: ref.sourceUrl },
-      dedupeKey: `media.mirror:${ref.sourceUrl}`,
-      priority: 0,
-      maxAttempts: 3,
-    })))
-  const imageKey = (ref: MediaRef | null): string | null => (ref ? (mirroredKeys.get(ref.sourceUrl) ?? ref.key) : null)
+  const refs: MediaRef[] = posterRef ? [posterRef] : []
+  const characterRefs = mal.characters.map((c) => {
+    const imageRef = mediaRef(c.imageUrl, 'characters')
+    if (imageRef) refs.push(imageRef)
+    return imageRef
+  })
 
-  const posterKey = imageKey(posterRef)
+  const imageKeys = await mirrorRefs(refs)
+  const posterKey = posterRef ? (imageKeys.get(posterRef.sourceUrl) ?? null) : null
 
-  const characterRows = mal.characters.map((c, index) => ({
-    animeId,
-    malId: null,
-    name: c.name,
-    role: c.role,
-    imageKey: imageKey(characterRefs[index] ?? null),
-    voiceActorName: c.voiceActor?.name ?? null,
-    voiceActorKey: null,
-    sortOrder: index,
-  }))
+  const characterRows = mal.characters.map((c, index) => {
+    const imageRef = characterRefs[index] ?? null
+    return {
+      animeId,
+      malId: null,
+      name: c.name,
+      role: c.role,
+      imageKey: imageRef ? (imageKeys.get(imageRef.sourceUrl) ?? null) : null,
+      voiceActorName: c.voiceActor?.name ?? null,
+      voiceActorKey: null,
+      sortOrder: index,
+    }
+  })
 
   await db()
     .update(anime)

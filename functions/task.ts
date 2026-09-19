@@ -5,7 +5,7 @@ import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
 import { runCatalog, runTick } from '../server/utils/jobs'
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 })
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 12 })
 attachDatabasePool(pool)
 setNodeDatabase(drizzle(pool, { schema }))
 

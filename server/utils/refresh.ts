@@ -552,19 +552,6 @@ async function syncOngoingCatalog(): Promise<void> {
   }
 }
 
-export async function listRefreshCandidates(limit: number): Promise<string[]> {
-  const result = await db().execute(sql`
-    select a.slug as slug
-    from anime a
-    where a.mal_id is null or a.episode_count = 0
-    order by case when a.status = 'ONGOING' then 0 else 1 end,
-             a.ongoing_rank asc nulls last,
-             a.updated_at asc
-    limit ${limit}
-  `)
-  return (result.rows as unknown as { slug: string }[]).map(row => row.slug)
-}
-
 export async function runOngoingSync(): Promise<void> {
   if (!acquireSync('catalog')) return
   try {
@@ -578,36 +565,19 @@ export async function runOngoingSync(): Promise<void> {
   }
 }
 
-async function backfillCursors(): Promise<Record<string, string>> {
-  const entries = await Promise.all(getSources().map(async source =>
-    [source.id, await getAppState(`backfill:${source.id}`) ?? 'pending'] as const,
-  ))
-  return Object.fromEntries(entries)
-}
-
-async function backfillRemaining(): Promise<boolean> {
-  const cursors = await backfillCursors()
-  return Object.values(cursors).some(value => value !== 'done')
-}
-
-export async function runFinishedSync(): Promise<boolean> {
-  if (!acquireSync('finished')) return backfillRemaining()
-  let pages = 0
+export async function runBackfill(sourceId: string): Promise<void> {
+  const source = getSources().find(item => item.id === sourceId)
+  if (!source) return
+  if (!acquireSync(`backfill:${sourceId}`)) return
   try {
-    let registered = 0
-    for (const source of getSources()) {
-      const result = await backfillCompleted(source)
-      pages += result.pages
-      registered += result.registered
-    }
-    if (registered > 0) console.log(`[finished] registered ${registered}`)
+    const result = await backfillCompleted(source)
+    if (result.registered > 0) console.log(`[backfill] ${sourceId}: +${result.registered}`)
   }
   catch (error) {
-    console.warn('[finished] sync failed:', error instanceof Error ? error.message : error)
+    console.warn(`[backfill] ${sourceId} failed:`, error instanceof Error ? error.message : error)
   }
   finally {
-    releaseSync('finished')
+    releaseSync(`backfill:${sourceId}`)
   }
-  return pages > 0 && await backfillRemaining()
 }
 

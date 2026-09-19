@@ -822,7 +822,7 @@ export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: 
   return { pending: await pendingMediaCount() }
 }
 
-const FOCUS_MEDIA_TICK = 16
+const FOCUS_MEDIA_TICK = 4
 const FOCUS_RETRY_MS = 30 * 60 * 1000
 
 async function pickFocusSlug(cooled: string[]): Promise<string | null> {

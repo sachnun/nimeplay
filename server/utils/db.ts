@@ -15,6 +15,7 @@ neonConfig.fetchFunction = ((input: RequestInfo | URL, init?: RequestInit) =>
 
 const store = new AsyncLocalStorage<Database>()
 let http: Database | undefined
+let pooled: Database | undefined
 
 function connectionString(): string {
   const value = cloudflareEnv().DATABASE_URL
@@ -29,13 +30,11 @@ export function db(): Database {
   return http
 }
 
+function sharedPool(): Database {
+  if (!pooled) pooled = wsDrizzle(new Pool({ connectionString: connectionString() }), { schema }) as unknown as Database
+  return pooled
+}
+
 export async function withPool<T>(fn: () => Promise<T>): Promise<T> {
-  const pool = new Pool({ connectionString: connectionString() })
-  const client = wsDrizzle(pool, { schema }) as unknown as Database
-  try {
-    return await store.run(client, fn)
-  }
-  finally {
-    await pool.end().catch(() => {})
-  }
+  return store.run(sharedPool(), fn)
 }

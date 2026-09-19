@@ -56,7 +56,19 @@ async function runBatches<T>(
   return done
 }
 
-let catalogSyncRunning = false
+const SYNC_STALE_MS = 4 * 60 * 1000
+const syncStartedAt = new Map<string, number>()
+
+function acquireSync(name: string): boolean {
+  const startedAt = syncStartedAt.get(name)
+  if (startedAt !== undefined && Date.now() - startedAt < SYNC_STALE_MS) return false
+  syncStartedAt.set(name, Date.now())
+  return true
+}
+
+function releaseSync(name: string): void {
+  syncStartedAt.delete(name)
+}
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
@@ -685,11 +697,8 @@ async function syncOngoingCatalog(): Promise<void> {
   }
 }
 
-let metadataSyncRunning = false
-
 export async function runMetadataSync(options: { limit?: number, scope?: 'ongoing' | 'completed' } = {}): Promise<void> {
-  if (metadataSyncRunning) return
-  metadataSyncRunning = true
+  if (!acquireSync('metadata')) return
   try {
     const limit = options.limit ?? CATALOG_META_BUDGET
     const scope = options.scope ?? 'ongoing'
@@ -721,11 +730,10 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
     console.warn('[metadata] sync failed:', error instanceof Error ? error.message : error)
   }
   finally {
-    metadataSyncRunning = false
+    releaseSync('metadata')
   }
 }
 
-let mediaSyncRunning = false
 const MEDIA_BATCH = 20
 const MEDIA_CONCURRENCY = 6
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
@@ -803,8 +811,7 @@ async function ensurePosterReady(ref: MediaRef): Promise<string> {
 }
 
 export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
-  if (mediaSyncRunning) return
-  mediaSyncRunning = true
+  if (!acquireSync('media')) return
   try {
     const now = new Date()
     const pending = await db()
@@ -825,7 +832,7 @@ export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
     console.warn('[media] sync failed:', error instanceof Error ? error.message : error)
   }
   finally {
-    mediaSyncRunning = false
+    releaseSync('media')
   }
 }
 
@@ -858,12 +865,8 @@ async function activeEpisodeCooldowns(): Promise<string[]> {
   return active
 }
 
-let finishedSyncRunning = false
-let episodesSyncRunning = false
-
 export async function runOngoingSync(): Promise<void> {
-  if (catalogSyncRunning) return
-  catalogSyncRunning = true
+  if (!acquireSync('catalog')) return
   try {
     await syncOngoingCatalog()
   }
@@ -871,7 +874,7 @@ export async function runOngoingSync(): Promise<void> {
     console.warn('[ongoing] sync failed:', error instanceof Error ? error.message : error)
   }
   finally {
-    catalogSyncRunning = false
+    releaseSync('catalog')
   }
 }
 
@@ -888,8 +891,7 @@ async function backfillRemaining(): Promise<boolean> {
 }
 
 export async function runFinishedSync(): Promise<boolean> {
-  if (finishedSyncRunning) return backfillRemaining()
-  finishedSyncRunning = true
+  if (!acquireSync('finished')) return backfillRemaining()
   let pages = 0
   try {
     const deadline = Date.now() + BACKFILL_WALL_MS
@@ -905,7 +907,7 @@ export async function runFinishedSync(): Promise<boolean> {
     console.warn('[finished] sync failed:', error instanceof Error ? error.message : error)
   }
   finally {
-    finishedSyncRunning = false
+    releaseSync('finished')
   }
   return pages > 0 && await backfillRemaining()
 }
@@ -945,8 +947,7 @@ async function fillEpisodes(limit: number): Promise<number> {
 }
 
 export async function runEpisodesFill(): Promise<number> {
-  if (episodesSyncRunning) return 0
-  episodesSyncRunning = true
+  if (!acquireSync('episodes')) return 0
   try {
     return await fillEpisodes(EPISODES_FILL)
   }
@@ -955,6 +956,6 @@ export async function runEpisodesFill(): Promise<number> {
     return 0
   }
   finally {
-    episodesSyncRunning = false
+    releaseSync('episodes')
   }
 }

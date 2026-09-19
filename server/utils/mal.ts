@@ -346,8 +346,12 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   const siteBase = stripSeasonMarker(siteTitle)
   const malBase = stripSeasonMarker(malTitle)
   const score = baseScore(siteBase, malBase)
+  const baseAligned = normalizeTitle(siteBase) === normalizeTitle(malBase)
+    || similarity(normalizeTitle(siteBase), normalizeTitle(malBase)) >= 0.6
+    || tokenJaccard(siteBase, malBase) >= 0.5
+    || isAbbrevOnBase(siteBase, malBase)
   let adjusted = score
-  if (siteSeason !== null && malSeason !== null && siteSeason === malSeason) adjusted += 0.6
+  if (baseAligned && siteSeason !== null && malSeason !== null && siteSeason === malSeason) adjusted += 0.6
   if (siteSeason !== null && siteSeason > 1 && malSeason === null) adjusted -= 0.5
   if (siteSeason === null && malSeason !== null && malSeason > 1) return false
   if (adjusted >= 0.75) return true

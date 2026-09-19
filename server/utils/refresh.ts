@@ -308,17 +308,24 @@ export async function resolveAnimeMetadata(slug: string, providedTitle?: string,
     return false
   }
   const merged = new Map<number, { id: number, title: string }>()
-  for (const variant of malSearchVariants(title)) {
-    const batch = await searchMalAnimeEntries(variant)
-    for (const entry of batch) {
-      if (!merged.has(entry.id)) merged.set(entry.id, entry)
+  const search = async (variants: string[]): Promise<void> => {
+    for (const variant of variants) {
+      const batch = await searchMalAnimeEntries(variant)
+      for (const entry of batch) {
+        if (!merged.has(entry.id)) merged.set(entry.id, entry)
+      }
+      if (merged.size > 0) break
     }
-    if (merged.size > 0) break
   }
-  const entries = [...merged.values()].slice(0, 15)
-  const ranked = rankMalAnimeMatches(title, entries)
+  await search(malSearchVariants(title))
+  let ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
+  const japanese = (await loadDetail())?.japanese
+  if (ranked.length === 0 && japanese) {
+    await search(malSearchVariants(japanese))
+    ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
+  }
   if (ranked.length === 0) {
-    const top = entries[0]?.title ?? '-'
+    const top = [...merged.values()][0]?.title ?? '-'
     const reason = `no MAL title matches "${title}" (top: "${top}")`
     await recordFailure(slug, reason)
     console.warn(`[metadata] no MAL title matches "${title}" (top: "${top}")`)

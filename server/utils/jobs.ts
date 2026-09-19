@@ -11,6 +11,7 @@ const BATCH = 16
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const MIRROR_SEED_LIMIT = 500
+const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill', 'episode.cache']
 const worker = `task:${process.pid}`
 
 async function handle(job: JobRow): Promise<void> {
@@ -83,7 +84,7 @@ async function seedEpisodeCacheJobs(): Promise<void> {
 
 async function drain(deadline: number): Promise<void> {
   while (Date.now() < deadline) {
-    const claimed = await claim(worker, BATCH)
+    const claimed = await claim(worker, BATCH, TASK_TYPES)
     if (claimed.length === 0) return
     await Promise.all(claimed.map(async (job) => {
       try {

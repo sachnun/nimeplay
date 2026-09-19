@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
 import { getSpoofHeaders } from '../spoof'
+import { fetchImpersonated } from '../impersonate'
 import { sealStreamToken } from '../stream'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
@@ -184,7 +185,7 @@ interface MirrorApiEntry {
 async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> {
   const url = `${BASE_URL}/api/video-mirrors/?e=${episodeId}`
   try {
-    const res = await fetch(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
+    const res = await fetchImpersonated(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
     if (!res.ok) return []
     const data = await res.json() as { mirrors?: MirrorApiEntry[] }
     const grouped = new Map<string, { name: string; dataContent: string }[]>()

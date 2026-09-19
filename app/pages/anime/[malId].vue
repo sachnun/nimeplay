@@ -26,5 +26,7 @@ watchEffect(() => {
 <template>
   <NuxtPage v-if="isEpisodeRoute" />
   <EmptyState v-else-if="showPlane" />
-  <AnimeDetailContent v-else-if="anime" :anime="anime" />
+  <div v-else-if="anime" class="grid min-h-dvh">
+    <AnimeDetailContent :anime="anime" />
+  </div>
 </template>

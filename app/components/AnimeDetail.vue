@@ -31,7 +31,7 @@ function goBack() {
 </script>
 
 <template>
-  <div class="min-h-screen relative overflow-hidden">
+  <div class="relative overflow-hidden">
     <div class="absolute inset-0 z-0 overflow-hidden">
       <img :src="thumbnail" alt="" aria-hidden="true" width="400" height="533" loading="lazy" decoding="async" fetchpriority="low" class="w-full h-full object-cover scale-105 blur-xl opacity-15 pointer-events-none transform-gpu will-change-transform [contain:strict]">
     </div>

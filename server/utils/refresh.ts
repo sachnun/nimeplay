@@ -231,12 +231,21 @@ async function syncGenres(animeId: number, names: string[]) {
   }
 }
 
-async function enqueueMedia(refs: MediaRef[]): Promise<void> {
-  const unique = [...new Map(refs.map(ref => [ref.key, ref])).values()].filter(ref => isValidMediaKey(ref.key))
-  if (unique.length === 0) return
-  for (const chunk of chunkValues(unique, 100)) {
-    await db().insert(media).values(chunk.map(ref => ({ key: ref.key, sourceUrl: ref.sourceUrl, status: 'pending' }))).onConflictDoNothing()
+async function enqueueMedia(refs: MediaRef[]): Promise<Map<string, string>> {
+  const unique = new Map<string, MediaRef>()
+  for (const ref of refs) {
+    if (isValidMediaKey(ref.key) && !unique.has(ref.sourceUrl)) unique.set(ref.sourceUrl, ref)
   }
+  if (unique.size === 0) return new Map()
+  const values = [...unique.values()].map(ref => ({ key: ref.key, sourceUrl: ref.sourceUrl, status: 'pending' }))
+  for (const chunk of chunkValues(values, 100)) {
+    await db().insert(media).values(chunk).onConflictDoNothing({ target: media.sourceUrl })
+  }
+  const rows = await db()
+    .select({ key: media.key, sourceUrl: media.sourceUrl })
+    .from(media)
+    .where(inArray(media.sourceUrl, [...unique.keys()]))
+  return new Map(rows.map(row => [row.sourceUrl, row.key]))
 }
 
 export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
@@ -246,29 +255,35 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
 
   const posterRef = mediaRef(mal.poster, 'posters')
   const refs: MediaRef[] = []
-  const characterRows = mal.characters.map((c, index) => {
+  const characterRefs = mal.characters.map((c) => {
     const imageRef = mediaRef(c.imageUrl, 'characters')
     if (imageRef) refs.push(imageRef)
+    return imageRef
+  })
+
+  const posterKey = posterRef ? await ensurePosterReady(posterRef) : null
+  const imageKeys = await enqueueMedia(refs)
+
+  const characterRows = mal.characters.map((c, index) => {
+    const imageRef = characterRefs[index] ?? null
     return {
       animeId,
       malId: null,
       name: c.name,
       role: c.role,
-      imageKey: imageRef?.key ?? null,
+      imageKey: imageRef ? (imageKeys.get(imageRef.sourceUrl) ?? null) : null,
       voiceActorName: c.voiceActor?.name ?? null,
       voiceActorKey: null,
       sortOrder: index,
     }
   })
 
-  if (posterRef) await ensurePosterReady(posterRef)
-
   await db()
     .update(anime)
     .set({
       malId: mal.malId,
       synopsis: mal.synopsis,
-      posterKey: posterRef?.key ?? null,
+      posterKey,
       rating: mal.score,
       rank: mal.rank,
       popularity: mal.popularity,
@@ -290,7 +305,6 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
   for (const chunk of chunkValues(characterRows, 50)) {
     await db().insert(characters).values(chunk).onConflictDoNothing()
   }
-  await enqueueMedia(refs)
   await syncGenres(animeId, mal.genres)
 }
 
@@ -750,14 +764,19 @@ async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<bo
   }
 }
 
-async function ensurePosterReady(ref: MediaRef): Promise<void> {
-  const [existing] = await db().select({ status: media.status }).from(media).where(eq(media.key, ref.key)).limit(1)
-  if (existing?.status === 'ready') return
+async function ensurePosterReady(ref: MediaRef): Promise<string> {
+  const [existing] = await db()
+    .select({ key: media.key, status: media.status })
+    .from(media)
+    .where(eq(media.sourceUrl, ref.sourceUrl))
+    .limit(1)
+  const key = existing?.key ?? ref.key
+  if (existing?.status === 'ready') return key
   try {
     const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
-    const stored = await storeMedia(ref.key, bytes, contentType)
+    const stored = await storeMedia(key, bytes, contentType)
     await db().insert(media).values({
-      key: ref.key,
+      key,
       sourceUrl: ref.sourceUrl,
       status: 'ready',
       contentType: stored.contentType,
@@ -765,7 +784,7 @@ async function ensurePosterReady(ref: MediaRef): Promise<void> {
       mirroredAt: new Date(),
       attempts: 1,
     }).onConflictDoUpdate({
-      target: media.key,
+      target: media.sourceUrl,
       set: {
         status: 'ready',
         contentType: stored.contentType,
@@ -776,9 +795,10 @@ async function ensurePosterReady(ref: MediaRef): Promise<void> {
         nextRetryAt: null,
       },
     })
+    return key
   }
   catch (error) {
-    throw new Error(`poster ${ref.key}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`poster ${key}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

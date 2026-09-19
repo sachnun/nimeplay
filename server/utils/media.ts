@@ -1,13 +1,15 @@
 import { AwsClient } from 'aws4fetch'
-import { toWebp } from './image'
+import { optimizeImage } from './image'
 import { cloudflareEnv } from './env'
 import { getSpoofHeaders } from './spoof'
 
-const MEDIA_CDN = 'https://cdn.myanimelist.net/images/'
 const ANILIST_CDN = 'https://s4.anilist.co/'
 const UNROXY = 'https://unroxy.koyeb.app/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
+const POSTER_WIDTH = 256
+const AVATAR_SIZE = 112
+const KEY_BYTES = 16
 
 type MediaType = 'posters' | 'characters' | 'voiceactors'
 
@@ -45,27 +47,22 @@ export function isValidMediaKey(key: string): boolean {
   return /^(posters|characters|voiceactors)\/[a-zA-Z0-9_/.-]+$/i.test(key)
 }
 
-export function mediaKey(value: string, type: MediaType = 'posters'): string | null {
+export function mediaKey(value: string): string | null {
   mediaClient()
   if (/^(posters|characters|voiceactors)\//.test(value)) return value
   if (value.startsWith('/media/')) return value.slice(7)
   if (base && value.startsWith(`${base}/`)) return value.slice(base.length + 1)
-  const prefix = `${MEDIA_CDN}${type === 'posters' ? 'anime/' : `${type}/`}`
-  if (value.startsWith(prefix)) {
-    const clean = value.split('?')[0] ?? ''
-    return `${type}/${clean.slice(prefix.length)}`
-  }
   return null
 }
 
-export function mediaUrl(url: string | null | undefined, type: MediaType): string {
+export function mediaUrl(url: string | null | undefined): string {
   if (!url) return ''
-  const key = mediaKey(url, type)
+  const key = mediaKey(url)
   return key ? `/media/${key}` : url
 }
 
 export function posterSrc(value: string | null | undefined): string {
-  return mediaUrl(value, 'posters')
+  return mediaUrl(value)
 }
 
 export function toAbsoluteUrl(path: string | null | undefined, origin?: string): string {
@@ -76,34 +73,22 @@ export function toAbsoluteUrl(path: string | null | undefined, origin?: string):
   return `${origin}${path}`
 }
 
-export function keyToOrigin(key: string): string | null {
-  if (key.startsWith('posters/')) return `${MEDIA_CDN}anime/${key.slice(8)}`
-  if (key.startsWith('characters/') || key.startsWith('voiceactors/')) return `${MEDIA_CDN}${key}`
-  return null
-}
-
 export interface MediaRef {
   key: string
   sourceUrl: string
 }
 
+function randomKey(type: MediaType): string {
+  const bytes = new Uint8Array(KEY_BYTES)
+  crypto.getRandomValues(bytes)
+  let hex = ''
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, '0')
+  return `${type}/${hex}.webp`
+}
+
 export function mediaRef(url: string | null | undefined, type: MediaType): MediaRef | null {
-  if (!url) return null
-  const key = mediaKey(url, type)
-  if (key) {
-    const origin = keyToOrigin(key)
-    if (origin) return { key, sourceUrl: origin }
-  }
-  if (!/^https?:\/\//.test(url)) return null
-  try {
-    const parts = new URL(url).pathname.split('/').filter(Boolean)
-    const tail = parts.slice(-2).join('/').replace(/[^a-zA-Z0-9_.-]/g, '_')
-    if (!tail) return null
-    return { key: `${type}/x/${tail}`, sourceUrl: url }
-  }
-  catch {
-    return null
-  }
+  if (!url || !/^https?:\/\//.test(url)) return null
+  return { key: randomKey(type), sourceUrl: url }
 }
 
 export interface MediaObject {
@@ -116,7 +101,7 @@ export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   const client = mediaClient()
   const url = objectUrl(key)
   if (!client || !url) return null
-  const res = await client.fetch(url).catch(() => null)
+  const res = await client.fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }).catch(() => null)
   if (!res || !res.ok) return null
   return {
     body: res.body,
@@ -126,7 +111,8 @@ export async function getCachedMedia(key: string): Promise<MediaObject | null> {
 }
 
 export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<{ contentType: string, byteSize: number }> {
-  const encoded = await toWebp(data, contentType)
+  const poster = key.startsWith('posters/')
+  const encoded = await optimizeImage(data, contentType, poster ? POSTER_WIDTH : AVATAR_SIZE, !poster)
   const client = mediaClient()
   const url = objectUrl(key)
   if (!client || !url) return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
@@ -134,6 +120,7 @@ export async function storeMedia(key: string, data: ArrayBuffer, contentType: st
     method: 'PUT',
     headers: { 'Content-Type': encoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
     body: encoded.bytes,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
 }

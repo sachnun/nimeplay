@@ -129,6 +129,7 @@ export const media = pgTable('media', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [
   index('media_status_idx').on(table.status, table.nextRetryAt),
+  uniqueIndex('media_source_url_key').on(table.sourceUrl),
 ])
 
 export const appState = pgTable('app_state', {

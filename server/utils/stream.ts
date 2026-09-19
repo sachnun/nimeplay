@@ -16,12 +16,40 @@ function getKey(): Promise<CryptoKey> {
   return cachedKey
 }
 
+const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
 function toBase64Url(bytes: Uint8Array): string {
-  return bytes.toBase64({ alphabet: 'base64url', omitPadding: true })
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!
+    const b1 = bytes[i + 1]
+    const b2 = bytes[i + 2]
+    out += BASE64URL[b0 >> 2]
+    out += BASE64URL[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)]
+    if (b1 === undefined) break
+    out += BASE64URL[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)]
+    if (b2 === undefined) break
+    out += BASE64URL[b2 & 63]
+  }
+  return out
 }
 
 function fromBase64Url(value: string): Uint8Array {
-  return Uint8Array.fromBase64(value, { alphabet: 'base64url' })
+  const bytes = new Uint8Array(Math.floor(value.length * 3 / 4))
+  let buffer = 0
+  let bits = 0
+  let length = 0
+  for (const char of value) {
+    const index = BASE64URL.indexOf(char)
+    if (index === -1) continue
+    buffer = (buffer << 6) | index
+    bits += 6
+    if (bits >= 8) {
+      bits -= 8
+      bytes[length++] = (buffer >> bits) & 0xff
+    }
+  }
+  return bytes.subarray(0, length)
 }
 
 export async function sealStreamToken(url: string, ttlMs?: number): Promise<string> {

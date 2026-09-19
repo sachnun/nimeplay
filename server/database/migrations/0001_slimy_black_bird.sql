@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "media_source_url_key" ON "media" USING btree ("source_url");

@@ -18,7 +18,6 @@ const infoItems = computed(() => [
   { label: 'Studio', value: props.otakudesu.studio },
   { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
-const posterOpen = ref(false)
 const router = useRouter()
 
 function goBack() {
@@ -28,26 +27,6 @@ function goBack() {
     router.push('/')
   }
 }
-
-function closePoster() {
-  posterOpen.value = false
-}
-
-watch(posterOpen, (open) => {
-  if (!import.meta.client) return
-  document.body.style.overflow = open ? 'hidden' : ''
-})
-
-onMounted(() => {
-  const onKey = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') closePoster()
-  }
-  window.addEventListener('keydown', onKey)
-  onBeforeUnmount(() => {
-    window.removeEventListener('keydown', onKey)
-    document.body.style.overflow = ''
-  })
-})
 </script>
 
 <template>
@@ -65,9 +44,7 @@ onMounted(() => {
         </button>
         <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
           <div class="flex gap-4 lg:block">
-            <button type="button" class="flex-shrink-0 cursor-pointer rounded-lg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50" @click="posterOpen = true">
-              <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" sizes="(min-width: 1280px) 224px, (min-width: 1024px) 192px, (min-width: 640px) 160px, 128px" class="w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
-            </button>
+            <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" class="flex-shrink-0 w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
             <div class="lg:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-1.5 mt-3">
@@ -139,16 +116,5 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="posterOpen" data-tv-nav-scope class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm" @click="closePoster">
-      <button type="button" class="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 cursor-pointer" aria-label="Close preview" @click="closePoster">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" :stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <div class="relative w-[80vw] h-[80vh] flex items-center justify-center" @click.stop>
-        <img :src="thumbnail" :alt="title" width="600" height="800" loading="eager" decoding="async" class="w-full h-full object-contain rounded-lg shadow-2xl [filter:brightness(0.9)]">
-      </div>
-    </div>
   </div>
 </template>

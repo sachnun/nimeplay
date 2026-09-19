@@ -10,8 +10,8 @@ const props = defineProps<{
   genreSlug: string
 }>()
 
-const sentinelRef = ref<HTMLDivElement | null>(null)
-const gridRef = ref<HTMLDivElement | null>(null)
+const sentinelRef = shallowRef<HTMLDivElement | null>(null)
+const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
 const pages = ref<PageData[]>([])
 const size = ref(0)

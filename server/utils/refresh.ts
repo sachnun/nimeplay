@@ -9,8 +9,6 @@ import { parseEpisodeDate } from './sources/shared'
 
 const DETAIL_REFRESH_MS = 6 * 60 * 60 * 1000
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-const CATALOG_META_BUDGET = 8
-const METADATA_WALL_MS = 120000
 const ONGOING_PAGES = 1
 const FRESH_BUDGET = 3
 const UNKNOWN_BUDGET = 1
@@ -350,8 +348,9 @@ async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<bo
   }
 }
 
-export async function resolveAnimeMetadata(slug: string, providedTitle?: string): Promise<boolean> {
+export async function resolveAnimeMetadata(slug: string, providedTitle?: string, providedDetail?: Awaited<ReturnType<typeof scrapeAnimeDetailFresh>> | null): Promise<boolean> {
   let detailPromise: Promise<Awaited<ReturnType<typeof scrapeAnimeDetailFresh>>> | undefined
+  if (providedDetail !== undefined) detailPromise = Promise.resolve(providedDetail)
   const loadDetail = () => (detailPromise ??= scrapeAnimeDetailFresh(slug).catch(() => null))
   const title = (providedTitle || (await loadDetail())?.title || '').trim()
   if (!title) {
@@ -503,7 +502,7 @@ export async function refreshAnimeBySlug(slug: string, refreshMetadata: boolean,
     }
   }
   else if (refreshMetadata) {
-    await resolveAnimeMetadata(slug, detail?.title)
+    await resolveAnimeMetadata(slug, detail?.title, detail)
   }
 }
 
@@ -698,43 +697,6 @@ async function syncOngoingCatalog(): Promise<void> {
   }
 }
 
-export async function runMetadataSync(options: { limit?: number, scope?: 'ongoing' | 'completed' } = {}): Promise<void> {
-  if (!acquireSync('metadata')) return
-  try {
-    const limit = options.limit ?? CATALOG_META_BUDGET
-    const scope = options.scope ?? 'ongoing'
-    const startedAt = new Date()
-    const deadline = startedAt.getTime() + METADATA_WALL_MS
-    const now = new Date()
-    const [totalResult] = await db().select({ count: sql<number>`cast(count(*) as integer)` }).from(anime).where(isNull(anime.malId))
-    const totalPending = totalResult?.count ?? 0
-    const filters = [isNull(anime.malId), or(isNull(anime.metadataRetryAt), lt(anime.metadataRetryAt, now))]
-    if (scope === 'ongoing') filters.push(eq(anime.status, 'ONGOING'))
-    if (scope === 'completed') filters.push(eq(anime.status, 'COMPLETED'))
-    const pending = await db()
-      .select({ slug: anime.slug })
-      .from(anime)
-      .where(and(...filters))
-      .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
-      .limit(limit)
-    console.log(`[metadata] ${totalPending} rows need MAL metadata, processing ${pending.length}`)
-    for (const row of pending) {
-      if (Date.now() > deadline) break
-      const ok = await attempt(
-        resolveAnimeMetadata(row.slug),
-        error => console.warn(`[metadata] deferred ${row.slug}:`, error instanceof Error ? error.message : error),
-      )
-      if (ok) console.log(`[metadata] resolved: ${row.slug}`)
-    }
-  }
-  catch (error) {
-    console.warn('[metadata] sync failed:', error instanceof Error ? error.message : error)
-  }
-  finally {
-    releaseSync('metadata')
-  }
-}
-
 const MEDIA_BATCH = 20
 const MEDIA_CONCURRENCY = 6
 const MEDIA_RETRY_MS = 6 * 60 * 60 * 1000
@@ -811,15 +773,25 @@ async function ensurePosterReady(ref: MediaRef): Promise<string> {
   }
 }
 
-export async function runMediaSync(limit = MEDIA_BATCH): Promise<void> {
+export async function runMediaSync(limit = MEDIA_BATCH, focusSlug?: string): Promise<void> {
   if (!acquireSync('media')) return
   try {
     const now = new Date()
+    const orderBy = focusSlug
+      ? [
+          sql`case when ${media.key} in (
+            select a.poster_key from ${anime} a where a.slug = ${focusSlug} and a.poster_key is not null
+            union
+            select c.image_key from ${characters} c join ${anime} a on a.id = c.anime_id where a.slug = ${focusSlug} and c.image_key is not null
+          ) then 0 else 1 end`,
+          asc(media.createdAt),
+        ]
+      : [asc(media.createdAt)]
     const pending = await db()
       .select({ key: media.key, sourceUrl: media.sourceUrl })
       .from(media)
       .where(mediaDue(now))
-      .orderBy(asc(media.createdAt))
+      .orderBy(...orderBy)
       .limit(limit)
     let done = 0
     for (let i = 0; i < pending.length; i += MEDIA_CONCURRENCY) {
@@ -850,8 +822,81 @@ export async function mirrorMediaQueue(limit = MEDIA_BATCH): Promise<{ pending: 
   return { pending: await pendingMediaCount() }
 }
 
-const EPISODES_FILL = 6
-const FILL_EPISODES_WALL_MS = 60000
+const FOCUS_MEDIA_TICK = 16
+const FOCUS_RETRY_MS = 30 * 60 * 1000
+
+async function pickFocusSlug(cooled: string[]): Promise<string | null> {
+  const exclude = cooled.length > 0
+    ? sql` and split_part(a.slug, ':', 1) not in (${sql.join(cooled.map(id => sql`${id}`), sql`, `)})`
+    : sql``
+  const result = await db().execute(sql`
+    select a.slug as slug
+    from anime a
+    where (a.mal_id is null or a.episode_count = 0)
+      and (a.metadata_retry_at is null or a.metadata_retry_at < now())
+      ${exclude}
+    order by case when a.status = 'ONGOING' then 0 else 1 end,
+             a.ongoing_rank asc nulls last,
+             a.updated_at asc
+    limit 1
+  `)
+  return (result.rows as unknown as { slug: string }[])[0]?.slug ?? null
+}
+
+async function deferAnime(slug: string): Promise<void> {
+  const until = new Date(Date.now() + FOCUS_RETRY_MS)
+  try {
+    await db().execute(sql`
+      update anime set metadata_retry_at = ${until}
+      where slug = ${slug} and (metadata_retry_at is null or metadata_retry_at < ${until})
+    `)
+  }
+  catch (error) {
+    console.warn(`[focus] defer failed ${slug}:`, error instanceof Error ? error.message : error)
+  }
+}
+
+export async function runFocusSync(): Promise<void> {
+  if (!acquireSync('focus')) return
+  try {
+    const cooled = await activeEpisodeCooldowns()
+    const slug = await pickFocusSlug(cooled)
+    if (!slug) {
+      await mirrorMediaQueue(FOCUS_MEDIA_TICK)
+      return
+    }
+    let failed = false
+    try {
+      await refreshAnimeBySlug(slug, true)
+    }
+    catch (error) {
+      failed = true
+      console.warn(`[focus] failed ${slug}:`, error instanceof Error ? error.message : error)
+    }
+    const [state] = await db()
+      .select({ malId: anime.malId, episodeCount: anime.episodeCount })
+      .from(anime)
+      .where(eq(anime.slug, slug))
+      .limit(1)
+    const complete = state != null && state.malId != null && state.episodeCount > 0
+    if (failed || !complete) {
+      const sourceId = splitSource(slug)?.source.id
+      if (failed && sourceId) await setAppState(`epcooldown:${sourceId}`, new Date().toISOString()).catch(() => {})
+      await deferAnime(slug)
+    }
+    else {
+      console.log(`[focus] ready: ${slug}`)
+    }
+    await runMediaSync(FOCUS_MEDIA_TICK, slug)
+  }
+  catch (error) {
+    console.warn('[focus] sync failed:', error instanceof Error ? error.message : error)
+  }
+  finally {
+    releaseSync('focus')
+  }
+}
+
 const EPISODE_COOLDOWN_MS = 20 * 60 * 1000
 
 async function activeEpisodeCooldowns(): Promise<string[]> {
@@ -913,50 +958,3 @@ export async function runFinishedSync(): Promise<boolean> {
   return pages > 0 && await backfillRemaining()
 }
 
-async function fillEpisodes(limit: number): Promise<number> {
-  const cooled = await activeEpisodeCooldowns()
-  const exclude = cooled.length > 0
-    ? sql` and split_part(a.slug, ':', 1) not in (${sql.join(cooled.map(id => sql`${id}`), sql`, `)})`
-    : sql``
-  const result = await db().execute(sql`
-    select a.slug as slug
-    from anime a
-    where a.mal_id is not null
-      and not exists (select 1 from episodes e where e.anime_id = a.id)
-      ${exclude}
-    order by case when a.status = 'ONGOING' then 0 else 1 end, a.updated_at asc
-    limit ${limit}
-  `)
-  const list = result.rows as unknown as { slug: string }[]
-  const deadline = Date.now() + FILL_EPISODES_WALL_MS
-  let done = 0
-  for (const row of list) {
-    if (Date.now() > deadline) break
-    try {
-      await refreshAnimeBySlug(row.slug, false)
-      done++
-    }
-    catch (error) {
-      const sourceId = splitSource(row.slug)?.source.id
-      if (sourceId) await setAppState(`epcooldown:${sourceId}`, new Date().toISOString()).catch(() => {})
-      await db().update(anime).set({ updatedAt: new Date() }).where(eq(anime.slug, row.slug)).catch(() => {})
-      console.warn(`[episodes] failed ${row.slug}:`, error instanceof Error ? error.message : error)
-    }
-  }
-  if (list.length > 0) console.log(`[episodes] filled ${done}/${list.length}`)
-  return done
-}
-
-export async function runEpisodesFill(): Promise<number> {
-  if (!acquireSync('episodes')) return 0
-  try {
-    return await fillEpisodes(EPISODES_FILL)
-  }
-  catch (error) {
-    console.warn('[episodes] sync failed:', error instanceof Error ? error.message : error)
-    return 0
-  }
-  finally {
-    releaseSync('episodes')
-  }
-}

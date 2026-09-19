@@ -56,7 +56,7 @@ export async function listAnimePage(
     .select({
       id: anime.id,
       malId: anime.malId,
-      title: anime.title,
+      title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
       rating: anime.rating,
       day: anime.day,
@@ -113,7 +113,7 @@ export async function searchAnime(query: string): Promise<SearchResult[]> {
   const match = toFtsQuery(trimmed)
   if (!match) return []
   const result = await db().execute(sql`
-    select a.mal_id as "malId", a.title as title, a.poster_key as "posterKey",
+    select a.mal_id as "malId", coalesce(a.title, '') as title, a.poster_key as "posterKey",
       coalesce(a.status, '') as status,
       coalesce(cast(a.rating as text), '') as rating,
       coalesce(string_agg(g.name, ', '), '') as genres
@@ -193,7 +193,7 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
       id: anime.id,
       slug: anime.slug,
       malId: anime.malId,
-      title: anime.title,
+      title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
       synopsis: anime.synopsis,
       rating: anime.rating,
@@ -255,7 +255,7 @@ export async function resolveEpisode(
     .select({
       animeId: anime.id,
       animeSlug: anime.slug,
-      title: anime.title,
+      title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
       episodeSlug: episodes.slug,
       episodeTitle: episodes.title,
@@ -300,7 +300,7 @@ export async function getGenreAnimePage(
   const rowsQuery = db()
     .select({
       malId: anime.malId,
-      title: anime.title,
+      title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
       episodeCount: anime.episodeCount,
       rating: sql<string>`coalesce(cast(${anime.rating} as text), '')`,

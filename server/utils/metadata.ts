@@ -4,7 +4,8 @@ import { toFtsQuery } from './fts'
 import { anime } from '../database/schema'
 import { fetchMalAnime, searchMalAnime, type MalCharacter } from './mal'
 import { cleanSynopsis } from './synopsis'
-import { getCharactersForAnime, type AnimeCharacter } from './queries'
+import { getCharactersForAnime } from './queries'
+import type { AnimeCharacter } from '#shared/types'
 
 export interface MetadataRequestBody {
   title?: string

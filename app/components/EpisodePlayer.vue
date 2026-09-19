@@ -70,7 +70,7 @@ const {
 </script>
 
 <template>
-  <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'" :data-tv-nav-scope="showNative && !isPlaying && !showLoading && !showEpisodes && autoNextCountdown === null ? '' : undefined">
+  <div ref="containerRef" class="player-shell fixed inset-0 bg-black z-50" :class="controlsVisible ? 'cursor-default' : 'cursor-none'">
     <video v-show="showNative" ref="videoRef" class="absolute inset-0 w-full h-full object-contain" playsinline />
 
     <div v-if="showNative" class="absolute inset-0 z-10 touch-none select-none" @touchstart="handleVideoTouchStart" @touchmove="handleVideoTouchMove" @touchend="handleVideoTouchEnd" @touchcancel="handleVideoTouchCancel" @pointerdown="handleVideoPointerDown" @pointermove="handleVideoPointerMove" @pointerup="handleVideoPointerUp" @pointercancel="handleVideoPointerCancel" @contextmenu.prevent />
@@ -129,7 +129,7 @@ const {
       @toggle-quality="toggleQuality"
     />
 
-    <div v-if="autoNextCountdown !== null" data-tv-nav-scope class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30">
+    <div v-if="autoNextCountdown !== null" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30">
       <p class="text-zinc-200 text-lg mb-4">
         Episode selanjutnya dalam <span class="font-bold text-white">{{ autoNextCountdown }}</span> detik
       </p>

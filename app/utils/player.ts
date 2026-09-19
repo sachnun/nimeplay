@@ -1,35 +1,12 @@
 import type { EpisodeData } from './types'
+import { qualityRank, sourcePriority } from '#shared/mirror'
+
+export { sourcePriority }
 
 export type MirrorCandidate = {
   dataContent: string
   quality: string
   name: string
-}
-
-const SOURCE_PRIORITY_GROUPS = [
-  ['animeverse', 'nekoclouds'],
-  ['puterin', 'putarin'],
-  ['pixeldrain', 'pdrain', 'odcdn', 'odstream', 'odcloud', 'arcg', 'archive'],
-  ['vidhide', 'filelions'],
-  ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],
-  ['desudrive'],
-  ['moeplay', 'yourupload', 'yuplod', 'mp4upload', 'mp4load'],
-  ['filedon'],
-]
-
-const QUALITY_ORDER = ['1080p', '720p', '480p', '360p']
-
-function normalizeSourceName(name: string): string {
-  return name.toLowerCase().trim()
-}
-
-function matchesSourceGroup(name: string, sources: string[]): boolean {
-  return sources.some((source) => name.includes(source))
-}
-
-function qualityRank(quality: string): number {
-  const index = QUALITY_ORDER.indexOf(quality)
-  return index === -1 ? 99 : index
 }
 
 function sortedSources(mirror: EpisodeData['mirrors'][number]) {
@@ -44,13 +21,6 @@ function reorderMirrors(mirrors: EpisodeData['mirrors'], startQuality: string) {
   const sorted = [...mirrors].sort((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
   const startIdx = sorted.findIndex((m) => m.quality === startQuality)
   return startIdx > 0 ? [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)] : sorted
-}
-
-export function sourcePriority(name: string): number {
-  const normalized = normalizeSourceName(name)
-  const groupIndex = SOURCE_PRIORITY_GROUPS.findIndex((group) => matchesSourceGroup(normalized, group))
-  if (groupIndex !== -1) return groupIndex
-  return SOURCE_PRIORITY_GROUPS.length
 }
 
 export function buildFallbackOrder(mirrors: EpisodeData['mirrors'], startQuality: string, excludeDataContent?: string): MirrorCandidate[] {

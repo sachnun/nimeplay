@@ -19,7 +19,6 @@ const loading = ref(false)
 const loadError = ref(false)
 const loadServerError = ref(false)
 const { progressMap, syncProgress } = useAnimeProgressMap(() => [])
-const progressCard = useProgressCardLongPress()
 
 onMounted(() => {
   void syncProgress()
@@ -89,13 +88,6 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         :key="`${anime.malId}-${i}`"
         :to="to"
         class="block rounded-t-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="progressCard.onProgressCardPointerDown($event, progress ? anime.malId : null)"
-        @pointermove="progressCard.onProgressCardPointerMove"
-        @pointerup="progressCard.onProgressCardPointerEnd"
-        @pointerleave="progressCard.onProgressCardPointerEnd"
-        @pointercancel="progressCard.onProgressCardPointerEnd"
-        @click.capture="progressCard.onProgressCardClick"
-        @contextmenu="progressCard.onProgressCardContextMenu($event, Boolean(progress))"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
           <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">

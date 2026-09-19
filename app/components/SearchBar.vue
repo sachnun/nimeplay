@@ -84,7 +84,6 @@ onMounted(() => {
 <template>
   <div
     v-if="open"
-    data-tv-nav-scope
     class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[20vh] px-4 cursor-pointer"
     @click.self="emit('close')"
   >

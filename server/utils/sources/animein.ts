@@ -1,4 +1,4 @@
-import { sealStreamToken } from '../streamUrl'
+import { sealStreamToken } from '../stream'
 import { getSpoofHeaders } from '../spoof'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 

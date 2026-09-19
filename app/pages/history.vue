@@ -12,13 +12,6 @@ useHead({ title: 'History' })
 const items = ref<HistoryItem[]>([])
 const loading = ref(true)
 const clearing = ref(false)
-const {
-  onProgressCardPointerDown,
-  onProgressCardPointerMove,
-  onProgressCardPointerEnd,
-  onProgressCardClick,
-  onProgressCardContextMenu,
-} = useProgressCardLongPress()
 
 async function fetchDetail(malId: number): Promise<AnimeDetail | null> {
   try {
@@ -124,13 +117,6 @@ onMounted(() => {
         :key="item.malId"
         :to="`/anime/${item.malId}`"
         class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-        @pointerdown="onProgressCardPointerDown($event, item.malId)"
-        @pointermove="onProgressCardPointerMove"
-        @pointerup="onProgressCardPointerEnd"
-        @pointerleave="onProgressCardPointerEnd"
-        @pointercancel="onProgressCardPointerEnd"
-        @click.capture="onProgressCardClick"
-        @contextmenu="onProgressCardContextMenu($event, true)"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
           <img :src="item.thumbnail" :alt="item.title" width="300" height="400" loading="lazy" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">

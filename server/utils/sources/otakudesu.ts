@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio'
-import { sealStreamToken } from '../streamUrl'
+import { sealStreamToken } from '../stream'
 import { cleanTitleWithRules, fetchHTML, parseEpisodeDate, postForm, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 

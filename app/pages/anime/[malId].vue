@@ -26,7 +26,7 @@ watchEffect(() => {
 <template>
   <NuxtPage v-if="isEpisodeRoute" />
   <EmptyState v-else-if="showPlane" />
-  <AnimeDetailContent
+  <AnimeDetail
     v-else-if="anime"
     :mal-id="anime.malId"
     :title="anime.title"

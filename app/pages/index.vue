@@ -33,7 +33,7 @@ const homeFailed = computed(() => status.value !== 'pending' && isServerError(er
     <EmptyState />
   </section>
   <section v-else>
-    <AnimeInfiniteGrid
+    <AnimeGrid
       page-type="ONGOING"
       :initial-data="data.ongoingData"
       next-page-type="COMPLETED"

@@ -17,14 +17,11 @@ function getKey(): Promise<CryptoKey> {
 }
 
 function toBase64Url(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return bytes.toBase64({ alphabet: 'base64url', omitPadding: true })
 }
 
 function fromBase64Url(value: string): Uint8Array {
-  const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/'))
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+  return Uint8Array.fromBase64(value, { alphabet: 'base64url' })
 }
 
 export async function sealStreamToken(url: string, ttlMs?: number): Promise<string> {

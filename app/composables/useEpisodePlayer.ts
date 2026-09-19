@@ -498,15 +498,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return Boolean(target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"]')))
   }
 
-  function isPlayPauseKey(event: KeyboardEvent) {
-    return ['Enter', ' ', 'MediaPlayPause'].includes(event.key) || [23, 66].includes(event.keyCode)
-  }
-
   function handleKeyboardShortcut(event: KeyboardEvent) {
-    if (!isPlaying.value && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return false
-
     const volume = videoRef.value?.volume ?? 1
     const shortcuts: Record<string, () => void> = {
+      ' ': togglePlay,
       k: togglePlay,
       ArrowLeft: () => { seekRelative(-5); showSeekFeedback('left', 5) },
       ArrowRight: () => { seekRelative(5); showSeekFeedback('right', 5) },
@@ -804,11 +799,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       if (!showNative.value) return
       const target = event.target instanceof HTMLElement ? event.target : null
       if (isInteractiveTarget(target)) return
-      if (isPlayPauseKey(event)) {
-        event.preventDefault()
-        togglePlay()
-        return
-      }
       handleKeyboardShortcut(event)
     }
     const onPointerActivity = () => resetIdle()

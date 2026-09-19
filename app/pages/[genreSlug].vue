@@ -25,5 +25,5 @@ definePageMeta({
 </script>
 
 <template>
-  <GenreAnimeGrid :key="genreSlug" :genre-slug="genreSlug" />
+  <GenreGrid :key="genreSlug" :genre-slug="genreSlug" />
 </template>

@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio'
 import { getSpoofHeaders } from '../spoof'
-import { sealStreamToken } from '../streamUrl'
+import { sealStreamToken } from '../stream'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 

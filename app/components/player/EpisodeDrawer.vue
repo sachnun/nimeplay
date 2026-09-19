@@ -44,7 +44,7 @@ defineEmits<{
 
 <template>
   <div class="absolute inset-0 z-[25] cursor-pointer" @click="$emit('close')" />
-  <div data-tv-nav-scope class="absolute top-0 right-0 bottom-0 z-30 w-64 md:w-72 backdrop-blur-2xl bg-black/50 border-l border-white/10 flex flex-col">
+  <div class="absolute top-0 right-0 bottom-0 z-30 w-64 md:w-72 backdrop-blur-2xl bg-black/50 border-l border-white/10 flex flex-col">
     <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
       <h2 class="text-sm font-semibold text-white">Episodes</h2>
       <button type="button" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer" @click="$emit('close')">

@@ -35,6 +35,21 @@ function pick<T>(arr: T[]): T {
   return item
 }
 
+function randomPublicIp(): string {
+  for (;;) {
+    const a = 1 + Math.floor(Math.random() * 223)
+    const b = Math.floor(Math.random() * 256)
+    const c = Math.floor(Math.random() * 256)
+    const d = 1 + Math.floor(Math.random() * 254)
+    if (a === 10 || a === 127 || a >= 224) continue
+    if (a === 172 && b >= 16 && b <= 31) continue
+    if (a === 192 && b === 168) continue
+    if (a === 100 && b >= 64 && b <= 127) continue
+    if (a === 169 && b === 254) continue
+    return `${a}.${b}.${c}.${d}`
+  }
+}
+
 function isChromium(ua: string): boolean {
   return /Chrome\/\d/.test(ua) && !/Firefox/.test(ua) && !/Safari\/6/.test(ua)
 }
@@ -53,6 +68,12 @@ export function getSpoofHeaders(referer?: string, context: SpoofContext = 'navig
     : '*/*'
 
   if (referer) headers.Referer = referer
+
+  const ip = randomPublicIp()
+  headers['X-Forwarded-For'] = ip
+  headers['X-Real-IP'] = ip
+  headers['True-Client-IP'] = ip
+  headers.Forwarded = `for=${ip};proto=https`
 
   if (isChromium(ua)) {
     const hint = pick(SEC_CH_UA_SETS)

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
   --background: #0a0a0a;
   --foreground: #e4e4e7;
   --card: #141416;

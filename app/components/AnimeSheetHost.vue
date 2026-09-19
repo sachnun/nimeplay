@@ -39,8 +39,5 @@ function onClosed() {
 <template>
   <AnimeDetailSheet v-if="open" ref="sheetRef" :thumbnail="anime?.thumbnail" @close="onClosed">
     <AnimeDetailContent v-if="anime" :anime="anime" hide-back />
-    <div v-else class="h-full flex items-center justify-center">
-      <span class="w-7 h-7 rounded-full border-2 border-zinc-700 border-t-zinc-300 animate-spin" />
-    </div>
   </AnimeDetailSheet>
 </template>

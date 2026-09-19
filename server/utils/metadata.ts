@@ -89,7 +89,7 @@ function toMetadataPayload(source: {
   const supporting = source.characters.filter(c => c.role !== 'Main')
   return {
     malId: source.malId,
-    synopsisEn: cleanSynopsis(stripHtml(source.synopsis)),
+    synopsis: cleanSynopsis(stripHtml(source.synopsis)),
     background: '',
     malScore: source.score !== null ? Number(source.score) : null,
     malRank: source.rank,

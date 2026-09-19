@@ -1,25 +1,15 @@
 <script setup lang="ts">
 const props = defineProps<{
-  synopsisId?: string
-  synopsisEn?: string
+  synopsis?: string
   loading: boolean
 }>()
 
-const lang = ref<'id' | 'en'>('en')
 const expanded = ref(false)
 const clamped = ref(false)
 const textRef = ref<HTMLParagraphElement | null>(null)
 
-const hasId = computed(() => !!props.synopsisId?.trim())
-const hasEn = computed(() => !!props.synopsisEn?.trim())
-const text = computed(() => lang.value === 'id' ? (props.synopsisId || props.synopsisEn) : (props.synopsisEn || props.synopsisId))
-
-function switchLang(newLang: 'id' | 'en') {
-  if (newLang === 'id' && !hasId.value) return
-  if (newLang === 'en' && !hasEn.value) return
-  lang.value = newLang
-  expanded.value = false
-}
+const hasSynopsis = computed(() => !!props.synopsis?.trim())
+const text = computed(() => props.synopsis ?? '')
 
 watch([text, expanded, () => props.loading], () => {
   if (expanded.value || !import.meta.client) return
@@ -36,27 +26,8 @@ watch([text, expanded, () => props.loading], () => {
       <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
         Sinopsis
       </h2>
-      <div v-if="hasId || hasEn" class="flex items-center text-xs text-zinc-500">
-        <button
-          :disabled="!hasId"
-          class="transition-colors"
-          :class="!hasId ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'id' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
-          @click="switchLang('id')"
-        >
-          ID
-        </button>
-        <span class="mx-1.5 text-zinc-600">|</span>
-        <button
-          :disabled="!hasEn"
-          class="transition-colors"
-          :class="!hasEn ? 'text-zinc-500 opacity-60 cursor-not-allowed' : lang === 'en' ? 'text-zinc-200 font-semibold cursor-pointer' : 'text-zinc-500 hover:text-zinc-400 cursor-pointer'"
-          @click="switchLang('en')"
-        >
-          EN
-        </button>
-      </div>
     </div>
-    <div v-if="hasId || hasEn">
+    <div v-if="hasSynopsis">
       <p
         ref="textRef"
         class="text-sm text-zinc-300 leading-relaxed whitespace-pre-line [text-shadow:0_1px_4px_rgba(0,0,0,0.6)]"

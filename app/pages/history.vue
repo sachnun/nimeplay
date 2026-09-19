@@ -9,6 +9,8 @@ interface HistoryItem extends WatchProgress {
 
 useHead({ title: 'History' })
 
+definePageMeta({ browse: true })
+
 const items = ref<HistoryItem[]>([])
 const loading = ref(true)
 const clearing = ref(false)

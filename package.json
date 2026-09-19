@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@neon/config": "^1.7.2",
+    "@neon/functions": "^0.11.0",
     "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
     "aws4fetch": "^1.0.20",

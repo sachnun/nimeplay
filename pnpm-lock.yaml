@@ -169,6 +169,9 @@ importers:
       '@neon/config':
         specifier: ^1.7.2
         version: 1.7.2
+      '@neon/functions':
+        specifier: ^0.11.0
+        version: 0.11.0
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1426,6 +1429,15 @@ packages:
   '@neon/config@1.7.2':
     resolution: {integrity: sha512-AFLHYl5Qg6p7cGjMxrXpmdniNMO6gOIzv5gAr+5LRMaXeFggTGEWP8Tpe48CKKeE1PUtyE0XoKazDNjQWGvUAw==}
     engines: {node: '>=20.19.0'}
+
+  '@neon/functions@0.11.0':
+    resolution: {integrity: sha512-xyIEk9aULR2nBTzyTgxljkM8aS+Ppe9oVw/t5mdqYOlY/mLFppHSZHq8hiWVDWy6Ca8oLd3loTtfVz+cZQQjsA==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      hono: ^4.7.8
+    peerDependenciesMeta:
+      hono:
+        optional: true
 
   '@neon/sdk@6.0.0':
     resolution: {integrity: sha512-ILfSjXGvCaR1zz9Z8y97Hwe6N4fAHDtab473GpMNbfUzAYMhZXJGuzW3KUEjX5U87OHF/+2RuJLZNI/L7ly5IQ==}
@@ -5548,6 +5560,8 @@ snapshots:
       '@neon/sdk': 6.0.0
       jiti: 2.7.0
       zod: 4.6.5
+
+  '@neon/functions@0.11.0': {}
 
   '@neon/sdk@6.0.0': {}
 

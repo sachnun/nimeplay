@@ -1,7 +1,5 @@
-import type { H3Event } from 'h3'
 import { createError, getRouterParam } from 'h3'
 import { getAnimeDetail } from '../../utils/queries'
-import { scheduleAnimeRefresh } from '../../utils/refresh'
 
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
@@ -12,8 +10,5 @@ export default defineEventHandler(async (event) => {
   const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
-  const waitUntil = (event as H3Event & { waitUntil?: (p: Promise<unknown>) => void }).waitUntil
-  const refresh = scheduleAnimeRefresh(malId)
-  if (waitUntil) waitUntil(refresh)
   return detail
 })

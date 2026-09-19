@@ -26,7 +26,7 @@ export const anime = pgTable('anime', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   slug: text('slug').notNull().unique(),
   malId: integer('mal_id'),
-  title: text('title').notNull(),
+  title: text('title'),
   posterKey: text('poster_key'),
   synopsis: text('synopsis'),
   rating: real('rating'),

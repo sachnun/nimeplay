@@ -294,6 +294,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
     .update(anime)
     .set({
       malId: mal.malId,
+      ...(mal.title ? { title: mal.title } : {}),
       synopsis: mal.synopsis,
       posterKey,
       rating: mal.score,
@@ -349,7 +350,14 @@ async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<bo
   }
 }
 
-export async function resolveAnimeMetadata(slug: string, title: string): Promise<boolean> {
+export async function resolveAnimeMetadata(slug: string, providedTitle?: string): Promise<boolean> {
+  let detailPromise: Promise<Awaited<ReturnType<typeof scrapeAnimeDetailFresh>>> | undefined
+  const loadDetail = () => (detailPromise ??= scrapeAnimeDetailFresh(slug).catch(() => null))
+  const title = (providedTitle || (await loadDetail())?.title || '').trim()
+  if (!title) {
+    await recordFailure(slug, 'no scraped title')
+    return false
+  }
   const merged = new Map<number, { id: number, title: string }>()
   for (const variant of malSearchVariants(title)) {
     const batch = await searchMalAnimeEntries(variant)
@@ -371,10 +379,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
   let odYear: number | null | undefined
   const loadOdYear = (): Promise<number | null> => {
     if (odYear !== undefined) return Promise.resolve(odYear)
-    return scrapeAnimeDetailFresh(slug).then(
-      detail => odYear = parseOdYear(detail?.releaseDate ?? null),
-      () => odYear = null,
-    )
+    return loadDetail().then(detail => odYear = parseOdYear(detail?.releaseDate ?? null))
   }
   let yearFallback: { mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>, diff: number } | null = null
 
@@ -449,7 +454,7 @@ export async function resolveAnimeMetadata(slug: string, title: string): Promise
   return false
 }
 
-export async function refreshAnimeBySlug(slug: string, title: string, refreshMetadata: boolean, known?: AnimeRefreshState): Promise<void> {
+export async function refreshAnimeBySlug(slug: string, refreshMetadata: boolean, known?: AnimeRefreshState): Promise<void> {
   let state = known
   if (!state) {
     const [row] = await db()
@@ -483,7 +488,6 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
     hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
     statusChanged = animeRow.status != null && animeRow.status !== status
     await upsertEpisodes(animeRow.id, slug, detail.episodes, {
-      title: detail.title || title,
       status,
       ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
       ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
@@ -499,7 +503,7 @@ export async function refreshAnimeBySlug(slug: string, title: string, refreshMet
     }
   }
   else if (refreshMetadata) {
-    await resolveAnimeMetadata(slug, title)
+    await resolveAnimeMetadata(slug, detail?.title)
   }
 }
 
@@ -508,7 +512,6 @@ export function scheduleAnimeRefresh(malId: number): Promise<void> {
     const [row] = await db()
       .select({
         slug: anime.slug,
-        title: anime.title,
         status: anime.status,
         updatedAt: anime.updatedAt,
         metadataSyncedAt: anime.metadataSyncedAt,
@@ -525,16 +528,15 @@ export function scheduleAnimeRefresh(malId: number): Promise<void> {
     const hasEpisodes = Number(row.episodeCount) > 0
 
     if ((row.status === 'ONGOING' && stale) || !hasEpisodes || needsMetadata) {
-      await refreshAnimeBySlug(row.slug, row.title, needsMetadata)
+      await refreshAnimeBySlug(row.slug, needsMetadata)
     }
   })().catch(error => console.warn(`[refresh] anime ${malId} failed:`, error instanceof Error ? error.message : error))
 }
 
-async function registerOngoingCards(cards: { source: AnimeSource, slug: string, title: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
+async function registerOngoingCards(cards: { source: AnimeSource, slug: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     slug: `${card.source.id}:${card.slug}`,
-    title: card.title,
     status: card.status ?? 'ONGOING',
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
@@ -556,15 +558,15 @@ async function registerOngoingCards(cards: { source: AnimeSource, slug: string, 
 }
 
 async function refreshFreshEpisodes(
-  cards: { slug: string, title: string, episode: string }[],
+  cards: { slug: string, episode: string }[],
   deadline: number,
 ): Promise<number> {
-  const bySlug = new Map<string, { slug: string, title: string, episode: number }>()
+  const bySlug = new Map<string, { slug: string, episode: number }>()
   for (const card of cards) {
     const parsed = episodeNumber(card.episode)
     if (parsed == null) continue
     const current = bySlug.get(card.slug)
-    if (!current || parsed > current.episode) bySlug.set(card.slug, { slug: card.slug, title: card.title, episode: parsed })
+    if (!current || parsed > current.episode) bySlug.set(card.slug, { slug: card.slug, episode: parsed })
   }
   const wanted = [...bySlug.values()]
   if (wanted.length === 0) return 0
@@ -573,7 +575,7 @@ async function refreshFreshEpisodes(
     .filter(item => item.episode > (dbMax.get(item.slug) ?? 0))
     .slice(0, FRESH_BUDGET)
   const states = await loadRefreshStates(todo.map(item => item.slug), dbMax)
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'fresh episode refresh', item => refreshAnimeBySlug(item.slug, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] fresh episodes: ${refreshed} refreshed`)
   }
@@ -581,7 +583,7 @@ async function refreshFreshEpisodes(
 }
 
 async function refreshUnknownSlugs(
-  cards: { slug: string, title: string }[],
+  cards: { slug: string }[],
   deadline: number,
 ): Promise<number> {
   const unique = [...new Map(cards.map(card => [card.slug, card])).values()]
@@ -600,7 +602,7 @@ async function refreshUnknownSlugs(
   }
   const todo = unique.filter(item => !withEpisodes.has(item.slug)).slice(0, UNKNOWN_BUDGET)
   const states = await loadRefreshStates(todo.map(item => item.slug))
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'unknown refresh', item => refreshAnimeBySlug(item.slug, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] unknown episodes: ${refreshed} refreshed`)
   }
@@ -609,7 +611,7 @@ async function refreshUnknownSlugs(
 
 async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise<number> {
   const candidates = await db()
-    .select({ slug: anime.slug, title: anime.title })
+    .select({ slug: anime.slug })
     .from(anime)
     .where(eq(anime.status, 'ONGOING'))
     .orderBy(asc(anime.updatedAt))
@@ -617,7 +619,7 @@ async function refreshStaleOngoing(seen: Set<string>, deadline: number): Promise
   const todo = candidates.filter(item => !seen.has(item.slug)).slice(0, STALE_ONGOING_BUDGET)
   if (todo.length === 0) return 0
   const states = await loadRefreshStates(todo.map(item => item.slug), await loadMaxMap(todo.map(item => item.slug)))
-  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'stale ongoing refresh', item => refreshAnimeBySlug(item.slug, item.title, false, states.get(item.slug)))
+  const refreshed = await runBatches(todo, deadline, REFRESH_CONCURRENCY, 'stale ongoing refresh', item => refreshAnimeBySlug(item.slug, false, states.get(item.slug)))
   if (refreshed > 0) {
     console.log(`[catalog] stale ongoing: ${refreshed} refreshed`)
   }
@@ -645,7 +647,6 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
       const cards = result.anime.map(card => ({
         source,
         slug: card.slug,
-        title: card.title,
         day: card.day,
         date: card.date,
         status: 'COMPLETED' as const,
@@ -665,7 +666,7 @@ async function backfillCompleted(source: AnimeSource, deadline: number): Promise
 async function syncOngoingCatalog(): Promise<void> {
   let ongoingRank = 0
   for (const source of getSources()) {
-    const cards: { source: AnimeSource, slug: string, title: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
+    const cards: { source: AnimeSource, slug: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
     const first = await attempt(
       source.ongoingFresh(1),
       error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
@@ -673,7 +674,7 @@ async function syncOngoingCatalog(): Promise<void> {
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
         ongoingRank++
-        cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+        cards.push({ source, slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
       }
       const pages: number[] = []
       for (let page = 2; page <= Math.min(ONGOING_PAGES, first.totalPages); page++) pages.push(page)
@@ -685,7 +686,7 @@ async function syncOngoingCatalog(): Promise<void> {
         if (result === null) continue
         for (const card of result.anime) {
           ongoingRank++
-          cards.push({ source, slug: card.slug, title: card.title, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+          cards.push({ source, slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
         }
       }
     }
@@ -711,7 +712,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
     if (scope === 'ongoing') filters.push(eq(anime.status, 'ONGOING'))
     if (scope === 'completed') filters.push(eq(anime.status, 'COMPLETED'))
     const pending = await db()
-      .select({ slug: anime.slug, title: anime.title })
+      .select({ slug: anime.slug })
       .from(anime)
       .where(and(...filters))
       .orderBy(sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`, sql`${anime.ongoingRank} asc nulls last`, asc(anime.updatedAt))
@@ -720,7 +721,7 @@ export async function runMetadataSync(options: { limit?: number, scope?: 'ongoin
     for (const row of pending) {
       if (Date.now() > deadline) break
       const ok = await attempt(
-        resolveAnimeMetadata(row.slug, row.title),
+        resolveAnimeMetadata(row.slug),
         error => console.warn(`[metadata] deferred ${row.slug}:`, error instanceof Error ? error.message : error),
       )
       if (ok) console.log(`[metadata] resolved: ${row.slug}`)
@@ -918,7 +919,7 @@ async function fillEpisodes(limit: number): Promise<number> {
     ? sql` and split_part(a.slug, ':', 1) not in (${sql.join(cooled.map(id => sql`${id}`), sql`, `)})`
     : sql``
   const result = await db().execute(sql`
-    select a.slug as slug, a.title as title
+    select a.slug as slug
     from anime a
     where a.mal_id is not null
       and not exists (select 1 from episodes e where e.anime_id = a.id)
@@ -926,13 +927,13 @@ async function fillEpisodes(limit: number): Promise<number> {
     order by case when a.status = 'ONGOING' then 0 else 1 end, a.updated_at asc
     limit ${limit}
   `)
-  const list = result.rows as unknown as { slug: string, title: string }[]
+  const list = result.rows as unknown as { slug: string }[]
   const deadline = Date.now() + FILL_EPISODES_WALL_MS
   let done = 0
   for (const row of list) {
     if (Date.now() > deadline) break
     try {
-      await refreshAnimeBySlug(row.slug, row.title, false)
+      await refreshAnimeBySlug(row.slug, false)
       done++
     }
     catch (error) {

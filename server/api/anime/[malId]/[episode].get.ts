@@ -18,10 +18,10 @@ export default defineEventHandler(async (event) => {
 
   let resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved || refresh) {
-    const [row] = await db().select({ id: anime.id, slug: anime.slug, title: anime.title }).from(anime).where(eq(anime.malId, malId)).limit(1)
+    const [row] = await db().select({ slug: anime.slug }).from(anime).where(eq(anime.malId, malId)).limit(1)
     if (row) {
       try {
-        await refreshAnimeBySlug(row.slug, row.title, false)
+        await refreshAnimeBySlug(row.slug, false)
       }
       catch (error) {
         console.warn(`[episode] on-demand refresh failed ${malId}:`, error instanceof Error ? error.message : error)

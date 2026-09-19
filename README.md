@@ -19,8 +19,7 @@ pnpm dev
 ## Tasks
 
 ```bash
-npx nitro task run tick
-npx nitro task run catalog
+pnpm function:deploy
 ```
 
 ## API

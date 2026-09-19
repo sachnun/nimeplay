@@ -6,11 +6,7 @@
     "mode": "targeted",
     "region": "gcp:asia-southeast2"
   },
-  "triggers": {
-    "crons": ["* * * * *", "*/30 * * * *"]
-  },
   "vars": {
-    "MEDIA_BUCKET": "nimeplay",
-    "APP_ORIGIN": "https://nimeplay.sachnun.workers.dev"
+    "MEDIA_BUCKET": "nimeplay"
   }
 }

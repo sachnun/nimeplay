@@ -2,7 +2,8 @@ import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
-import { fetchRemoteMedia, isValidMediaKey, mediaRef, storeMedia, type MediaRef } from './media'
+import { isValidMediaKey, mediaRef, type MediaRef } from './media'
+import { fetchRemoteMedia, storeMedia } from './media-store'
 import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
 import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
@@ -264,15 +265,15 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
   const animeId = target.id
 
   const posterRef = mediaRef(mal.poster, 'posters')
-  const refs: MediaRef[] = []
+  const refs: MediaRef[] = posterRef ? [posterRef] : []
   const characterRefs = mal.characters.map((c) => {
     const imageRef = mediaRef(c.imageUrl, 'characters')
     if (imageRef) refs.push(imageRef)
     return imageRef
   })
 
-  const posterKey = posterRef ? await ensurePosterReady(posterRef) : null
   const imageKeys = await enqueueMedia(refs)
+  const posterKey = posterRef ? (imageKeys.get(posterRef.sourceUrl) ?? posterRef.key) : null
 
   const characterRows = mal.characters.map((c, index) => {
     const imageRef = characterRefs[index] ?? null
@@ -732,44 +733,6 @@ async function mirrorMedia(item: { key: string, sourceUrl: string }): Promise<bo
       nextRetryAt: new Date(Date.now() + MEDIA_RETRY_MS),
     }).where(eq(media.key, item.key))
     return false
-  }
-}
-
-async function ensurePosterReady(ref: MediaRef): Promise<string> {
-  const [existing] = await db()
-    .select({ key: media.key, status: media.status })
-    .from(media)
-    .where(eq(media.sourceUrl, ref.sourceUrl))
-    .limit(1)
-  const key = existing?.key ?? ref.key
-  if (existing?.status === 'ready') return key
-  try {
-    const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
-    const stored = await storeMedia(key, bytes, contentType)
-    await db().insert(media).values({
-      key,
-      sourceUrl: ref.sourceUrl,
-      status: 'ready',
-      contentType: stored.contentType,
-      byteSize: stored.byteSize,
-      mirroredAt: new Date(),
-      attempts: 1,
-    }).onConflictDoUpdate({
-      target: media.sourceUrl,
-      set: {
-        status: 'ready',
-        contentType: stored.contentType,
-        byteSize: stored.byteSize,
-        mirroredAt: new Date(),
-        attempts: sql`${media.attempts} + 1`,
-        lastError: null,
-        nextRetryAt: null,
-      },
-    })
-    return key
-  }
-  catch (error) {
-    throw new Error(`poster ${key}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 

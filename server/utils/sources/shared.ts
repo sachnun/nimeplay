@@ -1,4 +1,3 @@
-import { cloudflareEnv } from '../env'
 import { getSpoofHeaders } from '../spoof'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
@@ -12,25 +11,12 @@ export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): s
 
 const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
-const EGRESS_KEY = 'nimeplay'
 
-async function egressFetch(url: string): Promise<Response> {
-  const origin = cloudflareEnv().APP_ORIGIN
-  const headers = { 'x-nimeplay-key': EGRESS_KEY }
-  const signal = AbortSignal.timeout(HTML_TIMEOUT_MS)
-  if (typeof origin !== 'string' || !origin) {
-    return fetch(url, { headers: getSpoofHeaders(url, 'navigate'), signal })
-  }
-  return fetch(`${origin}/api/internal/egress?url=${encodeURIComponent(url)}`, { headers, signal })
-}
-
-export async function fetchHTML(url: string, viaEgress = false): Promise<string> {
-  const res = viaEgress
-    ? await egressFetch(url)
-    : await fetch(url, {
-        headers: getSpoofHeaders(url, 'navigate'),
-        signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
-      })
+export async function fetchHTML(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: getSpoofHeaders(url, 'navigate'),
+    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
+  })
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
   return await res.text()
 }

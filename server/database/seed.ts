@@ -1,6 +1,9 @@
 import { and, eq, inArray, like, notInArray } from 'drizzle-orm'
 import { anime, animeGenres, characters, episodes, genres } from './schema'
 import { db } from '../utils/db'
+import { registerNeonDatabase } from '../utils/db-neon'
+
+registerNeonDatabase()
 
 const PREFIX = 'seed:'
 const MAL_BASE = 900000

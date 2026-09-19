@@ -1,14 +1,7 @@
 import { AwsClient } from 'aws4fetch'
-import { optimizeImage } from './image'
 import { cloudflareEnv } from './env'
-import { getSpoofHeaders } from './spoof'
 
-const ANILIST_CDN = 'https://s4.anilist.co/'
-const UNROXY = 'https://unroxy.koyeb.app/'
-const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
-const POSTER_WIDTH = 256
-const AVATAR_SIZE = 112
 const KEY_BYTES = 16
 
 type MediaType = 'posters' | 'characters' | 'voiceactors'
@@ -110,28 +103,14 @@ export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   }
 }
 
-export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<{ contentType: string, byteSize: number }> {
-  const poster = key.startsWith('posters/')
-  const encoded = await optimizeImage(data, contentType, poster ? POSTER_WIDTH : AVATAR_SIZE, !poster)
+export async function putMedia(key: string, data: ArrayBuffer, contentType: string): Promise<void> {
   const client = mediaClient()
   const url = objectUrl(key)
-  if (!client || !url) return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
+  if (!client || !url) return
   await client.fetch(url, {
     method: 'PUT',
-    headers: { 'Content-Type': encoded.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
-    body: encoded.bytes,
+    headers: { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    body: data,
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
-  return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
-}
-
-export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
-  const target = url.startsWith(ANILIST_CDN) ? `${UNROXY}${url}` : url
-  const response = await fetch(target, {
-    headers: getSpoofHeaders(MAL_REFERER, 'cors'),
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const contentType = response.headers.get('content-type') ?? 'image/jpeg'
-  return { contentType, bytes: await response.arrayBuffer() }
 }

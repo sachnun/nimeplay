@@ -16,13 +16,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'cloudflare_module',
     experimental: {
-      wasm: true,
       openAPI: true,
-      tasks: true,
-    },
-    scheduledTasks: {
-      '* * * * *': ['tick'],
-      '*/30 * * * *': ['catalog'],
     },
     cloudflare: {
       deployConfig: true,

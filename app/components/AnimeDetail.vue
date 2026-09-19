@@ -9,6 +9,7 @@ const props = defineProps<{
   genres: { name: string; slug: string }[]
   otakudesu: OtakudesuInfo
   episodes: number[]
+  hideBack?: boolean
 }>()
 
 const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
@@ -38,7 +39,7 @@ function goBack() {
 
     <div class="relative z-10">
       <section class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-10">
-        <button type="button" class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors mb-4 w-fit cursor-pointer" @click="goBack">
+        <button v-if="!hideBack" type="button" class="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors mb-4 w-fit cursor-pointer" @click="goBack">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Back
         </button>

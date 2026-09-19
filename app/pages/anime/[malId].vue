@@ -26,22 +26,5 @@ watchEffect(() => {
 <template>
   <NuxtPage v-if="isEpisodeRoute" />
   <EmptyState v-else-if="showPlane" />
-  <AnimeDetail
-    v-else-if="anime"
-    :mal-id="anime.malId"
-    :title="anime.title"
-    :japanese-title="anime.japanese || undefined"
-    :thumbnail="anime.thumbnail"
-    :genres="anime.genres"
-    :otakudesu="{
-      score: anime.score,
-      status: anime.status,
-      type: anime.type,
-      duration: anime.duration,
-      studio: anime.studio,
-      source: anime.source,
-      releaseDate: anime.releaseDate,
-    }"
-    :episodes="anime.episodes.map(entry => entry.number)"
-  />
+  <AnimeDetailContent v-else-if="anime" :anime="anime" />
 </template>

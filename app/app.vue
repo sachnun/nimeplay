@@ -5,4 +5,5 @@
       <NuxtPage />
     </main>
   </NuxtLayout>
+  <AnimeSheetHost />
 </template>

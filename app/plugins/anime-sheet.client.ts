@@ -20,10 +20,11 @@ export default defineNuxtPlugin((nuxtApp) => {
     return false
   })
 
-  nuxtApp.$router.afterEach((to) => {
+  nuxtApp.$router.afterEach((to, from) => {
     if (!pendingResume) return
     pendingResume = false
-    if (to.path === basePath()) sheet.resume()
+    if (to.path === basePath() && ANIME_SHEET_EPISODE_RE.test(from.path)) sheet.resume()
+    else sheet.markClosed()
   })
 
   window.addEventListener('popstate', () => {

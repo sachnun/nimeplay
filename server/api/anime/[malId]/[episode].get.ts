@@ -1,6 +1,6 @@
 import { createError, getRouterParam } from 'h3'
 import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
-import { scrapeEpisode } from '../../../utils/sources'
+import { loadEpisodeData } from '../../../utils/episode-cache'
 
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
-    scrapeEpisode(resolved.sourceSlug),
+    loadEpisodeData(resolved.sourceSlug, resolved.animeId, episodeNumber),
     getEpisodeNumbers(resolved.animeId),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })

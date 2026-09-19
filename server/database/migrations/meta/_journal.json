@@ -43,6 +43,13 @@
       "when": 1789805820241,
       "tag": "0005_living_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789848990908,
+      "tag": "0006_equal_hulk",
+      "breakpoints": true
     }
   ]
 }

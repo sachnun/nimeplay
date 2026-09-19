@@ -3,12 +3,14 @@ import type { JobRow } from '../database/schema'
 import { db } from './db'
 import { claim, complete, enqueue, fail, prune, releaseStale } from './queue'
 import { getSources } from './sources'
+import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
 import { refreshAnimeBySlug, runBackfill, runOngoingSync } from './refresh'
 
 const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
+const MIRROR_SEED_LIMIT = 500
 const worker = `task:${process.pid}`
 
 async function handle(job: JobRow): Promise<void> {
@@ -24,6 +26,10 @@ async function handle(job: JobRow): Promise<void> {
     await runBackfill(String(job.payload.sourceId ?? ''))
     return
   }
+  if (job.type === 'episode.cache') {
+    await cacheEpisodeData(String(job.payload.slug ?? ''))
+    return
+  }
   throw new Error(`unknown job type: ${job.type}`)
 }
 
@@ -36,6 +42,41 @@ async function seedRefreshJobs(): Promise<void> {
     order by case when a.status = 'ONGOING' then 0 else 1 end,
              a.ongoing_rank asc nulls last,
              a.updated_at asc
+    on conflict do nothing
+  `)
+}
+
+async function seedEpisodeCacheJobs(): Promise<void> {
+  for (const sourceId of blockedSourceIds()) {
+    await db().execute(sql`
+      insert into jobs (type, payload, dedupe_key, priority, max_attempts)
+      select 'episode.cache', jsonb_build_object('slug', e.slug), 'episode.cache:' || e.slug, 1, 5
+      from episodes e
+      join anime a on a.id = e.anime_id
+      where (e.cache is null or e.cached_at < now() - interval '3 days')
+        and a.slug like ${`${sourceId}:%`}
+        and not exists (
+          select 1 from jobs j
+          where j.dedupe_key = 'episode.cache:' || e.slug and j.status in ('waiting', 'active', 'failed')
+        )
+      order by e.id
+      limit ${MIRROR_SEED_LIMIT}
+      on conflict do nothing
+    `)
+  }
+  await db().execute(sql`
+    insert into jobs (type, payload, dedupe_key, priority, max_attempts)
+    select 'episode.cache', jsonb_build_object('slug', e.slug), 'episode.cache:' || e.slug, -1, 5
+    from episodes e
+    join anime a on a.id = e.anime_id
+    where a.status = 'ONGOING'
+      and (e.cache is null or e.cached_at < now() - interval '3 days')
+      and not exists (
+        select 1 from jobs j
+        where j.dedupe_key = 'episode.cache:' || e.slug and j.status in ('waiting', 'active', 'failed')
+      )
+    order by e.id
+    limit ${MIRROR_SEED_LIMIT}
     on conflict do nothing
   `)
 }
@@ -61,6 +102,7 @@ export async function runTick(): Promise<void> {
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS))
   await seedRefreshJobs()
+  await seedEpisodeCacheJobs()
   await drain(deadline)
 }
 

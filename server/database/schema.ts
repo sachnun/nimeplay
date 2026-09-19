@@ -1,4 +1,5 @@
 import { relations, sql } from 'drizzle-orm'
+import type { EpisodeData } from '../utils/sources/types'
 import {
   bigint,
   bigserial,
@@ -83,6 +84,8 @@ export const episodes = pgTable('episodes', {
   number: integer('number').notNull(),
   title: text('title').notNull(),
   releaseDate: text('release_date'),
+  cache: jsonb('cache').$type<EpisodeData>(),
+  cachedAt: timestamp('cached_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [

@@ -1,6 +1,6 @@
 import { cleanSynopsis } from './synopsis'
 
-const ANILIST_URL = 'https://unroxy.koyeb.app/https://graphql.anilist.co'
+const ANILIST_URL = 'https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
 const MIN_INTERVAL_MS = 700
 

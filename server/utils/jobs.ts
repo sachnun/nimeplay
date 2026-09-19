@@ -32,7 +32,7 @@ async function seedRefreshJobs(): Promise<void> {
     insert into jobs (type, payload, dedupe_key, priority, max_attempts)
     select 'anime.refresh', jsonb_build_object('slug', a.slug), 'anime.refresh:' || a.slug, 0, 5
     from anime a
-    where a.mal_id is null or a.episode_count = 0
+    where a.mal_id is null or a.episode_count = 0 or a.poster_key is null
     order by case when a.status = 'ONGOING' then 0 else 1 end,
              a.ongoing_rank asc nulls last,
              a.updated_at asc

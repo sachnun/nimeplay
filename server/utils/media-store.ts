@@ -2,8 +2,6 @@ import { optimizeImage } from './image'
 import { getSpoofHeaders } from './spoof'
 import { putMedia } from './media'
 
-const ANILIST_CDN = 'https://s4.anilist.co/'
-const UNROXY = 'https://unroxy.koyeb.app/'
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
 const POSTER_WIDTH = 256
@@ -16,8 +14,7 @@ export async function storeMedia(key: string, data: ArrayBuffer, contentType: st
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
-  const target = url.startsWith(ANILIST_CDN) ? `${UNROXY}${url}` : url
-  const response = await fetch(target, {
+  const response = await fetch(url, {
     headers: getSpoofHeaders(MAL_REFERER, 'cors'),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })

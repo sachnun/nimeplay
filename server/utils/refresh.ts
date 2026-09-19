@@ -247,7 +247,7 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
       malId: mal.malId,
       ...(mal.title ? { title: mal.title } : {}),
       synopsis: mal.synopsis,
-      posterKey,
+      ...(posterKey ? { posterKey } : {}),
       rating: mal.score,
       rank: mal.rank,
       popularity: mal.popularity,

@@ -1,3 +1,4 @@
+import type { NuxtConfig } from 'nuxt/schema'
 import tailwindcss from '@tailwindcss/vite'
 
 function handleRollupWarning(warning: any, warn: (warning: any) => void) {
@@ -15,6 +16,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'cloudflare_module',
     experimental: {
+      wasm: true,
       openAPI: true,
       tasks: true,
     },
@@ -43,6 +45,12 @@ export default defineNuxtConfig({
     },
   },
   modules: ['@nuxt/fonts'],
+  hooks: {
+    'prepare:types': ({ tsConfig }) => {
+      const compilerOptions = (tsConfig.compilerOptions ??= {})
+      compilerOptions.lib = ['ESNext', 'DOM', 'DOM.Iterable']
+    },
+  },
   sourcemap: { server: false, client: false },
   css: ['~/assets/css/main.css'],
   fonts: {
@@ -84,6 +92,6 @@ export default defineNuxtConfig({
         },
       },
     },
-    plugins: [tailwindcss()]
+    plugins: [tailwindcss()] as NonNullable<NuxtConfig['vite']>['plugins']
   }
 })

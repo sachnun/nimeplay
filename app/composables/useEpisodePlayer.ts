@@ -56,7 +56,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const wasLongPress = ref(false)
 
   const containerRef = ref<HTMLDivElement | null>(null)
-  const videoRef = ref<HTMLVideoElement | null>(null)
+  const videoRef = shallowRef<HTMLVideoElement | null>(null)
 
   let hls: any | null = null
   let watchedMarked = false

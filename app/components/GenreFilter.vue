@@ -29,7 +29,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
 const showAll = ref(false)
 const visibleCount = ref(20)
-const measureRef = ref<HTMLDivElement | null>(null)
+const measureRef = shallowRef<HTMLDivElement | null>(null)
 
 function countFirstRowItems(children: HTMLElement[], firstTop: number, limit: number) {
   let count = 0

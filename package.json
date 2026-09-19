@@ -12,11 +12,7 @@
     "generate": "nuxt generate",
     "typecheck": "nuxt typecheck",
     "preview": "nuxt preview",
-    "postinstall": "node scripts/gen-wasm.mjs && nuxt prepare",
-    "gen:wasm": "node scripts/gen-wasm.mjs",
-    "prebuild": "node scripts/gen-wasm.mjs",
-    "predev": "node scripts/gen-wasm.mjs",
-    "pretypecheck": "node scripts/gen-wasm.mjs",
+    "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

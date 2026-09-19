@@ -1,0 +1,40 @@
+name: Workers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/**
+      - server/**
+      - shared/**
+      - public/**
+      - nuxt.config.ts
+      - wrangler.jsonc
+      - tsconfig.json
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/workers.yml
+  workflow_dispatch:
+
+concurrency:
+  group: workers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: workers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

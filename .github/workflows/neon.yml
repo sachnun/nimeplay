@@ -1,0 +1,38 @@
+name: Neon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - functions/**
+      - neon.ts
+      - server/**
+      - shared/**
+      - tsconfig.json
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/neon.yml
+  workflow_dispatch:
+
+concurrency:
+  group: neon-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: neon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npm install -g neon@latest
+      - run: neon deploy --project-id "$NEON_PROJECT_ID" --branch "$NEON_BRANCH" --config neon.ts --update-existing --allow-protected --no-env-pull
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH: ${{ vars.NEON_BRANCH }}

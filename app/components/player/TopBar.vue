@@ -20,11 +20,10 @@ const router = useRouter()
 const isMobilePortraitControls = useMediaQuery('(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)')
 
 function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push(`/anime/${props.malId}`)
-  }
+  const detailPath = `/anime/${props.malId}`
+  const back = (window.history.state as { back?: string } | null)?.back
+  if (back === detailPath) router.back()
+  else router.replace(detailPath)
 }
 </script>
 

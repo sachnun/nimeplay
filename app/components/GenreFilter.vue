@@ -82,14 +82,11 @@ onMounted(() => {
 onBeforeUnmount(() => observer?.disconnect())
 watch(() => props.genres.length, () => nextTick(calculate))
 
-const historyCookie = useCookie<string>(HISTORY_COOKIE, { maxAge: 31536000, sameSite: 'lax' })
-const hasHistory = ref(historyCookie.value === '1')
+const hasHistory = ref(false)
 
 async function syncHistoryVisibility() {
   try {
-    const has = (await getContinueWatching()).length > 0
-    hasHistory.value = has
-    historyCookie.value = has ? '1' : ''
+    hasHistory.value = (await getContinueWatching()).length > 0
   } catch {
     hasHistory.value = false
   }

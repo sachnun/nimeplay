@@ -4,7 +4,16 @@ const DB_NAME = 'nimeplay'
 const DB_VERSION = 3
 const COMPLETED_PROGRESS_THRESHOLD = 0.87
 
+export const HISTORY_COOKIE = 'np_hist'
+
 let dbPromise: Promise<IDBPDatabase> | null = null
+let historyFlag: boolean | null = null
+
+function writeHistoryFlag(hasHistory: boolean): void {
+  if (!import.meta.client || historyFlag === hasHistory) return
+  historyFlag = hasHistory
+  document.cookie = `${HISTORY_COOKIE}=${hasHistory ? '1' : ''}; path=/; max-age=31536000; samesite=lax`
+}
 
 export function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
@@ -67,12 +76,14 @@ export async function markWatched(key: string, data: Omit<WatchProgress, 'update
     duration: Math.max(data.duration, 1),
     updatedAt: Date.now(),
   }, key)
+  writeHistoryFlag(true)
 }
 
 export async function saveProgress(key: string, data: Omit<WatchProgress, 'updatedAt'>) {
   if (!import.meta.client) return
   const db = await getDb()
   await db.put('progress', { ...data, updatedAt: Date.now() }, key)
+  writeHistoryFlag(true)
 }
 
 export async function getProgress(key: string): Promise<WatchProgress | null> {
@@ -148,10 +159,12 @@ export async function removeAnimeProgress(malId: number): Promise<void> {
   const keys = await db.getAllKeys('progress')
   const prefix = `${malId}:`
   await Promise.all(keys.filter((key) => String(key).startsWith(prefix)).map((key) => db.delete('progress', key)))
+  writeHistoryFlag(keys.some((key) => !String(key).startsWith(prefix)))
 }
 
 export async function clearAllProgress(): Promise<void> {
   if (!import.meta.client) return
   const db = await getDb()
   await db.clear('progress')
+  writeHistoryFlag(false)
 }

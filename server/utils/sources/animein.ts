@@ -1,9 +1,9 @@
 import { sealStreamToken } from '../stream'
-import { getSpoofHeaders } from '../spoof'
+import { plainGet } from '../plain-fetch'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const ASSET_BASE = 'https://xyz-api.animein.net'
-const API_BASE = `https://unroxy.koyeb.app/${ASSET_BASE}`
+const API_BASE = ASSET_BASE
 const REQUEST_TIMEOUT_MS = 8000
 const COMPLETED_PAGE_LIMIT = 100
 const EPISODE_PAGE_SIZE = 30
@@ -55,16 +55,10 @@ interface AnimeinServer {
 }
 
 async function apiGet<T>(path: string): Promise<T | null> {
+  const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
+  if (!res || res.status !== 200) return null
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      headers: {
-        ...getSpoofHeaders(ASSET_BASE, 'cors'),
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    const body = await res.json() as { status?: number, error?: boolean, data?: T }
+    const body = JSON.parse(res.text) as { status?: number, error?: boolean, data?: T }
     if (body.error || body.status !== 200 || !body.data) return null
     return body.data
   }

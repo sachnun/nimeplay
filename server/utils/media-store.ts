@@ -1,5 +1,6 @@
 import { optimizeImage } from './image'
 import { getSpoofHeaders } from './spoof'
+import { plainGetBinary } from './plain-fetch'
 import { putMedia } from './media'
 
 const MAL_REFERER = 'https://myanimelist.net/'
@@ -28,6 +29,10 @@ export async function fetchRemoteMedia(url: string): Promise<{ contentType: stri
 }
 
 async function fetchImage(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
+  const direct = await plainGetBinary(url, { headers: { referer: MAL_REFERER }, timeoutMs: FETCH_TIMEOUT_MS })
+  if (direct && direct.status >= 200 && direct.status < 300) {
+    return { contentType: direct.contentType, bytes: direct.bytes.buffer as ArrayBuffer }
+  }
   const response = await fetch(url, {
     headers: getSpoofHeaders(MAL_REFERER, 'cors'),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

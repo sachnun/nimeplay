@@ -5,7 +5,15 @@ export default defineConfig({
     task: {
       name: 'Nimeplay Tasks',
       source: './functions/task.ts',
-      externalPackages: ['sharp', 'impit'],
+      externalPackages: ['impit'],
+      env: {
+        MEDIA_BUCKET: process.env.MEDIA_BUCKET ?? 'nimeplay',
+      },
+    },
+    media: {
+      name: 'Nimeplay Media',
+      source: './functions/media.ts',
+      externalPackages: ['sharp'],
       env: {
         MEDIA_BUCKET: process.env.MEDIA_BUCKET ?? 'nimeplay',
       },
@@ -14,5 +22,6 @@ export default defineConfig({
   triggers: {
     tick: { type: 'schedule', function: 'task', cron: '* * * * *', functionPath: '/tick' },
     catalog: { type: 'schedule', function: 'task', cron: '*/30 * * * *', functionPath: '/catalog' },
+    media: { type: 'schedule', function: 'media', cron: '* * * * *', functionPath: '/tick' },
   },
 })

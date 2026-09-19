@@ -71,7 +71,7 @@ export default defineNuxtConfig({
       meta: [
         { name: 'description', content: 'Minimal anime streaming' },
         { name: 'google', content: 'notranslate' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' }
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
       ]
     }
   },

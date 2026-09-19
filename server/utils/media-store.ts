@@ -4,6 +4,7 @@ import { putMedia } from './media'
 
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000
+const FETCH_ATTEMPTS = 3
 const POSTER_WIDTH = 256
 const AVATAR_SIZE = 112
 
@@ -14,6 +15,19 @@ export async function storeMedia(key: string, data: ArrayBuffer, contentType: st
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchImage(url)
+    }
+    catch (error) {
+      const permanent = error instanceof Error && /^HTTP 4\d\d/.test(error.message)
+      if (permanent || attempt >= FETCH_ATTEMPTS) throw error
+      await new Promise(resolve => setTimeout(resolve, 500 * attempt))
+    }
+  }
+}
+
+async function fetchImage(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {
   const response = await fetch(url, {
     headers: getSpoofHeaders(MAL_REFERER, 'cors'),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

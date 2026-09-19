@@ -27,6 +27,8 @@ export function useAnimeProgressMap(continueItems: MaybeRefOrGetter<AnimeProgres
   return { progressMap, syncProgress }
 }
 
+const PREFETCH_SCREENS = 2
+
 export function useInfiniteGridObserver(options: {
   gridRef: Ref<HTMLDivElement | null>
   sentinelRef: Ref<HTMLDivElement | null>
@@ -45,7 +47,7 @@ export function useInfiniteGridObserver(options: {
   function isSentinelNearViewport() {
     if (!options.sentinelRef.value || toValue(options.isEnd)) return false
     const rect = options.sentinelRef.value.getBoundingClientRect()
-    return rect.top <= window.innerHeight + 800 && rect.bottom >= -800
+    return rect.top <= window.innerHeight * (1 + PREFETCH_SCREENS) && rect.bottom >= -800
   }
 
   onMounted(() => {
@@ -57,7 +59,7 @@ export function useInfiniteGridObserver(options: {
 
     intersectionObserver = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void options.loadMore()
-    }, { rootMargin: '800px 0px' })
+    }, { rootMargin: `${PREFETCH_SCREENS * 100}% 0px` })
     if (options.sentinelRef.value) intersectionObserver.observe(options.sentinelRef.value)
   })
 

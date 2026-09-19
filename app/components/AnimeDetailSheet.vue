@@ -1,6 +1,8 @@
 <script setup lang="ts">
-defineProps<{ thumbnail?: string }>()
+const props = defineProps<{ thumbnail?: string; title?: string }>()
 const emit = defineEmits<{ close: [] }>()
+
+useHead(() => (props.title ? { title: props.title, titleTemplate: '%s - Nimeplay' } : {}))
 
 const panelRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)

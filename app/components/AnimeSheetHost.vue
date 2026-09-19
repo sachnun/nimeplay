@@ -49,7 +49,7 @@ function onClosed() {
 </script>
 
 <template>
-  <AnimeDetailSheet v-if="open" ref="sheetRef" :thumbnail="anime?.thumbnail" @close="onClosed">
+  <AnimeDetailSheet v-if="open" ref="sheetRef" :thumbnail="anime?.thumbnail" :title="anime?.title" @close="onClosed">
     <AnimeDetailContent v-if="anime" :anime="anime" hide-back />
   </AnimeDetailSheet>
 </template>

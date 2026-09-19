@@ -46,9 +46,6 @@ export const anime = pgTable('anime', {
   latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
   ongoingRank: integer('ongoing_rank'),
   metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
-  metadataAttempts: integer('metadata_attempts').notNull().default(0),
-  metadataLastError: text('metadata_last_error'),
-  metadataRetryAt: timestamp('metadata_retry_at', { withTimezone: true }),
   lastNewEpisodeAt: timestamp('last_new_episode_at', { withTimezone: true }),
   extra: jsonb('extra').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -60,8 +57,6 @@ export const anime = pgTable('anime', {
   index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
   index('anime_status_idx').on(table.status),
   index('anime_status_mal_id_idx').on(table.status, table.malId),
-  index('anime_metadata_retry_at_idx').on(table.metadataRetryAt),
-  index('anime_metadata_attempts_idx').on(table.metadataAttempts),
   index('anime_season_year_idx').on(table.season, table.year),
   index('anime_fts_idx').using('gin', sql`to_tsvector('simple', ${table.title})`),
 ])
@@ -118,17 +113,8 @@ export const characters = pgTable('characters', {
 export const media = pgTable('media', {
   key: text('key').primaryKey(),
   sourceUrl: text('source_url').notNull(),
-  contentType: text('content_type'),
-  byteSize: integer('byte_size'),
-  status: text('status').notNull().default('pending'),
-  attempts: integer('attempts').notNull().default(0),
-  lastError: text('last_error'),
-  mirroredAt: timestamp('mirrored_at', { withTimezone: true }),
-  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [
-  index('media_status_idx').on(table.status, table.nextRetryAt),
   uniqueIndex('media_source_url_key').on(table.sourceUrl),
 ])
 
@@ -137,6 +123,26 @@ export const appState = pgTable('app_state', {
   value: text('value').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+export const jobs = pgTable('jobs', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  type: text('type').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  status: text('status').notNull().default('waiting'),
+  priority: integer('priority').notNull().default(0),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(5),
+  runAt: timestamp('run_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  lockedBy: text('locked_by'),
+  lastError: text('last_error'),
+  dedupeKey: text('dedupe_key'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index('jobs_pick_idx').on(table.status, table.priority, table.runAt),
+  uniqueIndex('jobs_dedupe_key').on(table.dedupeKey).where(sql`status in ('waiting', 'active', 'failed')`),
+])
 
 export const animeRelations = relations(anime, ({ many }) => ({
   episodes: many(episodes),
@@ -162,3 +168,4 @@ export type EpisodeRow = typeof episodes.$inferSelect
 export type GenreRow = typeof genres.$inferSelect
 export type CharacterRow = typeof characters.$inferSelect
 export type MediaRow = typeof media.$inferSelect
+export type JobRow = typeof jobs.$inferSelect

@@ -193,9 +193,6 @@ function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert
     lastNewEpisodeAt: entry.status === 'ONGOING' ? new Date(`${last}T00:00:00Z`) : null,
     ongoingRank: entry.status === 'ONGOING' ? malId - MAL_BASE : null,
     metadataSyncedAt: new Date(),
-    metadataAttempts: 0,
-    metadataLastError: null,
-    metadataRetryAt: null,
     extra: { episodeTotal: entry.episodes },
     updatedAt: new Date(),
   }

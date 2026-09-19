@@ -158,7 +158,7 @@ export async function getCharactersForAnime(animeId: number): Promise<AnimeChara
     })
     .from(characters)
     .innerJoin(media, eq(media.key, characters.imageKey))
-    .where(and(eq(characters.animeId, animeId), eq(media.status, 'ready')))
+    .where(eq(characters.animeId, animeId))
     .orderBy(asc(characters.sortOrder))
 
   return rows.map(row => ({

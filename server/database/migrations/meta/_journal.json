@@ -22,6 +22,27 @@
       "when": 1789785536508,
       "tag": "0002_steady_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789805368088,
+      "tag": "0003_soft_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789805437504,
+      "tag": "0004_supreme_meteorite",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789805820241,
+      "tag": "0005_living_sleeper",
+      "breakpoints": true
     }
   ]
 }

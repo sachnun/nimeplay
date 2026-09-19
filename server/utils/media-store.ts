@@ -9,11 +9,10 @@ const FETCH_TIMEOUT_MS = 15000
 const POSTER_WIDTH = 256
 const AVATAR_SIZE = 112
 
-export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<{ contentType: string, byteSize: number }> {
+export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<void> {
   const poster = key.startsWith('posters/')
   const encoded = await optimizeImage(data, contentType, poster ? POSTER_WIDTH : AVATAR_SIZE, !poster)
   await putMedia(key, encoded.bytes, encoded.contentType)
-  return { contentType: encoded.contentType, byteSize: encoded.bytes.byteLength }
 }
 
 export async function fetchRemoteMedia(url: string): Promise<{ contentType: string, bytes: ArrayBuffer }> {

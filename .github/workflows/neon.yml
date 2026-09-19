@@ -31,6 +31,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: npm install -g neon@latest
+      - run: DATABASE_URL="$(neon connection-string "$NEON_BRANCH" --project-id "$NEON_PROJECT_ID" --pooled)" pnpm db:migrate
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH: ${{ vars.NEON_BRANCH }}
       - run: neon deploy --project-id "$NEON_PROJECT_ID" --branch "$NEON_BRANCH" --config neon.ts --update-existing --allow-protected --no-env-pull
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}

@@ -1,5 +1,5 @@
 import { sealStreamToken } from '../stream'
-import { getSpoofHeaders } from '../spoof'
+import { fetchImpersonated } from '../impersonate'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const ASSET_BASE = 'https://xyz-api.animein.net'
@@ -55,11 +55,8 @@ interface AnimeinServer {
 
 async function apiGet<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${ASSET_BASE}${path}`, {
-      headers: {
-        ...getSpoofHeaders(ASSET_BASE, 'cors'),
-        'Accept': 'application/json',
-      },
+    const res = await fetchImpersonated(`${ASSET_BASE}${path}`, {
+      headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!res.ok) return null
@@ -267,6 +264,7 @@ export const animein: AnimeSource = {
   id: 'animein',
   name: 'ANIMEIN',
   baseUrl: 'https://animeinweb.com',
+  workerBlocked: true,
   ongoingFresh: scrapeOngoingFresh,
   completedFresh: scrapeCompletedFresh,
   detailFresh: scrapeAnimeDetailFresh,

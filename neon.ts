@@ -5,7 +5,7 @@ export default defineConfig({
     task: {
       name: 'Nimeplay Tasks',
       source: './functions/task.ts',
-      externalPackages: ['sharp'],
+      externalPackages: ['sharp', 'impit'],
       env: {
         MEDIA_BUCKET: process.env.MEDIA_BUCKET ?? 'nimeplay',
       },

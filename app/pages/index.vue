@@ -10,6 +10,7 @@ interface HomeData {
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
 definePageMeta({
+  layout: 'browse',
   browse: true,
   scrollToTop: (_to, from) => !from.meta.browse,
 })
@@ -24,27 +25,20 @@ const { data, error, status } = await useAsyncData<HomeData>('home', async () =>
   }),
 })
 
-const searchOpen = ref(false)
 const homeFailed = computed(() => status.value !== 'pending' && isServerError(error.value))
 </script>
 
 <template>
-  <div class="px-6 py-8">
-    <GenreFilter :genres="data.genres" :selected-genre="null" @search="searchOpen = true" @sign-in="searchOpen = false" />
-
-    <section v-if="homeFailed">
-      <EmptyState />
-    </section>
-    <section v-else>
-      <AnimeInfiniteGrid
-        page-type="ONGOING"
-        :initial-data="data.ongoingData"
-        next-page-type="COMPLETED"
-        :next-initial-data="data.completedData"
-        :next-show-day="false"
-      />
-    </section>
-
-    <SearchBar :open="searchOpen" @close="searchOpen = false" @open="searchOpen = true" />
-  </div>
+  <section v-if="homeFailed">
+    <EmptyState />
+  </section>
+  <section v-else>
+    <AnimeInfiniteGrid
+      page-type="ONGOING"
+      :initial-data="data.ongoingData"
+      next-page-type="COMPLETED"
+      :next-initial-data="data.completedData"
+      :next-show-day="false"
+    />
+  </section>
 </template>

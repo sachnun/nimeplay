@@ -165,7 +165,15 @@ function onContentTouchEnd() {
   else dragY.value = 0
 }
 
-defineExpose({ requestClose })
+function getScrollTop() {
+  return scrollRef.value?.scrollTop ?? 0
+}
+
+function setScrollTop(top: number) {
+  if (scrollRef.value) scrollRef.value.scrollTop = top
+}
+
+defineExpose({ requestClose, getScrollTop, setScrollTop })
 </script>
 
 <template>

@@ -20,8 +20,8 @@ const props = withDefaults(defineProps<{
   nextShowDay: false,
 })
 
-const sentinelRef = ref<HTMLDivElement | null>(null)
-const gridRef = ref<HTMLDivElement | null>(null)
+const sentinelRef = shallowRef<HTMLDivElement | null>(null)
+const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
 const gridState = useState<{
   primaryPages: PageData[]

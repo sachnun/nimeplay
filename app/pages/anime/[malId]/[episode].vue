@@ -92,8 +92,6 @@ onMounted(() => {
       :current-episode-num="pendingEpisodeNum"
       :controls-visible="true"
       :show-episodes="showPendingEpisodes"
-      :quality-count="0"
-      :active-quality-label="'HD'"
       @toggle-episodes="showPendingEpisodes = !showPendingEpisodes"
     />
     <PlayerBottomControls

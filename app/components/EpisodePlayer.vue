@@ -11,7 +11,6 @@ const props = defineProps<{
 }>()
 
 const {
-  activeQualityLabel,
   autoNextCountdown,
   autoSkip,
   bufferedPct,
@@ -45,7 +44,6 @@ const {
   onSeekStart,
   prevEpisode,
   progress,
-  qualityOptions,
   resolving,
   seekIndicator,
   seekIndicatorKey,
@@ -62,7 +60,6 @@ const {
   toggleFullscreen,
   toggleMute,
   togglePlay,
-  toggleQuality,
   videoRef,
   volume,
   volumeIndicator,
@@ -123,10 +120,7 @@ const {
       :current-episode-num="currentEpisodeNum"
       :controls-visible="controlsVisible"
       :show-episodes="showEpisodes"
-      :quality-count="qualityOptions.length"
-      :active-quality-label="activeQualityLabel"
       @toggle-episodes="toggleEpisodesPanel"
-      @toggle-quality="toggleQuality"
     />
 
     <div v-if="autoNextCountdown !== null" class="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-30">
@@ -145,7 +139,6 @@ const {
 
     <PlayerBottomControls
       v-if="showNative || resolving"
-      :active-quality-label="activeQualityLabel"
       :auto-skip="autoSkip"
       :buffered-pct="bufferedPct"
       :controls-visible="controlsVisible"
@@ -161,7 +154,6 @@ const {
       :next-episode="nextEpisode"
       :prev-episode="prevEpisode"
       :progress="progress"
-      :quality-count="qualityOptions.length"
       :show-episodes="showEpisodes"
       :show-volume="showVolume"
       :skip-times="skipTimes"
@@ -178,7 +170,6 @@ const {
       @toggle-fullscreen="toggleFullscreen"
       @toggle-mute="toggleMute"
       @toggle-play="togglePlay"
-      @toggle-quality="toggleQuality"
     />
 
     <PlayerEpisodeDrawer

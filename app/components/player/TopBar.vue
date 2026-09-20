@@ -6,13 +6,10 @@ const props = defineProps<{
   currentEpisodeNum: number
   controlsVisible: boolean
   showEpisodes: boolean
-  qualityCount: number
-  activeQualityLabel: string
 }>()
 
 defineEmits<{
   toggleEpisodes: []
-  toggleQuality: []
 }>()
 
 const router = useRouter()
@@ -51,13 +48,6 @@ function goBack() {
         @click="$emit('toggleEpisodes')"
       >
         EP {{ currentEpisodeNum }}
-      </button>
-      <button
-        v-if="qualityCount > 1 && isMobilePortraitControls"
-        class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer"
-        @click="$emit('toggleQuality')"
-      >
-        {{ activeQualityLabel }}
       </button>
     </div>
   </div>

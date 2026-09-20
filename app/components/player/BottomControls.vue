@@ -2,7 +2,6 @@
 import type { SkipTime } from '~/utils/types'
 
 withDefaults(defineProps<{
-  activeQualityLabel?: string
   autoSkip?: boolean
   bufferedPct?: number
   controlsVisible?: boolean
@@ -17,14 +16,12 @@ withDefaults(defineProps<{
   nextEpisode?: { num: number } | null
   prevEpisode?: { num: number } | null
   progress?: number
-  qualityCount?: number
   disabled?: boolean
   showEpisodes?: boolean
   showVolume?: boolean
   skipTimes?: SkipTime[]
   volume?: number
 }>(), {
-  activeQualityLabel: 'HD',
   autoSkip: false,
   bufferedPct: 0,
   controlsVisible: true,
@@ -39,7 +36,6 @@ withDefaults(defineProps<{
   nextEpisode: null,
   prevEpisode: null,
   progress: 0,
-  qualityCount: 0,
   disabled: false,
   showEpisodes: false,
   showVolume: false,
@@ -62,7 +58,6 @@ defineEmits<{
   toggleFullscreen: []
   toggleMute: []
   togglePlay: []
-  toggleQuality: []
 }>()
 </script>
 
@@ -99,9 +94,6 @@ defineEmits<{
         <div class="flex-1" />
         <button v-if="episodeCount > 1 && isDesktopLayout" class="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer" :class="showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleEpisodes')">
           EP {{ currentEpisodeNum }}
-        </button>
-        <button v-if="qualityCount > 1 && isDesktopLayout" class="hidden md:block text-xs px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors font-medium cursor-pointer" @click="$emit('toggleQuality')">
-          {{ activeQualityLabel }}
         </button>
         <button v-if="skipTimes.length > 0" class="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded transition-colors cursor-pointer" :class="autoSkip ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'" @click="$emit('toggleAutoSkip')">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" :stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>

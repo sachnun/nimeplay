@@ -1,7 +1,9 @@
 import { fetchSkipTimes } from '~/utils/remote'
 import { loadHls, preloadHls } from '~/utils/hls'
+import { listQualityLevels, type MirrorCandidate } from '~/utils/player'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
+import { pickInitialQuality, rememberQuality, useEpisodePlayerQuality } from './player/quality'
 import { useEpisodePlayerResolution } from './player/resolution'
 import type { EpisodeData, EpisodePageData, SkipTime } from '~/utils/types'
 
@@ -92,21 +94,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return episodeAtOffset(-1)
   })
 
-  const qualityOptions = computed(() => {
-    const qualityOrder = ['1080p', '720p', '480p', '360p']
-    const sorted = [...episode.value.mirrors].sort((a, b) => {
-      const ai = qualityOrder.indexOf(a.quality)
-      const bi = qualityOrder.indexOf(b.quality)
-      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-    })
-    return sorted.slice(0, 2).map((mirror) => {
-      const bestSource = [...mirror.sources].sort((a, b) => sourcePriority(a.name) - sourcePriority(b.name))[0]
-      const label = ['720p', '1080p'].includes(mirror.quality) ? 'HD' : 'SD'
-      return bestSource ? { quality: mirror.quality, label, dataContent: bestSource.dataContent, name: bestSource.name } : null
-    }).filter((item): item is { quality: string; label: string; dataContent: string; name: string } => item !== null)
-  })
+  const qualityLevels = computed(() => listQualityLevels(episode.value.mirrors))
 
-  const activeQualityLabel = computed(() => qualityOptions.value.find((opt) => opt.quality === activeQuality.value)?.label ?? 'HD')
+  function bufferAhead() {
+    const video = videoRef.value
+    if (!video || video.buffered.length === 0) return 0
+    return Math.max(0, video.buffered.end(video.buffered.length - 1) - video.currentTime)
+  }
+
   const showNative = computed(() => !!directUrl.value)
   const showEmpty = computed(() => !showNative.value && !resolving.value)
   const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value))
@@ -152,6 +147,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     pendingStartHide = true
     skipTimes.value = []
     clearGestureState()
+    resetQuality()
 
     const pendingReset = (async () => {
       try {
@@ -286,6 +282,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     },
   })
 
+  const { reset: resetQuality, start: startQuality, stop: stopQuality } = useEpisodePlayerQuality({
+    videoRef,
+    levels: qualityLevels,
+    activeQuality,
+    isSwitching: () => resolving.value,
+    bufferAhead,
+    bandwidthEstimate: () => hls?.bandwidthEstimate ?? NaN,
+    onSelect: applyQuality,
+  })
+
   async function reloadUpstreamFresh(exclude: string[] = []): Promise<boolean> {
     resolving.value = true
     loadingMessage.value = 'Mencoba sumber video lain...'
@@ -316,18 +322,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (!ok) resolving.value = false
   }
 
-  function switchQuality(opt: { dataContent: string; quality: string; name: string }) {
+  function applyQuality(level: MirrorCandidate) {
     const video = videoRef.value
     autoPlayOnLoad = !!video && !video.paused
     if (video && video.currentTime > 0) resumeTime = video.currentTime
-    void playWithFallback(opt, false, true)
-  }
-
-  function toggleQuality() {
-    if (qualityOptions.value.length < 2) return
-    const next = qualityOptions.value.find((o) => o.quality !== activeQuality.value) ?? qualityOptions.value[0]
-    if (!next) return
-    switchQuality(next)
+    rememberQuality(level.quality)
+    void playWithFallback(level, false, true)
   }
 
   function toggleAutoSkip() {
@@ -339,6 +339,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     invalidatePlaybackSession()
     resetEpoch++
     upstreamRefreshTried = false
+    resetQuality()
     resolving.value = true
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
@@ -616,7 +617,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function loadEpisodeSource(value: EpisodeData) {
     if (!import.meta.client || suppressEpisodeWatch) return
-    const def = findDefaultMirror(value)
+    const def = pickInitialQuality(qualityLevels.value) ?? findDefaultMirror(value)
     if (!def) {
       void autoRefreshUpstream([])
       return
@@ -650,6 +651,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function updatePlayingState(playing: boolean) {
     if (playing) {
       videoLoading.value = false
+      rememberQuality(activeQuality.value)
       if (pendingStartHide) {
         pendingStartHide = false
         resetIdle(START_CONTROLS_IDLE_MS)
@@ -790,6 +792,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
     getAutoSkip().then((val) => { autoSkip.value = val })
     preloadHls()
+    startQuality()
     prefetchNextEpisode()
     const video = videoRef.value
     if (video) onBeforeUnmount(registerVideoEvents(video))
@@ -842,6 +845,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         try { current.load() } catch {}
       }
       destroyHls()
+      stopQuality()
       invalidatePlaybackSession()
       clearAnyTimer(countdownTimer)
       clearAnyTimer(idleTimer)
@@ -860,7 +864,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   })
 
   return {
-    activeQualityLabel,
     autoNextCountdown,
     autoSkip,
     bufferedPct,
@@ -895,7 +898,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     onSeekStart,
     prevEpisode,
     progress,
-    qualityOptions,
     cancelAutoNext,
     resolving,
     scrubPreview,
@@ -915,7 +917,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     toggleFullscreen,
     toggleMute,
     togglePlay,
-    toggleQuality,
     videoRef,
     volume,
     volumeIndicator,

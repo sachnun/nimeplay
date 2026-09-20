@@ -9,6 +9,20 @@ export type MirrorCandidate = {
   name: string
 }
 
+const QUALITY_BITRATE: Record<string, number> = {
+  '1080p': 5_000_000,
+  '720p': 2_800_000,
+  '480p': 1_400_000,
+  '360p': 700_000,
+}
+
+export function qualityBitrate(quality: string): number {
+  const known = QUALITY_BITRATE[quality]
+  if (known) return known
+  const height = Number.parseInt(quality, 10)
+  return Number.isFinite(height) ? height * 4_000 : 2_800_000
+}
+
 function sortedSources(mirror: EpisodeData['mirrors'][number]) {
   return [...mirror.sources].sort((a, b) => sourcePriority(a.name) - sourcePriority(b.name))
 }
@@ -37,6 +51,20 @@ export function buildFallbackOrder(mirrors: EpisodeData['mirrors'], startQuality
 export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {
   const order = buildFallbackOrder(episode.mirrors, '720p')
   return order[0] ?? null
+}
+
+export function listQualityLevels(mirrors: EpisodeData['mirrors']): MirrorCandidate[] {
+  const sorted = [...mirrors].sort((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
+  const seen = new Set<string>()
+  const levels: MirrorCandidate[] = []
+  for (const mirror of sorted) {
+    if (seen.has(mirror.quality)) continue
+    const best = sortedSources(mirror)[0]
+    if (!best) continue
+    seen.add(mirror.quality)
+    levels.push(toCandidate(mirror.quality, best))
+  }
+  return levels
 }
 
 export function formatTime(s: number): string {

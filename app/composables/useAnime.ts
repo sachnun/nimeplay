@@ -5,6 +5,7 @@ interface AnimeProgressEntry {
   episodeNumber: number
   currentTime: number
   duration: number
+  latestEpisode?: number
 }
 
 export function useAnimeProgressMap(continueItems: MaybeRefOrGetter<AnimeProgressEntry[]>) {

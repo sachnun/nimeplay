@@ -180,6 +180,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       duration: video.duration,
       malId: props.malId,
       episodeNumber: currentEpisodeNum.value,
+      latestEpisode: latestAvailableEpisode(),
     })
   }
 
@@ -190,7 +191,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       duration: 1,
       malId: props.malId,
       episodeNumber: nextEpisode.value.num,
+      latestEpisode: latestAvailableEpisode(),
     })
+  }
+
+  function latestAvailableEpisode() {
+    return props.episodes.length ? Math.max(...props.episodes) : undefined
   }
 
   function progressFallbackDuration() {
@@ -215,6 +221,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       duration: progressDuration(fallbackDuration),
       malId: props.malId,
       episodeNumber: currentEpisodeNum.value,
+      latestEpisode: latestAvailableEpisode(),
     }
   }
 

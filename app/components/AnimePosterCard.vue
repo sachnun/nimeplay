@@ -4,6 +4,7 @@ const props = withDefaults(defineProps<{
   thumbnail: string
   title: string
   badge?: string
+  newEpisode?: boolean
   subtitle?: string
   resumeTo?: string
   progressPct?: number
@@ -12,6 +13,7 @@ const props = withDefaults(defineProps<{
   fullRounded?: boolean
 }>(), {
   badge: '',
+  newEpisode: false,
   subtitle: '',
   resumeTo: undefined,
   progressPct: undefined,
@@ -48,7 +50,11 @@ function openResume(event: Event) {
         class="object-cover w-full h-full"
         :class="zoom ? 'transition-transform duration-300 ease-out group-hover:scale-110' : ''"
       >
-      <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
+      <div
+        v-if="badge"
+        class="absolute top-2 right-2 text-xs px-2 py-0.5 rounded font-medium"
+        :class="newEpisode ? 'bg-teal-500 text-white' : 'bg-zinc-700 text-zinc-200'"
+      >
         {{ badge }}
       </div>
       <slot name="overlay" />

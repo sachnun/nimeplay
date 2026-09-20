@@ -41,6 +41,11 @@ const { progressMap, syncProgress } = useAnimeProgressMap(() => [])
 
 onMounted(() => {
   void syncProgress()
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') void syncProgress()
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+  onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
 })
 
 watch(() => props.initialData, (data) => {
@@ -67,9 +72,11 @@ const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext 
   const progress = progressMap.value.get(anime.malId)
   const resumeTo = progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined
   const showDate = anime.day && (isFromNext ? props.nextShowDay : props.showDay)
+  const latest = Number(anime.episode.match(/\d+/)?.[0])
   return {
     anime,
     badge: episodeBadge(anime.episode),
+    newEpisode: progress?.latestEpisode !== undefined && Number.isFinite(latest) && latest > progress.latestEpisode,
     to: `/anime/${anime.malId}`,
     resumeTo,
     subtitle: progress
@@ -131,12 +138,13 @@ function episodeBadge(episode: string) {
   <div>
     <div ref="gridRef" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
       <AnimePosterCard
-        v-for="({ anime, badge, to, resumeTo, subtitle, progressPct }, i) in displayCards"
+        v-for="({ anime, badge, newEpisode, to, resumeTo, subtitle, progressPct }, i) in displayCards"
         :key="`${anime.malId}-${i}`"
         :to="to"
         :thumbnail="anime.thumbnail"
         :title="anime.title"
         :badge="badge"
+        :new-episode="newEpisode"
         :subtitle="subtitle"
         :resume-to="resumeTo"
         :progress-pct="progressPct"

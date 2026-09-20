@@ -37,10 +37,12 @@ const totalPages = computed(() => gridState.value.pages[0]?.totalPages ?? 1)
 const isEnd = computed(() => gridState.value.size >= totalPages.value)
 const animeCards = computed(() => allAnime.value.map((anime) => {
   const progress = progressMap.value.get(anime.malId)
+  const latest = Number(anime.episodes?.match(/\d+/)?.[0])
   return {
     anime,
     to: `/anime/${anime.malId}`,
     badge: anime.episodes && /\d/.test(anime.episodes) ? anime.episodes : '',
+    newEpisode: progress?.latestEpisode !== undefined && Number.isFinite(latest) && latest > progress.latestEpisode,
     resumeTo: progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined,
     subtitle: progress ? `Lanjutkan EP ${progress.episodeNumber}` : anime.date,
     progressPct: progress && progress.duration > 0 ? (progress.currentTime / progress.duration) * 100 : undefined,
@@ -79,12 +81,13 @@ const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRe
   <div>
     <div ref="gridRef" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
       <AnimePosterCard
-        v-for="({ anime, to, badge, subtitle, resumeTo, progressPct }, i) in animeCards"
+        v-for="({ anime, to, badge, newEpisode, subtitle, resumeTo, progressPct }, i) in animeCards"
         :key="`${anime.malId}-${i}`"
         :to="to"
         :thumbnail="anime.thumbnail"
         :title="anime.title"
         :badge="badge"
+        :new-episode="newEpisode"
         :subtitle="subtitle"
         :resume-to="resumeTo"
         :progress-pct="progressPct"

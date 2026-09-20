@@ -52,6 +52,7 @@ export interface WatchProgress {
   updatedAt: number
   malId: number
   episodeNumber: number
+  latestEpisode?: number
 }
 
 export function progressKey(malId: number, episodeNumber: number): string {

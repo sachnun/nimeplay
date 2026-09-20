@@ -3,6 +3,7 @@ import { isOdcloud, extractOdcloud } from './odcloud'
 import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, embedPageHeadersFor, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
+import { isBlogger, extractBlogger } from './blogger'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -22,6 +23,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isYourupload, extract: extractYourupload },
   { matches: isFiledon, extract: extractFiledon },
   { matches: isPuterin, extract: extractPuterin },
+  { matches: isBlogger, extract: extractBlogger },
 ]
 
 async function fetchEmbedHtml(embedUrl: string): Promise<string> {

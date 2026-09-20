@@ -20,10 +20,11 @@ const NETWORK_RATES: Record<string, number> = {
 
 const SAFETY_MARGIN = 0.7
 const CHECK_INTERVAL_MS = 5_000
-const MIN_SWITCH_INTERVAL_MS = 30_000
-const BUFFER_LOW = 8
-const BUFFER_HIGH = 30
-const QUALITY_KEY = 'nimeplay:quality'
+const MIN_SWITCH_INTERVAL_MS = 60_000
+const BUFFER_CRITICAL = 4
+const BUFFER_RECOVER = 12
+const DOWNGRADE_SAMPLES = 6
+const UPGRADE_SAMPLES = 1
 
 function networkBandwidth(): number | null {
   if (!import.meta.client) return null
@@ -36,36 +37,15 @@ function networkBandwidth(): number | null {
   return connection.effectiveType ? NETWORK_RATES[connection.effectiveType] ?? null : null
 }
 
-function preferredQuality(): string | null {
-  if (!import.meta.client) return null
-  try { return localStorage.getItem(QUALITY_KEY) } catch { return null }
-}
-
-export function rememberQuality(quality: string) {
-  if (!import.meta.client) return
-  try { localStorage.setItem(QUALITY_KEY, quality) } catch {}
-}
-
-function pickByBandwidth(levels: MirrorCandidate[], bandwidth: number): MirrorCandidate | null {
-  const safe = bandwidth * SAFETY_MARGIN
-  return levels.find((level) => qualityBitrate(level.quality) <= safe) ?? levels[levels.length - 1] ?? null
-}
-
-export function pickInitialQuality(levels: MirrorCandidate[], fallback = '720p'): MirrorCandidate | null {
-  if (levels.length === 0) return null
-  const bandwidth = networkBandwidth()
-  if (bandwidth !== null) return pickByBandwidth(levels, bandwidth)
-  const remembered = preferredQuality()
-  if (remembered) {
-    const match = levels.find((level) => level.quality === remembered)
-    if (match) return match
-  }
-  return levels.find((level) => level.quality === fallback) ?? levels[0] ?? null
+export function pickInitialQuality(levels: MirrorCandidate[]): MirrorCandidate | null {
+  return levels[0] ?? null
 }
 
 export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
   let timer: ReturnType<typeof setInterval> | null = null
   let lastSwitchAt = 0
+  let lowSamples = 0
+  let highSamples = 0
 
   function currentBandwidth(): number | null {
     const external = options.bandwidthEstimate?.()
@@ -75,6 +55,8 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
 
   function commit(level: MirrorCandidate) {
     lastSwitchAt = Date.now()
+    lowSamples = 0
+    highSamples = 0
     options.onSelect(level)
   }
 
@@ -87,16 +69,28 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     if (Date.now() - lastSwitchAt < MIN_SWITCH_INTERVAL_MS) return
     const index = levels.findIndex((level) => level.quality === options.activeQuality.value)
     if (index === -1) return
+    const active = levels[index]!
     const ahead = options.bufferAhead()
-    if (ahead < BUFFER_LOW) {
+    const bandwidth = currentBandwidth()
+    if (ahead < BUFFER_CRITICAL) {
+      highSamples = 0
+      lowSamples += 1
+      if (lowSamples < DOWNGRADE_SAMPLES) return
+      if (bandwidth !== null && qualityBitrate(active.quality) <= bandwidth * SAFETY_MARGIN) return
       const lower = levels[index + 1]
       if (lower) commit(lower)
       return
     }
-    if (ahead < BUFFER_HIGH) return
+    if (ahead < BUFFER_RECOVER) {
+      lowSamples = 0
+      highSamples = 0
+      return
+    }
+    lowSamples = 0
+    highSamples += 1
+    if (highSamples < UPGRADE_SAMPLES) return
     const higher = levels[index - 1]
     if (!higher) return
-    const bandwidth = currentBandwidth()
     if (bandwidth !== null && qualityBitrate(higher.quality) > bandwidth * SAFETY_MARGIN) return
     commit(higher)
   }
@@ -114,6 +108,8 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
 
   function reset() {
     lastSwitchAt = Date.now()
+    lowSamples = 0
+    highSamples = 0
   }
 
   return { reset, start, stop }

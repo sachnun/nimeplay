@@ -3,7 +3,7 @@ import { loadHls, preloadHls } from '~/utils/hls'
 import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
-import { pickInitialQuality, rememberQuality, useEpisodePlayerQuality } from './player/quality'
+import { pickInitialQuality, useEpisodePlayerQuality } from './player/quality'
 import { useEpisodePlayerResolution } from './player/resolution'
 import type { EpisodeData, EpisodePageData, SkipTime } from '~/utils/types'
 
@@ -290,7 +290,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const video = videoRef.value
     autoPlayOnLoad = !!video && !video.paused
     if (video && video.currentTime > 0) resumeTime = video.currentTime
-    rememberQuality(level.quality)
     void playWithFallback(level, false, true)
   }
 
@@ -615,7 +614,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function updatePlayingState(playing: boolean) {
     if (playing) {
       videoLoading.value = false
-      rememberQuality(activeQuality.value)
       if (pendingStartHide) {
         pendingStartHide = false
         resetIdle(START_CONTROLS_IDLE_MS)

@@ -3,9 +3,10 @@ const SOURCE_PRIORITY_GROUPS = [
   ['puterin', 'putarin'],
   ['pixeldrain', 'pdrain', 'odcdn', 'odstream', 'odcloud', 'arcg', 'archive'],
   ['vidhide', 'filelions'],
-  ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd'],
+  ['ondesuhd', 'desudesuhd', 'otakustream', 'moedesuhd', 'ondesu', 'updesu', 'desustream', 'otakuwatch'],
   ['desudrive'],
   ['moeplay', 'yourupload', 'yuplod', 'mp4upload', 'mp4load'],
+  ['mega', 'blogs'],
   ['filedon'],
 ]
 

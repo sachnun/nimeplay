@@ -2,7 +2,7 @@ const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
 const IV_LENGTH = 12
 const STREAM_SECRET = 'nimeplay::v1::7Kp3wQz9rXe2VmYs8NbT4cHd6FjUgLa0'
 
-type TokenPayload = { u: string; e: number }
+type TokenPayload = { u: string; e: number; h?: Record<string, string> }
 
 let cachedKey: Promise<CryptoKey> | null = null
 
@@ -52,18 +52,19 @@ function fromBase64Url(value: string): Uint8Array {
   return bytes.subarray(0, length)
 }
 
-export async function sealStreamToken(url: string, ttlMs?: number): Promise<string> {
+export async function sealStreamToken(url: string, ttlMs?: number, headers?: Record<string, string>): Promise<string> {
   const key = await getKey()
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH))
-  const payload = new TextEncoder().encode(JSON.stringify({ u: url, e: ttlMs ? Date.now() + ttlMs : 0 } satisfies TokenPayload))
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, payload))
+  const payload: TokenPayload = { u: url, e: ttlMs ? Date.now() + ttlMs : 0 }
+  if (headers && Object.keys(headers).length > 0) payload.h = headers
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload))))
   const sealed = new Uint8Array(IV_LENGTH + ciphertext.length)
   sealed.set(iv)
   sealed.set(ciphertext, IV_LENGTH)
   return toBase64Url(sealed)
 }
 
-export async function openStreamToken(token: string): Promise<string | null> {
+async function decodeToken(token: string): Promise<TokenPayload | null> {
   try {
     const sealed = fromBase64Url(token)
     if (sealed.length <= IV_LENGTH) return null
@@ -76,10 +77,20 @@ export async function openStreamToken(token: string): Promise<string | null> {
     const payload = JSON.parse(new TextDecoder().decode(plaintext)) as TokenPayload
     if (!payload.u || typeof payload.e !== 'number') return null
     if (payload.e !== 0 && payload.e < Date.now()) return null
-    return payload.u
+    return payload
   } catch {
     return null
   }
+}
+
+export async function openStreamToken(token: string): Promise<string | null> {
+  return (await decodeToken(token))?.u ?? null
+}
+
+export async function openStreamRequest(token: string): Promise<{ url: string, headers: Record<string, string> } | null> {
+  const payload = await decodeToken(token)
+  if (!payload) return null
+  return { url: payload.u, headers: payload.h ?? {} }
 }
 
 export function proxiedStreamPath(origin: string, token: string): string {

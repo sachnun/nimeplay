@@ -1,5 +1,19 @@
 const UPSTREAM_TIMEOUT_MS = 10_000
 
+const MEDIA_TYPES: Record<string, string> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+  mkv: 'video/x-matroska',
+  mov: 'video/quicktime',
+}
+
+function mediaContentType(upstreamType: string | null, target: URL): string | null {
+  if (upstreamType && !/octet-stream/i.test(upstreamType)) return upstreamType
+  const ext = target.pathname.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
+  return (ext && MEDIA_TYPES[ext]) || upstreamType
+}
+
 function isPlaylistUrl(url: URL): boolean {
   return url.pathname.toLowerCase().endsWith('.m3u8')
 }
@@ -14,12 +28,12 @@ export default defineEventHandler(async (event) => {
 
   if (!token) throw createError({ statusCode: 400, statusMessage: 'Missing stream token' })
 
-  const rawUrl = await openStreamToken(token)
-  if (!rawUrl) throw createError({ statusCode: 403, statusMessage: 'Invalid or expired stream token' })
+  const request = await openStreamRequest(token)
+  if (!request) throw createError({ statusCode: 403, statusMessage: 'Invalid or expired stream token' })
 
   let target: URL
   try {
-    target = new URL(rawUrl)
+    target = new URL(request.url)
   } catch {
     throw createError({ statusCode: 400, statusMessage: 'Invalid stream URL' })
   }
@@ -29,8 +43,12 @@ export default defineEventHandler(async (event) => {
   }
 
   const range = getRequestHeader(event, 'range') || undefined
+  const headers: Record<string, string> = { ...upstreamHeadersFor(target.toString(), range), ...request.headers }
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === '') delete headers[key]
+  }
   const res = await fetch(target, {
-    headers: upstreamHeadersFor(target.toString(), range),
+    headers,
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 
@@ -38,7 +56,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: res.status, statusMessage: 'Failed to fetch stream' })
   }
 
-  const contentType = res.headers.get('content-type')
+  const contentType = mediaContentType(res.headers.get('content-type'), target)
 
   if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) {
     const body = await res.text()

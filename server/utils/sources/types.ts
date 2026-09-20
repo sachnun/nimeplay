@@ -53,4 +53,5 @@ export interface AnimeSource {
   detailFresh(slug: string): Promise<ScrapedAnimeDetail | null>
   episodeFresh(slug: string): Promise<EpisodeData | null>
   resolveMirror(opaque: string): Promise<string | null>
+  proxy?(url: string): Promise<{ headers?: Record<string, string> } | null>
 }

@@ -77,8 +77,7 @@ function ctrCounter(key: Uint8Array, blockIndex: number): Uint8Array {
   return counter
 }
 
-function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
-  if (a.length === 0) return b
+function concat(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(a.length + b.length)
   out.set(a)
   out.set(b, a.length)
@@ -120,9 +119,9 @@ export async function streamMega(target: string, megaKey: string, range?: string
   let remaining = outEnd - start + 1
 
   const decrypt = (block: Uint8Array) => crypto.subtle.decrypt(
-    { name: 'AES-CTR', counter: ctrCounter(key, cipherOffset / BLOCK), length: 128 },
+    { name: 'AES-CTR', counter: ctrCounter(key, cipherOffset / BLOCK) as Uint8Array<ArrayBuffer>, length: 128 },
     cipher,
-    block,
+    block as Uint8Array<ArrayBuffer>,
   )
 
   const trim = (plain: Uint8Array): Uint8Array => {
@@ -150,7 +149,7 @@ export async function streamMega(target: string, megaKey: string, range?: string
                 pending = new Uint8Array(0)
                 const chunk = trim(plain.subarray(0, realLen))
                 remaining -= chunk.length
-                if (chunk.length > 0) controller.enqueue(chunk)
+                if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
               }
               else {
                 controller.close()
@@ -167,7 +166,7 @@ export async function streamMega(target: string, megaKey: string, range?: string
           cipherOffset += usable
           const chunk = trim(plain)
           remaining -= chunk.length
-          if (chunk.length > 0) controller.enqueue(chunk)
+          if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
           return
         }
         controller.close()

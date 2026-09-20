@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', mega.contentType)
     setHeader(event, 'Accept-Ranges', 'bytes')
     if (mega.status === 206) setHeader(event, 'Content-Range', `bytes ${mega.start}-${mega.end}/${mega.total}`)
-    setHeader(event, 'Content-Length', String(mega.end - mega.start + 1))
+    setHeader(event, 'Content-Length', mega.end - mega.start + 1)
     setHeader(event, 'Cache-Control', 'no-store')
     return mega.body
   }

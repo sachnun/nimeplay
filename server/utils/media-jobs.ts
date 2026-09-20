@@ -7,6 +7,7 @@ const WALL_MS = 5 * 60 * 1000
 const BATCH = 8
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
+const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const MEDIA_TYPES = ['media.mirror']
 const worker = `media:${process.pid}`
 
@@ -39,6 +40,6 @@ async function drain(deadline: number): Promise<void> {
 export async function runMediaTick(): Promise<void> {
   const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
-  await prune(new Date(Date.now() - DONE_TTL_MS))
+  await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await drain(deadline)
 }

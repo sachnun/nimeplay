@@ -57,6 +57,13 @@
       "when": 1789863807558,
       "tag": "0007_workable_korg",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789897790172,
+      "tag": "0008_majestic_moonstone",
+      "breakpoints": true
     }
   ]
 }

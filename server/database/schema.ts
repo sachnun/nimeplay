@@ -163,7 +163,7 @@ export const jobs = pgTable('jobs', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [
   index('jobs_pick_idx').on(table.status, table.priority, table.runAt),
-  uniqueIndex('jobs_dedupe_key').on(table.dedupeKey).where(sql`status in ('waiting', 'active', 'failed')`),
+  uniqueIndex('jobs_dedupe_key').on(table.dedupeKey).where(sql`status in ('waiting', 'active')`),
 ])
 
 export const animeRelations = relations(anime, ({ many }) => ({

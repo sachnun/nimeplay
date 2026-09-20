@@ -10,6 +10,7 @@ const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
+const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const MIRROR_SEED_LIMIT = 500
 const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill', 'episode.cache']
 const worker = `task:${process.pid}`
@@ -40,9 +41,16 @@ async function seedRefreshJobs(): Promise<void> {
     select 'anime.refresh', jsonb_build_object('slug', s.source || ':' || s.slug), 'anime.refresh:' || s.source || ':' || s.slug,
            case when s.status = 'ONGOING' then 5 else 0 end, 5
     from anime_sources s
-    where s.anime_id is null
-       or not exists (select 1 from episodes e where e.source_id = s.id)
-       or (s.status = 'ONGOING' and s.updated_at < now() - interval '2 hours')
+    where (
+      s.anime_id is null
+      or not exists (select 1 from episodes e where e.source_id = s.id)
+      or (s.status = 'ONGOING' and s.updated_at < now() - interval '2 hours')
+    )
+    and not exists (
+      select 1 from jobs j
+      where j.dedupe_key = 'anime.refresh:' || s.source || ':' || s.slug
+        and j.status = 'dead' and j.run_at > now()
+    )
     order by case when s.status = 'ONGOING' then 0 else 1 end,
              s.ongoing_rank asc nulls last,
              s.updated_at asc
@@ -61,7 +69,8 @@ async function seedEpisodeCacheJobs(): Promise<void> {
         and s.source = ${sourceId}
         and not exists (
           select 1 from jobs j
-          where j.dedupe_key = 'episode.cache:' || e.slug and j.status in ('waiting', 'active', 'failed')
+          where j.dedupe_key = 'episode.cache:' || e.slug
+            and (j.status in ('waiting', 'active') or (j.status = 'dead' and j.run_at > now()))
         )
       order by e.id
       limit ${MIRROR_SEED_LIMIT}
@@ -78,7 +87,8 @@ async function seedEpisodeCacheJobs(): Promise<void> {
       and (e.cache is null or e.cached_at < now() - interval '3 days')
       and not exists (
         select 1 from jobs j
-        where j.dedupe_key = 'episode.cache:' || e.slug and j.status in ('waiting', 'active', 'failed')
+        where j.dedupe_key = 'episode.cache:' || e.slug
+          and (j.status in ('waiting', 'active') or (j.status = 'dead' and j.run_at > now()))
       )
     order by e.id
     limit ${MIRROR_SEED_LIMIT}
@@ -105,7 +115,7 @@ async function drain(deadline: number): Promise<void> {
 export async function runTick(): Promise<void> {
   const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
-  await prune(new Date(Date.now() - DONE_TTL_MS))
+  await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await seedRefreshJobs()
   await seedEpisodeCacheJobs()
   await drain(deadline)

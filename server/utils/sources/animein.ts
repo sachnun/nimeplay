@@ -230,8 +230,10 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const data = await apiGet<{ episode?: AnimeinEpisode, server?: AnimeinServer[] }>(
     `/3/2/episode/streamnew/${encodeURIComponent(episodeId)}`,
   )
+  const episode = data?.episode
+  if (!episode) return null
+
   const servers = (data?.server ?? []).filter(server => server.type === 'direct' && server.link)
-  if (servers.length === 0) return null
 
   const grouped = new Map<string, { name: string, dataContent: string }[]>()
   for (const server of servers) {
@@ -242,7 +244,6 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
     grouped.set(quality, list)
   }
 
-  const episode = data?.episode
   return {
     title: episode?.title || `Episode ${index}`,
     animeSlug: movieId,

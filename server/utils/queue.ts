@@ -68,7 +68,7 @@ export function classifyError(message: string): FailureKind {
   if (/episode data unavailable/.test(message)) return 'permanent'
   const status = Number(message.match(/Failed to fetch .*?: (\d{3})\b/)?.[1])
   if (!status) return 'transient'
-  if (status === 408 || status === 425 || status === 429) return 'transient'
+  if (status === 403 || status === 408 || status === 425 || status === 429) return 'transient'
   return status >= 400 && status < 500 ? 'permanent' : 'transient'
 }
 

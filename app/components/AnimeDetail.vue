@@ -87,7 +87,6 @@ function goBack() {
             <div class="lg:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                 Episodes
-                <span v-if="episodes.length > 1" class="ml-2 text-zinc-600 font-normal">({{ episodes.length }})</span>
               </h2>
               <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
@@ -97,7 +96,6 @@ function goBack() {
             <div class="bg-zinc-900/50 backdrop-blur rounded-lg p-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Episodes
-                <span v-if="episodes.length > 1" class="ml-2 text-zinc-600 font-normal">({{ episodes.length }})</span>
               </h2>
               <EpisodeList :episodes="episodes" :mal-id="malId" scrollable />
             </div>

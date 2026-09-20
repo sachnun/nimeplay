@@ -77,7 +77,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
 
 <template>
   <div>
-    <div ref="gridRef" class="grid grid-cols-2 sm:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] gap-4">
+    <div ref="gridRef" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
       <NuxtLink
         v-for="({ anime, progress, to }, i) in animeCards"
         :key="`${anime.malId}-${i}`"

@@ -6,6 +6,7 @@ import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const BASE_URL = 'https://sokuja.net'
+const TIMEOUT_MS = 12000
 
 const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [
   /\s*Subtitle\s+Indonesia/gi,
@@ -88,7 +89,7 @@ function parseTotalPages($: cheerio.CheerioAPI, page: number): number {
 }
 
 async function latestEpisodeMap(): Promise<Map<string, number>> {
-  const html = await fetchHTML(`${BASE_URL}/`)
+  const html = await fetchHTML(`${BASE_URL}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const section = $('h2').filter((_, el) => $(el).text().trim() === 'Update Terbaru').first().closest('section')
   const map = new Map<string, number>()
@@ -114,7 +115,7 @@ async function mergeLatestEpisodes(cards: ScrapedAnimeCard[]): Promise<void> {
 
 async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
   const url = `${BASE_URL}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
-  const html = await fetchHTML(url)
+  const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const anime = parseCards($)
   if (status === 'ongoing' && page === 1) await mergeLatestEpisodes(anime)
@@ -147,7 +148,7 @@ function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: stri
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
+  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const series = jsonLd($).find(entry => entry['@type'] === 'TVSeries') as JsonLdTvSeries | undefined
   const title = cleanTitle(String(series?.name ?? $('h1').first().text()).trim())
@@ -204,7 +205,7 @@ async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> 
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${BASE_URL}/${slug}/`)
+  const html = await fetchHTML(`${BASE_URL}/${slug}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const title = $('h1').first().text().trim()
   const video = jsonLd($).find(entry => entry.partOfSeries) as JsonLdVideo | undefined

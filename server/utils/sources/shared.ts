@@ -11,15 +11,26 @@ export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): s
 }
 
 const HTML_TIMEOUT_MS = 8000
+const HTML_ATTEMPTS = 2
 const POST_TIMEOUT_MS = 8000
 
-export async function fetchHTML(url: string): Promise<string> {
-  const res = await fetchImpersonated(url, {
-    headers: getSpoofHeaders(url, 'navigate'),
-    signal: AbortSignal.timeout(HTML_TIMEOUT_MS),
-  })
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-  return await res.text()
+export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promise<string> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < HTML_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetchImpersonated(url, {
+        headers: getSpoofHeaders(url, 'navigate'),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+      return await res.text()
+    }
+    catch (error) {
+      lastError = error
+      if (error instanceof Error && /Failed to fetch .*?: \d{3}/.test(error.message)) throw error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`Failed to fetch ${url}`)
 }
 
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {

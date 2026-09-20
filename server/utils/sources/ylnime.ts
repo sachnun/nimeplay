@@ -4,6 +4,7 @@ import { fetchHTML } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const BASE_URL = 'https://ylnime.com'
+const TIMEOUT_MS = 15000
 
 function decodeHref(value: string): string {
   try {
@@ -47,14 +48,14 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
 
 async function scrapeOngoingFresh(page: number): Promise<ListResult> {
   if (page > 1) return { anime: [], totalPages: 1 }
-  const html = await fetchHTML(`${BASE_URL}/ongoing.php`)
+  const html = await fetchHTML(`${BASE_URL}/ongoing.php`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   return { anime: parseCards($), totalPages: 1 }
 }
 
 async function scrapeCompletedFresh(page: number): Promise<ListResult> {
   const url = page > 1 ? `${BASE_URL}/completed.php?page=${page}` : `${BASE_URL}/completed.php`
-  const html = await fetchHTML(url)
+  const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   return { anime: parseCards($), totalPages: getTotalPages($, 'completed.php') }
 }
@@ -80,7 +81,7 @@ function parseDetailEpisodes($: cheerio.CheerioAPI, series: string): { title: st
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/index.php?series=${encodeURIComponent(slug)}`)
+  const html = await fetchHTML(`${BASE_URL}/index.php?series=${encodeURIComponent(slug)}`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const title = $('.col-md-9 h1').first().text().trim()
   if (!title) return null
@@ -150,7 +151,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const series = slug.slice(0, at)
   const episodeId = slug.slice(at + 1)
   const url = `${BASE_URL}/index.php?series=${encodeURIComponent(series)}&episode=${encodeURIComponent(episodeId)}`
-  const html = await fetchHTML(url)
+  const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const breadcrumb = $('.breadcrumb-item.active').text().trim()
   const animeTitle = $('.breadcrumb a[href*="?series="]').first().text().trim()

@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../database/schema'
 import { db } from './db'
-import { claim, complete, enqueue, fail, prune, releaseStale } from './queue'
+import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } from './queue'
 import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
+import { openSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './vendor-guard'
 
 const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
@@ -96,19 +97,39 @@ async function seedEpisodeCacheJobs(): Promise<void> {
   `)
 }
 
+async function processJob(job: JobRow): Promise<void> {
+  const sourceId = sourceOf(job)
+  await runGuarded(sourceId, async () => {
+    try {
+      await handle(job)
+      await complete(job.id)
+      recordSuccess(sourceId)
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (classifyError(message) === 'transient') recordFailure(sourceId)
+      else recordSuccess(sourceId)
+      await fail(job.id, message)
+    }
+  })
+}
+
+async function logStats(): Promise<void> {
+  const counts = await db().execute(sql`
+    select status, count(*)::int as n from jobs where status in ('waiting', 'active', 'dead') group by status
+  `) as unknown as { rows: { status: string, n: number }[] }
+  const waiting = await db().execute(sql`
+    select coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), 'none') as vendor, count(*)::int as n
+    from jobs where status = 'waiting' group by 1 order by n desc limit 5
+  `) as unknown as { rows: { vendor: string, n: number }[] }
+  console.log('[tick]', JSON.stringify({ counts: counts.rows, waiting: waiting.rows }))
+}
+
 async function drain(deadline: number): Promise<void> {
   while (Date.now() < deadline) {
-    const claimed = await claim(worker, BATCH, TASK_TYPES)
+    const claimed = await claim(worker, BATCH, TASK_TYPES, openSources())
     if (claimed.length === 0) return
-    await Promise.all(claimed.map(async (job) => {
-      try {
-        await handle(job)
-        await complete(job.id)
-      }
-      catch (error) {
-        await fail(job.id, error instanceof Error ? error.message : String(error))
-      }
-    }))
+    await Promise.all(claimed.map(processJob))
   }
 }
 
@@ -119,6 +140,7 @@ export async function runTick(): Promise<void> {
   await seedRefreshJobs()
   await seedEpisodeCacheJobs()
   await drain(deadline)
+  await logStats()
 }
 
 export async function runCatalog(): Promise<void> {

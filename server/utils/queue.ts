@@ -27,16 +27,19 @@ export async function enqueue(item: JobInput): Promise<void> {
   return enqueueMany([item])
 }
 
-export async function claim(worker: string, limit: number, types?: string[]): Promise<JobRow[]> {
+export async function claim(worker: string, limit: number, types?: string[], excludeSources?: string[]): Promise<JobRow[]> {
   const typeFilter = types && types.length
     ? sql` and type in (${sql.join(types.map(type => sql`${type}`), sql`, `)})`
+    : sql``
+  const sourceFilter = excludeSources && excludeSources.length
+    ? sql` and coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), '') not in (${sql.join(excludeSources.map(id => sql`${id}`), sql`, `)})`
     : sql``
   const result = await db().execute(sql`
     update jobs
     set status = 'active', locked_at = now(), locked_by = ${worker}, attempts = attempts + 1, updated_at = now()
     where id in (
       select id from jobs
-      where status = 'waiting' and run_at <= now() ${typeFilter}
+      where status = 'waiting' and run_at <= now() ${typeFilter} ${sourceFilter}
       order by priority desc, run_at asc
       for update skip locked
       limit ${limit}

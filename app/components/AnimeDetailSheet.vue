@@ -14,6 +14,7 @@ const ready = ref(false)
 const dragging = ref(false)
 const closing = ref(false)
 let contentDragging = false
+let contentMode: 'expand' | 'down' | null = null
 let grabStartY = 0
 let grabStartHeight = 0
 let contentStartY = 0
@@ -133,6 +134,7 @@ function onContentTouchStart(event: TouchEvent) {
   const touch = event.touches[0]
   if (!touch) return
   contentDragging = false
+  contentMode = null
   contentStartY = touch.clientY
 }
 
@@ -141,30 +143,59 @@ function onContentTouchMove(event: TouchEvent) {
   const touch = event.touches[0]
   if (!touch) return
   const clientY = touch.clientY
+  const now = performance.now()
   if (!contentDragging) {
-    if ((scrollRef.value?.scrollTop ?? 0) > 0 || clientY - contentStartY < 8) return
+    if ((scrollRef.value?.scrollTop ?? 0) > 0) return
+    const delta = clientY - contentStartY
+    if (delta < -8 && panelHeightPx.value < fullHeight()) contentMode = 'expand'
+    else if (delta > 8) contentMode = 'down'
+    else return
     contentDragging = true
     dragging.value = true
+    grabStartY = contentStartY
+    grabStartHeight = panelHeightPx.value
     lastY = contentStartY
-    lastTime = performance.now()
+    lastTime = now
     velocity = 0
   }
   event.preventDefault()
-  const now = performance.now()
   const elapsed = now - lastTime
   if (elapsed > 0) velocity = (clientY - lastY) / elapsed
   lastY = clientY
   lastTime = now
-  const delta = clientY - contentStartY
-  dragY.value = delta > 0 ? delta : delta * 0.2
+  const el = scrollRef.value
+  const up = contentStartY - clientY
+  if (contentMode === 'expand') {
+    const past = up - (fullHeight() - grabStartHeight)
+    if (past > 0) {
+      panelHeightPx.value = fullHeight()
+      isFull.value = true
+      if (el) el.scrollTop = past
+    } else {
+      panelHeightPx.value = Math.min(fullHeight(), Math.max(collapsedHeight(), grabStartHeight + up))
+      isFull.value = false
+      if (el) el.scrollTop = 0
+    }
+    dragY.value = 0
+    return
+  }
+  dragY.value = up < 0 ? -up : -up * 0.2
 }
 
 function onContentTouchEnd() {
   if (!contentDragging) return
   contentDragging = false
   dragging.value = false
-  if (dragY.value > panelHeightPx.value * 0.25 || velocity > 0.5) requestClose()
-  else dragY.value = 0
+  if (contentMode === 'expand') {
+    const expand = panelHeightPx.value > (collapsedHeight() + fullHeight()) / 2 || velocity < -0.5
+    isFull.value = expand
+    panelHeightPx.value = expand ? fullHeight() : collapsedHeight()
+    dragY.value = 0
+  } else if (contentMode === 'down') {
+    if (dragY.value > panelHeightPx.value * 0.25 || velocity > 0.5) requestClose()
+    else dragY.value = 0
+  }
+  contentMode = null
 }
 
 defineExpose({ requestClose })

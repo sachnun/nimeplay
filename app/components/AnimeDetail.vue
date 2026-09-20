@@ -21,11 +21,11 @@ const infoItems = computed(() => [
   { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
 
-const headerRef = ref<HTMLElement | null>(null)
-const episodesPanelRef = ref<HTMLElement | null>(null)
-const episodesListRef = ref<HTMLElement | null>(null)
-const synopsisRef = ref<HTMLElement | null>(null)
-const charactersRef = ref<HTMLElement | null>(null)
+const headerRef = shallowRef<HTMLElement | null>(null)
+const episodesPanelRef = shallowRef<HTMLElement | null>(null)
+const episodesListRef = shallowRef<HTMLElement | null>(null)
+const synopsisRef = shallowRef<HTMLElement | null>(null)
+const charactersRef = shallowRef<HTMLElement | null>(null)
 const synopsisBeside = ref(false)
 const charactersBeside = ref(false)
 

@@ -30,9 +30,17 @@ export function sourceOf(job: JobRow): string | null {
   return null
 }
 
-export function openSources(): string[] {
+export function blockedSources(): string[] {
   const now = Date.now()
-  return [...states.entries()].filter(([, state]) => state.openUntil > now).map(([id]) => id)
+  return [...states.entries()]
+    .filter(([, state]) => state.openUntil > now || state.inflight >= CONCURRENCY)
+    .map(([id]) => id)
+}
+
+export function inflightCount(): number {
+  let total = 0
+  for (const state of states.values()) total += state.inflight
+  return total
 }
 
 async function acquire(id: string): Promise<void> {

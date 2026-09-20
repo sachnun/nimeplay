@@ -116,7 +116,7 @@ function goBack() {
           </div>
         </div>
 
-        <div v-if="!merged" class="mt-6 grid gap-6 md:grid-cols-[1fr_minmax(280px,400px)] xl:gap-10">
+        <div v-if="!merged" class="mt-6 flex flex-col gap-6">
           <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
           <CharacterList :characters="data?.characters" />
         </div>

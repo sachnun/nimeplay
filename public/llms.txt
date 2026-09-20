@@ -1,0 +1,29 @@
+# Nimeplay
+
+> Minimal anime streaming with no ads, comments, popups, or other distractions.
+
+Nimeplay serves a server-rendered anime catalog and a public read-only JSON API.
+All URLs below are stable and safe for automated agents to crawl.
+
+## Pages
+
+- [Home](https://nimeplay.sachnun.workers.dev/): Anime catalog, browsable by ongoing or completed status.
+- [Anime detail](https://nimeplay.sachnun.workers.dev/anime/5114): Metadata and episode list for one anime.
+- [Episode player](https://nimeplay.sachnun.workers.dev/anime/5114/1): Streaming page for one episode.
+- [Genre](https://nimeplay.sachnun.workers.dev/action): Anime filtered by genre slug.
+- [History](https://nimeplay.sachnun.workers.dev/history): Watch history stored locally in the browser.
+
+## API
+
+- [OpenAPI spec](https://nimeplay.sachnun.workers.dev/openapi.json): Machine-readable description of the JSON API.
+- [API docs](https://nimeplay.sachnun.workers.dev/docs): Interactive API documentation.
+- [Anime list](https://nimeplay.sachnun.workers.dev/api/v1/anime): Paginated list; query params `type=ongoing|completed`, `page`, `q`.
+- [Anime detail](https://nimeplay.sachnun.workers.dev/api/v1/anime/5114): Metadata and episodes for one anime, keyed by MyAnimeList ID.
+- [Episode detail](https://nimeplay.sachnun.workers.dev/api/v1/anime/5114/1): Streaming sources for one episode.
+- [Genres](https://nimeplay.sachnun.workers.dev/api/v1/genres): All genres.
+- [Genre detail](https://nimeplay.sachnun.workers.dev/api/v1/genre/action): Anime in one genre.
+
+## Optional
+
+- [robots.txt](https://nimeplay.sachnun.workers.dev/robots.txt): Crawling rules.
+- [Favicon](https://nimeplay.sachnun.workers.dev/favicon.svg): Site icon.

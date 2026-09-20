@@ -561,6 +561,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     duration,
     isSeeking,
     showControls,
+    controlsVisible,
     showEpisodes,
     speedBoost,
     wasLongPress,
@@ -573,6 +574,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     seekTo,
     setHlsMaxBufferLength,
     toggleControlsVisibility,
+    togglePlay,
     toggleFullscreen,
   })
 

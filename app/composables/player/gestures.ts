@@ -10,6 +10,7 @@ interface EpisodePlayerGestureOptions {
   duration: Ref<number>
   isSeeking: Ref<boolean>
   showControls: Ref<boolean>
+  controlsVisible: Ref<boolean>
   showEpisodes: Ref<boolean>
   speedBoost: Ref<boolean>
   wasLongPress: Ref<boolean>
@@ -22,6 +23,7 @@ interface EpisodePlayerGestureOptions {
   seekTo: (time: number) => void
   setHlsMaxBufferLength: (length: number) => void
   toggleControlsVisibility: () => void
+  togglePlay: () => void
   toggleFullscreen: () => void | Promise<void>
 }
 
@@ -119,6 +121,16 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     }, 300)
   }
 
+  function schedulePlayPause() {
+    clearPendingSingleTap()
+    pendingSingleTap = setTimeout(() => {
+      pendingSingleTap = null
+      pendingWasVisible = null
+      if (!options.controlsVisible.value) return
+      options.togglePlay()
+    }, 300)
+  }
+
   function handleZoneTap(zone: TapZone) {
     const now = Date.now()
     const isDoubleTap = now - lastTap[zone] < 300
@@ -129,7 +141,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
         void options.toggleFullscreen()
         return
       }
-      scheduleSingleToggle()
+      if (options.controlsVisible.value) schedulePlayPause()
+      else scheduleSingleToggle()
       return
     }
     handleSeekTap(zone, isDoubleTap)

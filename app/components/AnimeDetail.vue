@@ -12,7 +12,7 @@ const props = defineProps<{
   hideBack?: boolean
 }>()
 
-const { data, loading } = useAnimeMetadata(toRef(props, 'malId'), toRef(props, 'title'), toRef(props, 'japaneseTitle'))
+const { data, loading } = useAnimeMetadata(toRef(props, 'malId'))
 const infoItems = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Type', value: props.otakudesu.type },

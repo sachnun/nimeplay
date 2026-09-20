@@ -65,12 +65,19 @@ const displayAnime = computed(() => [
 ])
 const displayCards = computed(() => displayAnime.value.map(({ anime, isFromNext }) => {
   const progress = progressMap.value.get(anime.malId)
+  const resumeTo = progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined
+  const showDate = anime.day && (isFromNext ? props.nextShowDay : props.showDay)
   return {
     anime,
-    isFromNext,
-    progress,
     badge: episodeBadge(anime.episode),
     to: `/anime/${anime.malId}`,
+    resumeTo,
+    subtitle: progress
+      ? `Lanjutkan EP ${progress.episodeNumber}`
+      : showDate
+        ? (anime.date ? `${anime.day} · ${anime.date}` : anime.day)
+        : anime.date,
+    progressPct: progress && progress.duration > 0 ? (progress.currentTime / progress.duration) * 100 : undefined,
   }
 }))
 const hasAnyCard = computed(() => displayAnime.value.length > 0)
@@ -118,38 +125,23 @@ function episodeBadge(episode: string) {
   return num ? `${num} Eps` : ''
 }
 
-function goToEpisode(malId: number, episodeNum: string | number) {
-  void navigateTo(`/anime/${malId}/${episodeNum}`)
-}
 </script>
 
 <template>
   <div>
     <div ref="gridRef" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
-      <NuxtLink
-        v-for="({ anime, isFromNext, progress, badge, to }, i) in displayCards"
+      <AnimePosterCard
+        v-for="({ anime, badge, to, resumeTo, subtitle, progressPct }, i) in displayCards"
         :key="`${anime.malId}-${i}`"
         :to="to"
-        class="block rounded-t-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
-      >
-        <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 10 ? 'eager' : 'lazy'" :fetchpriority="i < 10 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
-          <div v-if="badge" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
-            {{ badge }}
-          </div>
-          <div class="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100" />
-          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8" :class="progress ? 'pb-5 !pt-12' : ''">
-            <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ anime.title }}</p>
-            <p v-if="progress" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">Lanjutkan EP {{ progress.episodeNumber }}</p>
-            <p v-else-if="anime.day || anime.date" class="text-xs text-zinc-400 mt-1">
-              {{ anime.day && (isFromNext ? nextShowDay : showDay) ? (anime.date ? `${anime.day} · ${anime.date}` : anime.day) : anime.date }}
-            </p>
-          </div>
-          <div v-if="progress && progress.duration > 0" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(anime.malId, progress.episodeNumber ?? progress.episodeNumber)">
-            <div class="h-full bg-white rounded-full" :style="{ width: `${(progress.currentTime / progress.duration) * 100}%` }" />
-          </div>
-        </div>
-      </NuxtLink>
+        :thumbnail="anime.thumbnail"
+        :title="anime.title"
+        :badge="badge"
+        :subtitle="subtitle"
+        :resume-to="resumeTo"
+        :progress-pct="progressPct"
+        :priority="i < 10"
+      />
     </div>
 
     <EmptyState v-if="showPlane" />

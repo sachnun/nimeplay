@@ -68,10 +68,6 @@ async function clearHistory() {
   }
 }
 
-function goToEpisode(malId: number, episodeNum: number) {
-  void navigateTo(`/anime/${malId}/${episodeNum}`)
-}
-
 function progressPct(item: HistoryItem) {
   if (!item.duration || item.duration <= 0) return 0
   return Math.min((item.currentTime / item.duration) * 100, 100)
@@ -114,14 +110,19 @@ onMounted(() => {
     </div>
 
     <div v-else-if="items.length > 0" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
-      <NuxtLink
+      <AnimePosterCard
         v-for="item in items"
         :key="item.malId"
         :to="`/anime/${item.malId}`"
-        class="block rounded-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+        :thumbnail="item.thumbnail"
+        :title="item.title"
+        :subtitle="`Lanjutkan EP ${item.episodeNumber}`"
+        :resume-to="`/anime/${item.malId}/${item.episodeNumber}`"
+        :progress-pct="progressPct(item)"
+        :full-rounded="true"
+        :zoom="true"
       >
-        <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="item.thumbnail" :alt="item.title" width="300" height="400" loading="lazy" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full transition-transform duration-300 ease-out group-hover:scale-110">
+        <template #overlay>
           <button
             type="button"
             title="Hapus dari history"
@@ -133,15 +134,8 @@ onMounted(() => {
               <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-12 pb-5">
-            <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{{ item.title }}</p>
-            <p class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNumber)">Lanjutkan EP {{ item.episodeNumber }}</p>
-          </div>
-          <div class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="goToEpisode(item.malId, item.episodeNumber)">
-            <div class="h-full bg-white rounded-full" :style="{ width: `${progressPct(item)}%` }" />
-          </div>
-        </div>
-      </NuxtLink>
+        </template>
+      </AnimePosterCard>
     </div>
   </div>
 </template>

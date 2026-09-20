@@ -48,6 +48,11 @@ export async function prepareMirror(dataContent: string, origin: string): Promis
   const source = splitSource(mirrorId)?.source
   const hint = source?.proxy ? await source.proxy(directUrl).catch(() => null) : null
   const hintHeaders = hint?.headers && Object.keys(hint.headers).length > 0 ? hint.headers : undefined
+  const megaKey = megaKeyFromUrl(directUrl)
+  if (megaKey) {
+    const token = await sealStreamToken(directUrl.slice(0, directUrl.indexOf('#')), undefined, hintHeaders, megaKey)
+    return { playUrl: proxiedStreamPath(origin, token), kind: 'file', ok: true }
+  }
   const probe = await probeStream(directUrl, hintHeaders)
   if (!probe.ok && !hintHeaders) return { playUrl: directUrl, kind: probe.kind, ok: true }
   const token = await sealStreamToken(directUrl, undefined, hintHeaders)

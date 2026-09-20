@@ -29,15 +29,27 @@ const charactersRef = ref<HTMLElement | null>(null)
 const synopsisBeside = ref(false)
 const charactersBeside = ref(false)
 
+function naturalEpisodesHeight(list: HTMLElement) {
+  const grid = list.querySelector<HTMLElement>('[data-episode-grid]')
+  if (!grid) return list.scrollHeight
+  const previous = grid.style.contentVisibility
+  grid.style.contentVisibility = 'visible'
+  const height = list.scrollHeight
+  grid.style.contentVisibility = previous
+  return height
+}
+
 function updateEpisodesReach() {
   const panel = episodesPanelRef.value
   const list = episodesListRef.value
   const synopsis = synopsisRef.value
   const characters = charactersRef.value
-  if (!panel || !list || !synopsis || list.scrollHeight === 0) return
+  if (!panel || !list || !synopsis) return
+  const height = naturalEpisodesHeight(list)
+  if (height === 0) return
   const panelTop = panel.getBoundingClientRect().top
   const headingHeight = list.getBoundingClientRect().top - panelTop
-  const episodesBottom = panelTop + headingHeight + list.scrollHeight
+  const episodesBottom = panelTop + headingHeight + height
   synopsisBeside.value = episodesBottom > synopsis.getBoundingClientRect().top
   charactersBeside.value = characters ? episodesBottom > characters.getBoundingClientRect().top : false
 }
@@ -47,8 +59,8 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(updateEpisodesReach)
   if (headerRef.value) resizeObserver.observe(headerRef.value)
   if (synopsisRef.value) resizeObserver.observe(synopsisRef.value)
-  if (episodesListRef.value) resizeObserver.observe(episodesListRef.value)
   void nextTick(updateEpisodesReach)
+  void document.fonts?.ready.then(() => updateEpisodesReach())
 })
 onBeforeUnmount(() => resizeObserver?.disconnect())
 

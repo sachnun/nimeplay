@@ -55,7 +55,7 @@ function episodeClass(number: number) {
 <template>
   <p v-if="episodes.length === 0" class="text-zinc-500 text-sm">No episodes available yet.</p>
   <div v-else>
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]" data-episode-grid>
       <NuxtLink
         v-for="number in reversedEpisodes"
         :key="number"

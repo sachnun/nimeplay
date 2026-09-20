@@ -43,10 +43,10 @@ function goBack() {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Back
         </button>
-        <div class="flex flex-col lg:grid lg:grid-cols-[auto_1fr_minmax(280px,360px)] lg:gap-8 xl:gap-10 gap-5">
-          <div class="flex gap-4 lg:block">
+        <div class="flex flex-col md:grid md:grid-cols-[auto_1fr_minmax(280px,360px)] md:gap-8 xl:gap-10 gap-5">
+          <div class="flex gap-4 md:block">
             <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" class="flex-shrink-0 w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
-            <div class="lg:hidden flex-1 min-w-0">
+            <div class="md:hidden flex-1 min-w-0">
               <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-1.5 mt-3">
                 <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
@@ -63,7 +63,7 @@ function goBack() {
           </div>
 
           <div class="min-w-0">
-            <div class="hidden lg:block">
+            <div class="hidden md:block">
               <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
               <div class="flex flex-wrap gap-2 mt-3">
                 <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
@@ -71,7 +71,7 @@ function goBack() {
                 </NuxtLink>
               </div>
             </div>
-            <div class="hidden lg:block lg:mt-5">
+            <div class="hidden md:block md:mt-5">
               <section>
                 <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
                   Information
@@ -84,7 +84,7 @@ function goBack() {
                 </div>
               </section>
             </div>
-            <div class="lg:hidden mt-4">
+            <div class="md:hidden mt-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                 Episodes
               </h2>
@@ -92,7 +92,7 @@ function goBack() {
             </div>
           </div>
 
-          <div class="hidden lg:block">
+          <div class="hidden md:block">
             <div class="bg-zinc-900/50 backdrop-blur rounded-lg p-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Episodes

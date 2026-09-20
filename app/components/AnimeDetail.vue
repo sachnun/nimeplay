@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OtakudesuInfo } from '~/utils/types'
+import type { AnimeCharacter, OtakudesuInfo } from '~/utils/types'
 
 const props = defineProps<{
   malId: number
@@ -9,10 +9,11 @@ const props = defineProps<{
   genres: { name: string; slug: string }[]
   otakudesu: OtakudesuInfo
   episodes: number[]
+  synopsis: string
+  characters: AnimeCharacter[]
   hideBack?: boolean
 }>()
 
-const { data, loading } = useAnimeMetadata(toRef(props, 'malId'))
 const infoItems = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Type', value: props.otakudesu.type },
@@ -92,8 +93,8 @@ function goBack() {
 
         <div class="mt-6 md:flow-root">
           <div class="flex flex-col gap-6">
-            <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
-            <CharacterList :characters="data?.characters" />
+            <SynopsisSection :synopsis="synopsis" />
+            <CharacterList :characters="characters" />
           </div>
         </div>
 

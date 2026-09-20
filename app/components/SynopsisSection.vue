@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
   synopsis?: string
-  loading: boolean
 }>()
 
 const expanded = ref(false)
@@ -11,7 +10,7 @@ const textRef = ref<HTMLParagraphElement | null>(null)
 const hasSynopsis = computed(() => !!props.synopsis?.trim())
 const text = computed(() => props.synopsis ?? '')
 
-watch([text, expanded, () => props.loading], () => {
+watch([text, expanded], () => {
   if (expanded.value || !import.meta.client) return
   requestAnimationFrame(() => {
     const el = textRef.value

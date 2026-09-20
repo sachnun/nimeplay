@@ -51,6 +51,7 @@ export interface AnimeDetail {
   synopsis: string
   season?: string
   episodes: { number: number; date: string }[]
+  characters: AnimeCharacter[]
 }
 
 export interface AnimeCharacter {

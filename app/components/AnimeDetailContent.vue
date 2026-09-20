@@ -22,5 +22,7 @@ defineProps<{ anime: AnimeDetail; hideBack?: boolean }>()
       releaseDate: anime.releaseDate,
     }"
     :episodes="anime.episodes.map(entry => entry.number)"
+    :synopsis="anime.synopsis"
+    :characters="anime.characters"
   />
 </template>

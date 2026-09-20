@@ -223,13 +223,14 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
   const row = await getAnimeByMalId(malId)
   if (!row) return null
 
-  const [sourceEpisodeRows, genreRows] = await Promise.all([
+  const [sourceEpisodeRows, genreRows, characterRows] = await Promise.all([
     db()
       .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source, cache: episodes.cache })
       .from(episodes)
       .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
       .where(eq(animeSources.animeId, row.id)),
     getGenresForAnime(row.id),
+    getCharactersForAnime(row.id),
   ])
 
   const blocked = blockedSourceIds()
@@ -264,6 +265,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     synopsis: cleanSynopsis(row.synopsis ?? ''),
     season: formatSeason(row.season, row.year),
     episodes: episodeRows,
+    characters: characterRows,
   }
 }
 

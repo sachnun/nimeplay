@@ -1,5 +1,4 @@
 import type { MaybeRefOrGetter, Ref } from 'vue'
-import { fetchAnimeMetadata } from '~/utils/remote'
 
 interface AnimeProgressEntry {
   malId: number
@@ -98,14 +97,4 @@ export async function loadGridPage(options: {
 export async function fillGridViewport(isSentinelNearViewport: () => boolean, loadMore: () => void | Promise<void>) {
   await nextTick()
   if (isSentinelNearViewport()) void loadMore()
-}
-
-export function useAnimeMetadata(malId: Ref<number> | number) {
-  const idRef = toRef(malId)
-  const { data, pending: loading } = useAsyncData(
-    () => `anime-metadata:${idRef.value}`,
-    () => fetchAnimeMetadata(idRef.value),
-    { watch: [idRef], default: () => null },
-  )
-  return { data, loading }
 }

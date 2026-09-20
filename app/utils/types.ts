@@ -1,5 +1,3 @@
-import type { AnimeCharacter } from '#shared/types'
-
 export type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#shared/types'
 
 export interface EpisodeData {
@@ -23,20 +21,6 @@ export interface EpisodePageData {
   episodeNumber: number
   episode: EpisodeData
   episodes: number[]
-}
-
-export interface AnimeMetadata {
-  malId: number
-  synopsis: string
-  background: string
-  malScore: number | null
-  malRank: number | null
-  popularity: number | null
-  rating: string
-  season: string | null
-  year: number | null
-  trailerEmbedUrl: string | null
-  characters: AnimeCharacter[]
 }
 
 interface SkipInterval {

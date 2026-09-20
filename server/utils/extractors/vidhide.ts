@@ -1,4 +1,4 @@
-const EMPTY_HLS = { hls4: null, hls2: null }
+const EMPTY_HLS = { hls4: null, hls3: null, hls2: null }
 
 function toBase(num: number, radix: number): string {
   return num.toString(radix)
@@ -26,7 +26,7 @@ function unpackJS(packed: string): string | null {
   return p
 }
 
-function emptyHls(): { hls4: string | null; hls2: string | null } {
+function emptyHls(): { hls4: string | null; hls3: string | null; hls2: string | null } {
   return { ...EMPTY_HLS }
 }
 
@@ -34,17 +34,18 @@ function extractLinksBody(unpacked: string): string | null {
   return unpacked.match(/var\s+links\s*=\s*\{([^}]+)\}/)?.[1] ?? null
 }
 
-function extractHlsValue(body: string, key: 'hls4' | 'hls2'): string | null {
+function extractHlsValue(body: string, key: 'hls4' | 'hls3' | 'hls2'): string | null {
   return body.match(new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`))?.[1] ?? null
 }
 
-function extractHls(html: string): { hls4: string | null; hls2: string | null } {
+function extractHls(html: string): { hls4: string | null; hls3: string | null; hls2: string | null } {
   const unpacked = unpackJS(html)
   if (!unpacked) return emptyHls()
   const body = extractLinksBody(unpacked)
   if (!body) return emptyHls()
   return {
     hls4: extractHlsValue(body, 'hls4'),
+    hls3: extractHlsValue(body, 'hls3'),
     hls2: extractHlsValue(body, 'hls2'),
   }
 }
@@ -55,9 +56,10 @@ export function isVidhide(url: string): boolean {
 }
 
 export async function extractVidhide(embedUrl: string, html: string): Promise<string | null> {
-  const { hls4, hls2 } = extractHls(html)
+  const { hls4, hls3, hls2 } = extractHls(html)
   const parsed = new URL(embedUrl)
   const origin = `${parsed.protocol}//${parsed.host}`
+  if (hls3) return hls3.startsWith('http') ? hls3 : `${origin}${hls3}`
   if (hls4) return hls4.startsWith('http') ? hls4 : `${origin}${hls4}`
   if (hls2) return hls2
   return null

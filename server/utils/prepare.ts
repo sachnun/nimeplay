@@ -45,9 +45,11 @@ export async function prepareMirror(dataContent: string, origin: string): Promis
   if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
   const directUrl = await extractStreamUrl(embedUrl)
   if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
-  const kind = await detectStreamKind(directUrl)
   const source = splitSource(mirrorId)?.source
   const hint = source?.proxy ? await source.proxy(directUrl).catch(() => null) : null
-  const token = await sealStreamToken(directUrl, undefined, hint?.headers)
-  return { playUrl: proxiedStreamPath(origin, token), kind, ok: true }
+  const hintHeaders = hint?.headers && Object.keys(hint.headers).length > 0 ? hint.headers : undefined
+  const probe = await probeStream(directUrl, hintHeaders)
+  if (!probe.ok && !hintHeaders) return { playUrl: directUrl, kind: probe.kind, ok: true }
+  const token = await sealStreamToken(directUrl, undefined, hintHeaders)
+  return { playUrl: proxiedStreamPath(origin, token), kind: probe.kind, ok: true }
 }

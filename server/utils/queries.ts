@@ -4,12 +4,21 @@ import { db } from './db'
 import { toFtsQuery } from './fts'
 import { posterSrc } from './media'
 import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../database/schema'
-import { sourcePriority } from './sources'
+import { getSources, sourcePriority } from './sources'
 import { cleanSynopsis } from './synopsis'
+import type { EpisodeData } from './sources/types'
 import type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#shared/types'
 
 const PAGE_SIZE = 24
 const BIND_CHUNK_SIZE = 40
+
+function isPlayable(source: string, cache: EpisodeData | null, blocked: Set<string>): boolean {
+  return !blocked.has(source) || (cache?.mirrors?.length ?? 0) > 0
+}
+
+function blockedSourceIds(): Set<string> {
+  return new Set(getSources().filter(source => source.workerBlocked === true).map(source => source.id))
+}
 
 const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0 and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
@@ -216,16 +225,18 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
 
   const [sourceEpisodeRows, genreRows] = await Promise.all([
     db()
-      .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source })
+      .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source, cache: episodes.cache })
       .from(episodes)
       .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
       .where(eq(animeSources.animeId, row.id)),
     getGenresForAnime(row.id),
   ])
 
+  const blocked = blockedSourceIds()
   const episodeByNumber = new Map<number, { number: number, date: string }>()
   const chosenPriority = new Map<number, number>()
   for (const entry of sourceEpisodeRows) {
+    if (!isPlayable(entry.source, entry.cache, blocked)) continue
     const priority = sourcePriority(entry.source)
     const current = chosenPriority.get(entry.number)
     if (current === undefined || priority < current) {
@@ -290,13 +301,17 @@ export async function resolveEpisode(
 
 export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
   const rows = await db()
-    .select({ number: episodes.number })
+    .select({ number: episodes.number, source: animeSources.source, cache: episodes.cache })
     .from(episodes)
     .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
     .where(eq(animeSources.animeId, animeId))
-    .groupBy(episodes.number)
-    .orderBy(asc(episodes.number))
-  return rows.map(entry => entry.number)
+
+  const blocked = blockedSourceIds()
+  const numbers = new Set<number>()
+  for (const entry of rows) {
+    if (isPlayable(entry.source, entry.cache, blocked)) numbers.add(entry.number)
+  }
+  return [...numbers].sort((a, b) => a - b)
 }
 
 export async function getGenreAnimePage(

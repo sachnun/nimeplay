@@ -40,6 +40,11 @@ export default defineNuxtConfig({
   },
   modules: ['@nuxt/fonts', '@nuxtjs/device'],
   hooks: {
+    'build:manifest': (manifest) => {
+      for (const [id, chunk] of Object.entries(manifest)) {
+        if (id.includes('hls.js')) (chunk as { prefetch?: boolean }).prefetch = false
+      }
+    },
     'prepare:types': ({ tsConfig }) => {
       const compilerOptions = (tsConfig.compilerOptions ??= {})
       compilerOptions.lib = ['ESNext', 'DOM', 'DOM.Iterable']
@@ -49,8 +54,8 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   fonts: {
     families: [
-      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true },
-      { name: 'Geist Mono', provider: 'fontsource', weights: ['400'], styles: ['normal'], subsets: ['latin'], global: true },
+      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true, preload: { subsets: ['latin'] } },
+      { name: 'Geist Mono', provider: 'fontsource', weights: ['400'], styles: ['normal'], subsets: ['latin'], global: true, preload: false },
     ],
   },
   app: {

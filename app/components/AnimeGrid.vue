@@ -140,7 +140,7 @@ function episodeBadge(episode: string) {
         :subtitle="subtitle"
         :resume-to="resumeTo"
         :progress-pct="progressPct"
-        :priority="i < 10"
+        :priority="i < 6"
       />
     </div>
 

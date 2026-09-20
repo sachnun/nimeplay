@@ -58,6 +58,7 @@ export const anime = pgTable('anime', {
   index('anime_status_mal_id_idx').on(table.status, table.malId),
   index('anime_season_year_idx').on(table.season, table.year),
   index('anime_fts_idx').using('gin', sql`to_tsvector('simple', ${table.title})`),
+  index('anime_title_trgm_idx').using('gin', sql`${table.title} gin_trgm_ops`),
 ])
 
 export const animeSources = pgTable('anime_sources', {

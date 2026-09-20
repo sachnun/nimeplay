@@ -6,7 +6,7 @@ defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'List anime',
-    description: 'Paginated list of ongoing or completed anime. Set q to search by title.',
+    description: 'Paginated list of ongoing or completed anime. Set q to search by title, alternate titles, studio, genre, character, or synopsis.',
     parameters: [
       {
         name: 'type',
@@ -27,7 +27,7 @@ defineRouteMeta({
         in: 'query',
         required: false,
         schema: { type: 'string' },
-        description: 'Search anime by title',
+        description: 'Search anime across titles, studio, genres, characters, and synopsis',
       },
     ],
     responses: {

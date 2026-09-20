@@ -27,6 +27,7 @@ export interface MalSearchEntry {
 export interface MalAnime {
   malId: number
   title: string
+  titles: string[]
   poster: string | null
   synopsis: string
   score: number | null
@@ -197,6 +198,13 @@ function titleOf(title: JikanTitle): string {
 
 function matchTitleOf(title: JikanTitle): string {
   return decodeEntities(title.romaji || title.english || title.native || '')
+}
+
+function titlesOf(title: JikanTitle): string[] {
+  const values = [title.english, title.romaji, title.native]
+    .map(value => decodeEntities(value ?? '').trim())
+    .filter(Boolean)
+  return [...new Set(values)]
 }
 
 function sourceLabel(value: string | null | undefined): string | null {
@@ -520,6 +528,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
   return {
     malId,
     title: titleOf(media.title),
+    titles: titlesOf(media.title),
     poster: media.coverImage?.extraLarge ?? media.coverImage?.large ?? null,
     synopsis: cleanSynopsis(decodeEntities(stripHtml(media.description ?? ''))),
     score: media.averageScore != null ? Math.round(media.averageScore) / 10 : null,

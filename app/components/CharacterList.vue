@@ -3,13 +3,7 @@ import type { AnimeCharacter } from '~/utils/types'
 
 const props = defineProps<{ characters?: AnimeCharacter[] }>()
 
-const showAll = ref(false)
-const mainChars = computed(() => (props.characters ?? []).filter((c) => c.role === 'Main'))
-const hasSupporting = computed(() => (props.characters ?? []).length > mainChars.value.length)
-const displayed = computed(() => {
-  const list = props.characters ?? []
-  return showAll.value ? list : mainChars.value.length > 0 ? mainChars.value : list.slice(0, 10)
-})
+const displayed = computed(() => props.characters ?? [])
 </script>
 
 <template>
@@ -33,19 +27,11 @@ const displayed = computed(() => {
           class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
         >
         <div class="min-w-0">
-          <span class="text-xs text-zinc-200 font-medium truncate block">{{ char.name }}</span>
+          <span class="text-xs text-zinc-200 truncate block" :class="char.role === 'Main' ? 'font-bold' : 'font-medium'">{{ char.name }}</span>
           <span v-if="char.voiceActor" class="text-[10px] text-zinc-500 truncate block">CV: {{ char.voiceActor.name }}</span>
           <span v-else class="text-[10px]" :class="char.role === 'Main' ? 'text-white' : 'text-zinc-500'">{{ char.role }}</span>
         </div>
       </div>
     </div>
-
-    <button
-      v-if="hasSupporting"
-      class="mt-3 text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-      @click="showAll = !showAll"
-    >
-      {{ showAll ? 'Show Main Only' : `Show All (${characters.length})` }}
-    </button>
   </section>
 </template>

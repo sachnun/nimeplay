@@ -16,7 +16,6 @@ export interface MetadataRequestBody {
 
 interface MetadataRecord {
   id: number
-  slug: string
   malId: number | null
   synopsis: string | null
   rating: number | null
@@ -38,7 +37,6 @@ function stripHtml(value: string): string {
 async function lookupInDb(body: MetadataRequestBody): Promise<MetadataRecord | null> {
   const columns = {
     id: anime.id,
-    slug: anime.slug,
     malId: anime.malId,
     synopsis: anime.synopsis,
     rating: anime.rating,
@@ -63,7 +61,7 @@ async function lookupInDb(body: MetadataRequestBody): Promise<MetadataRecord | n
   const match = toFtsQuery(title)
   if (!match) return null
   const result = await db().execute(sql`
-    select a.id as id, a.slug as slug, a.mal_id as "malId", a.synopsis as synopsis, a.rating as rating,
+    select a.id as id, a.mal_id as "malId", a.synopsis as synopsis, a.rating as rating,
       a.rank as rank, a.popularity as popularity, a.season as season, a.year as year,
       a.trailer_id as "trailerId"
     from anime a

@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
-    loadEpisodeData(resolved.sourceSlug, resolved.animeId, episodeNumber),
+    loadEpisodeData(resolved.candidates.map(candidate => candidate.episodeSlug)),
     getEpisodeNumbers(resolved.animeId),
   ])
   if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })

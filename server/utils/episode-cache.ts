@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from './db'
 import { episodes } from '../database/schema'
 import { enqueue } from './queue'
@@ -13,11 +13,11 @@ export function blockedSourceIds(): string[] {
   return getSources().filter(source => source.workerBlocked).map(source => source.id)
 }
 
-export async function getEpisodeData(animeId: number, number: number): Promise<EpisodeData | null> {
+export async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
   const [row] = await db()
     .select({ cache: episodes.cache })
     .from(episodes)
-    .where(and(eq(episodes.animeId, animeId), eq(episodes.number, number)))
+    .where(eq(episodes.slug, slug))
     .limit(1)
   return row?.cache ?? null
 }
@@ -32,19 +32,29 @@ export async function cacheEpisodeData(slug: string): Promise<void> {
   await putEpisodeData(slug, data)
 }
 
-export async function loadEpisodeData(slug: string, animeId: number, number: number): Promise<EpisodeData | null> {
-  const cached = await getEpisodeData(animeId, number)
-  if (cached) return cached
-  if (isWorkerBlocked(slug)) {
-    await enqueue({
-      type: 'episode.cache',
-      payload: { slug },
-      dedupeKey: `episode.cache:${slug}`,
-      priority: 2,
-    }).catch(() => {})
-    return null
+export async function loadEpisodeData(candidates: string[]): Promise<EpisodeData | null> {
+  for (const slug of candidates) {
+    const cached = await getEpisodeData(slug)
+    if (cached && cached.mirrors.length > 0) return cached
   }
-  const scraped = await scrapeEpisode(slug)
-  if (scraped) await putEpisodeData(slug, scraped).catch(() => {})
-  return scraped
+
+  let fallback: EpisodeData | null = null
+  for (const slug of candidates) {
+    if (isWorkerBlocked(slug)) {
+      await enqueue({
+        type: 'episode.cache',
+        payload: { slug },
+        dedupeKey: `episode.cache:${slug}`,
+        priority: 2,
+      }).catch(() => {})
+      continue
+    }
+    const scraped = await scrapeEpisode(slug).catch(() => null)
+    if (!scraped) continue
+    fallback ??= scraped
+    if (scraped.mirrors.length === 0) continue
+    await putEpisodeData(slug, scraped).catch(() => {})
+    return scraped
+  }
+  return fallback
 }

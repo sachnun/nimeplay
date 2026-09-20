@@ -25,8 +25,7 @@ export const genres = pgTable('genres', {
 
 export const anime = pgTable('anime', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  slug: text('slug').notNull().unique(),
-  malId: integer('mal_id'),
+  malId: integer('mal_id').notNull(),
   title: text('title'),
   posterKey: text('poster_key'),
   synopsis: text('synopsis'),
@@ -36,12 +35,11 @@ export const anime = pgTable('anime', {
   season: text('season'),
   year: integer('year'),
   status: text('status'),
-  type: text('type'),
   day: text('day'),
+  type: text('type'),
   studio: text('studio'),
   source: text('source'),
   trailerId: text('trailer_id'),
-  sourceUrl: text('source_url'),
   episodeCount: integer('episode_count').notNull().default(0),
   latestEpisode: integer('latest_episode'),
   latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
@@ -62,6 +60,27 @@ export const anime = pgTable('anime', {
   index('anime_fts_idx').using('gin', sql`to_tsvector('simple', ${table.title})`),
 ])
 
+export const animeSources = pgTable('anime_sources', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  animeId: bigint('anime_id', { mode: 'number' })
+    .references(() => anime.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(),
+  slug: text('slug').notNull(),
+  url: text('url'),
+  status: text('status'),
+  day: text('day'),
+  ongoingRank: integer('ongoing_rank'),
+  latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
+  metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('anime_sources_source_slug_key').on(table.source, table.slug),
+  index('anime_sources_anime_id_idx').on(table.animeId),
+  index('anime_sources_status_idx').on(table.status),
+  index('anime_sources_updated_at_idx').on(table.updatedAt),
+])
+
 export const animeGenres = pgTable('anime_genres', {
   animeId: bigint('anime_id', { mode: 'number' })
     .notNull()
@@ -77,9 +96,9 @@ export const animeGenres = pgTable('anime_genres', {
 
 export const episodes = pgTable('episodes', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  animeId: bigint('anime_id', { mode: 'number' })
+  sourceId: bigint('source_id', { mode: 'number' })
     .notNull()
-    .references(() => anime.id, { onDelete: 'cascade' }),
+    .references(() => animeSources.id, { onDelete: 'cascade' }),
   slug: text('slug').notNull(),
   number: integer('number').notNull(),
   title: text('title').notNull(),
@@ -89,9 +108,9 @@ export const episodes = pgTable('episodes', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [
-  uniqueIndex('episodes_anime_id_number_key').on(table.animeId, table.number),
+  uniqueIndex('episodes_source_id_number_key').on(table.sourceId, table.number),
   uniqueIndex('episodes_slug_key').on(table.slug),
-  index('episodes_anime_id_idx').on(table.animeId),
+  index('episodes_source_id_idx').on(table.sourceId),
 ])
 
 export const characters = pgTable('characters', {
@@ -148,9 +167,14 @@ export const jobs = pgTable('jobs', {
 ])
 
 export const animeRelations = relations(anime, ({ many }) => ({
-  episodes: many(episodes),
+  sources: many(animeSources),
   genres: many(animeGenres),
   characters: many(characters),
+}))
+
+export const animeSourcesRelations = relations(animeSources, ({ one, many }) => ({
+  anime: one(anime, { fields: [animeSources.animeId], references: [anime.id] }),
+  episodes: many(episodes),
 }))
 
 export const genresRelations = relations(genres, ({ many }) => ({
@@ -167,6 +191,7 @@ export const charactersRelations = relations(characters, ({ one }) => ({
 }))
 
 export type AnimeRow = typeof anime.$inferSelect
+export type AnimeSourceRow = typeof animeSources.$inferSelect
 export type EpisodeRow = typeof episodes.$inferSelect
 export type GenreRow = typeof genres.$inferSelect
 export type CharacterRow = typeof characters.$inferSelect

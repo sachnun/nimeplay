@@ -1,5 +1,5 @@
-import { and, eq, inArray, like, notInArray } from 'drizzle-orm'
-import { anime, animeGenres, characters, episodes, genres } from './schema'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
 import { db } from '../utils/db'
 import { registerNeonDatabase } from '../utils/db-neon'
 
@@ -171,10 +171,8 @@ function buildCatalog(count: number): SeedAnime[] {
 const CATALOG = buildCatalog(COUNT)
 
 function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert {
-  const slug = `${PREFIX}${entry.slug}`
   const last = episodeDate(entry.start, entry.episodes)
   return {
-    slug,
     malId,
     title: entry.title,
     posterKey: image(entry.slug, 460, 650),
@@ -198,13 +196,12 @@ function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert
   }
 }
 
-function episodeValues(entry: SeedAnime, animeId: number): (typeof episodes.$inferInsert)[] {
-  const slug = `${PREFIX}${entry.slug}`
+function episodeValues(entry: SeedAnime, sourceId: number): (typeof episodes.$inferInsert)[] {
   return Array.from({ length: entry.episodes }, (_, index) => {
     const number = index + 1
     return {
-      animeId,
-      slug: `${slug}:ep${number}`,
+      sourceId,
+      slug: `${PREFIX}${entry.slug}:ep${number}`,
       number,
       title: `Episode ${number}`,
       releaseDate: episodeDate(entry.start, number),
@@ -240,16 +237,33 @@ async function seed(): Promise<void> {
     .where(inArray(genres.slug, genreSlugs))
   const genreIds = new Map(genreRows.map(row => [row.slug, row.id]))
 
+  await client.execute(sql`delete from anime where id in (select anime_id from anime_sources where source = 'seed' and anime_id is not null)`)
+
   for (const [index, entry] of CATALOG.entries()) {
     const malId = MAL_BASE + index + 1
     const values = animeValues(entry, malId)
     const [stored] = await client
       .insert(anime)
       .values(values)
-      .onConflictDoUpdate({ target: anime.slug, set: values })
+      .onConflictDoUpdate({ target: anime.malId, set: values })
       .returning({ id: anime.id })
-    if (!stored) throw new Error(`failed to upsert ${values.slug}`)
+    if (!stored) throw new Error(`failed to upsert ${entry.slug}`)
     const animeId = stored.id
+
+    const [storedSource] = await client
+      .insert(animeSources)
+      .values({
+        animeId,
+        source: 'seed',
+        slug: entry.slug,
+        status: entry.status,
+        day: entry.status === 'ONGOING' ? entry.day ?? null : null,
+        ongoingRank: entry.status === 'ONGOING' ? malId - MAL_BASE : null,
+        latestEpisodeAt: values.latestEpisodeAt ?? null,
+      })
+      .onConflictDoUpdate({ target: [animeSources.source, animeSources.slug], set: { animeId } })
+      .returning({ id: animeSources.id })
+    const sourceId = storedSource!.id
 
     await client.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
     const links = entry.genres
@@ -257,16 +271,13 @@ async function seed(): Promise<void> {
       .filter((link): link is { animeId: number, genreId: number } => link.genreId !== undefined)
     if (links.length > 0) await client.insert(animeGenres).values(links).onConflictDoNothing()
 
-    await client.delete(episodes).where(eq(episodes.animeId, animeId))
-    await client.insert(episodes).values(episodeValues(entry, animeId))
+    await client.delete(episodes).where(eq(episodes.sourceId, sourceId))
+    await client.insert(episodes).values(episodeValues(entry, sourceId))
 
     await client.delete(characters).where(eq(characters.animeId, animeId))
     const characterRows = characterValues(entry, animeId)
     if (characterRows.length > 0) await client.insert(characters).values(characterRows)
   }
-
-  const seededSlugs = CATALOG.map(entry => `${PREFIX}${entry.slug}`)
-  await client.delete(anime).where(and(like(anime.slug, `${PREFIX}%`), notInArray(anime.slug, seededSlugs)))
 
   const episodeTotal = CATALOG.reduce((total, entry) => total + entry.episodes, 0)
   const characterTotal = CATALOG.reduce((total, entry) => total + entry.characters.length, 0)

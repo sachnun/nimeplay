@@ -1,15 +1,18 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
-import { anime, animeGenres, appState, characters, episodes, genres, media } from '../database/schema'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { anime, animeGenres, animeSources, appState, characters, episodes, genres, media } from '../database/schema'
+import type { AnimeSourceRow } from '../database/schema'
 import { db } from './db'
 import { fetchMalAnime, malSearchVariants, rankMalAnimeMatches, searchMalAnimeEntries, seasonNumber } from './mal'
+import type { MalAnime, MalSearchEntry } from './mal'
 import { isValidMediaKey, mediaRef, type MediaRef } from './media'
-import { getSources, scrapeAnimeDetailFresh, splitSource } from './sources'
+import { getSources, splitSource } from './sources'
+import type { AnimeSource, ScrapedAnimeDetail } from './sources/types'
 import { enqueueMany } from './queue'
-import type { AnimeSource } from './sources/types'
 import { parseEpisodeDate } from './sources/shared'
 
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-const BIND_CHUNK_SIZE = 40
+const SYNC_STALE_MS = 4 * 60 * 1000
+const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
 function chunkValues<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = []
@@ -27,7 +30,6 @@ function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promis
   )
 }
 
-const SYNC_STALE_MS = 4 * 60 * 1000
 const syncStartedAt = new Map<string, number>()
 
 function acquireSync(name: string): boolean {
@@ -40,8 +42,6 @@ function acquireSync(name: string): boolean {
 function releaseSync(name: string): void {
   syncStartedAt.delete(name)
 }
-
-const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -76,16 +76,9 @@ async function getAppState(key: string): Promise<string | null> {
 }
 
 async function setAppState(key: string, value: string): Promise<void> {
-  try {
-    await db().execute(sql`insert into app_state (key, value, updated_at)
-      values (${key}, ${value}, now())
-      on conflict (key) do update set value = ${value}, updated_at = now()`)
-  }
-  catch (error) {
-    const cause = (error as { cause?: unknown }).cause
-    console.warn('[state] write failed:', error instanceof Error ? error.message : error, cause instanceof Error ? cause.message : cause)
-    throw error
-  }
+  await db().execute(sql`insert into app_state (key, value, updated_at)
+    values (${key}, ${value}, now())
+    on conflict (key) do update set value = ${value}, updated_at = now()`)
 }
 
 function recordFailure(slug: string, message: string): Promise<void> {
@@ -93,39 +86,24 @@ function recordFailure(slug: string, message: string): Promise<void> {
   return Promise.resolve()
 }
 
-async function loadMaxMap(slugs: string[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>()
-  const results = await Promise.all(chunkValues(slugs, BIND_CHUNK_SIZE).map(chunk =>
-    db()
-      .select({ slug: anime.slug, max: sql<number | null>`max(${episodes.number})` })
-      .from(anime)
-      .leftJoin(episodes, eq(episodes.animeId, anime.id))
-      .where(inArray(anime.slug, chunk))
-      .groupBy(anime.id),
-  ))
-  for (const rows of results) {
-    for (const row of rows) map.set(row.slug, Number(row.max ?? 0))
-  }
-  return map
+async function loadSourceMax(sourceId: number): Promise<number> {
+  const [row] = await db()
+    .select({ max: sql<number | null>`max(${episodes.number})` })
+    .from(episodes)
+    .where(eq(episodes.sourceId, sourceId))
+  return Number(row?.max ?? 0)
 }
 
-interface AnimeRefreshState {
-  id: number
-  max: number
-  malId: number | null
-  status: string | null
-  metadataSyncedAt: Date | null
+async function getSourceRow(sourceId: string, vendorSlug: string): Promise<AnimeSourceRow | null> {
+  const [row] = await db()
+    .select()
+    .from(animeSources)
+    .where(and(eq(animeSources.source, sourceId), eq(animeSources.slug, vendorSlug)))
+    .limit(1)
+  return row ?? null
 }
 
-async function upsertEpisodes(
-  animeId: number,
-  animeSlug: string,
-  list: { title: string, slug: string, date: string }[],
-  updates: Partial<typeof anime.$inferInsert>,
-) {
-  const split = splitSource(animeSlug)
-  if (!split) return
-  const sourcePrefix = `${split.source.id}:`
+async function upsertEpisodes(source: AnimeSource, sourceId: number, list: { title: string, slug: string, date: string }[]): Promise<void> {
   const rows = list
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
     .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)
@@ -133,27 +111,55 @@ async function upsertEpisodes(
   const client = db()
   for (const chunk of chunkValues(rows, 15)) {
     await client.insert(episodes).values(chunk.map(({ entry, number }) => ({
-      animeId,
-      slug: `${sourcePrefix}${entry.slug}`,
+      sourceId,
+      slug: `${source.id}:${entry.slug}`,
       number,
       title: entry.title,
       releaseDate: entry.date || null,
     }))).onConflictDoNothing()
   }
-  await client.update(anime).set({
-    ...updates,
-    episodeCount: sql<number>`(select cast(count(*) as integer) from ${episodes} where ${episodes.animeId} = ${animeId})`,
-    latestEpisode: sql<number | null>`(select max(${episodes.number}) from ${episodes} where ${episodes.animeId} = ${animeId})`,
-  }).where(eq(anime.id, animeId))
+}
+
+async function syncAnimeAggregate(animeId: number): Promise<void> {
+  const client = db()
+  await client.execute(sql`
+    update anime a set
+      episode_count = coalesce(e.count, 0),
+      latest_episode = e.max,
+      updated_at = now()
+    from (
+      select count(distinct ep.number) as count, max(ep.number) as max
+      from episodes ep
+      join anime_sources s on s.id = ep.source_id
+      where s.anime_id = ${animeId}
+    ) e
+    where a.id = ${animeId}
+  `)
+  await client.execute(sql`
+    update anime a set
+      status = case when s.status = 'ONGOING' then 'ONGOING' when s.status = 'COMPLETED' then 'COMPLETED' else a.status end,
+      day = coalesce(s.day, a.day),
+      ongoing_rank = coalesce(s.rank, a.ongoing_rank),
+      latest_episode_at = greatest(a.latest_episode_at, s.latest_at),
+      updated_at = now()
+    from (
+      select
+        case when count(*) filter (where status = 'ONGOING') > 0 then 'ONGOING'
+             when count(*) filter (where status = 'COMPLETED') > 0 then 'COMPLETED' end as status,
+        min(ongoing_rank) as rank,
+        max(latest_episode_at) as latest_at,
+        (array_agg(day order by ongoing_rank asc nulls last, updated_at desc) filter (where day is not null))[1] as day
+      from anime_sources
+      where anime_id = ${animeId}
+    ) s
+    where a.id = ${animeId}
+  `)
 }
 
 async function syncGenres(animeId: number, names: string[]) {
   if (names.length === 0) return
 
-  const rows = names.map(name => ({
-    slug: slugify(name),
-    name,
-  }))
+  const rows = names.map(name => ({ slug: slugify(name), name }))
   const wantedSlugs = [...new Set(rows.map(row => row.slug))]
 
   const client = db()
@@ -171,18 +177,13 @@ async function syncGenres(animeId: number, names: string[]) {
     .filter((id): id is number => id !== undefined)
     .map(id => ({ animeId, genreId: id }))
 
-  const writeClient = db()
-  await writeClient.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
+  await client.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
   for (const chunk of chunkValues(links, 30)) {
-    await writeClient.insert(animeGenres).values(chunk).onConflictDoNothing()
+    await client.insert(animeGenres).values(chunk).onConflictDoNothing()
   }
 }
 
-export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>) {
-  const [target] = await db().select({ id: anime.id }).from(anime).where(eq(anime.slug, slug)).limit(1)
-  if (!target) return
-  const animeId = target.id
-
+async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   const posterRef = mediaRef(mal.poster, 'posters')
   const characterRefs = mal.characters.map(c => mediaRef(c.imageUrl, 'characters'))
   const refs = [posterRef, ...characterRefs].filter((ref): ref is MediaRef => ref !== null && isValidMediaKey(ref.key))
@@ -203,6 +204,30 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
   const imageKey = (ref: MediaRef | null): string | null => (ref ? (mirroredKeys.get(ref.sourceUrl) ?? ref.key) : null)
 
   const posterKey = imageKey(posterRef)
+  const values: typeof anime.$inferInsert = {
+    malId: mal.malId,
+    ...(mal.title ? { title: mal.title } : {}),
+    synopsis: mal.synopsis,
+    ...(posterKey ? { posterKey } : {}),
+    rating: mal.score,
+    rank: mal.rank,
+    popularity: mal.popularity,
+    season: mal.season,
+    year: mal.year,
+    trailerId: mal.trailerId,
+    studio: mal.studio,
+    source: mal.source,
+    extra: { episodeTotal: mal.episodeTotal },
+    metadataSyncedAt: new Date(),
+    updatedAt: new Date(),
+  }
+
+  const [row] = await db()
+    .insert(anime)
+    .values(values)
+    .onConflictDoUpdate({ target: anime.malId, set: values })
+    .returning({ id: anime.id })
+  const animeId = row!.id
 
   const characterRows = mal.characters.map((c, index) => ({
     animeId,
@@ -215,73 +240,38 @@ export async function applyMalMetadata(slug: string, mal: NonNullable<Awaited<Re
     sortOrder: index,
   }))
 
-  await db()
-    .update(anime)
-    .set({
-      malId: mal.malId,
-      ...(mal.title ? { title: mal.title } : {}),
-      synopsis: mal.synopsis,
-      ...(posterKey ? { posterKey } : {}),
-      rating: mal.score,
-      rank: mal.rank,
-      popularity: mal.popularity,
-      season: mal.season,
-      year: mal.year,
-      trailerId: mal.trailerId,
-      studio: mal.studio,
-      source: mal.source,
-      extra: { episodeTotal: mal.episodeTotal },
-      metadataSyncedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(anime.id, animeId))
-
   await db().delete(characters).where(eq(characters.animeId, animeId))
   for (const chunk of chunkValues(characterRows, 50)) {
     await db().insert(characters).values(chunk).onConflictDoNothing()
   }
   await syncGenres(animeId, mal.genres)
+  return animeId
 }
 
-async function refreshLinkedMalMetadata(slug: string, malId: number): Promise<boolean> {
-  const mal = await fetchMalAnime(malId)
-  if (!mal) {
-    console.warn(`[metadata] linked refresh empty ${slug} mal ${malId}`)
-    return false
-  }
-  const [owner] = await db()
-    .select({ slug: anime.slug })
-    .from(anime)
-    .where(eq(anime.malId, mal.malId))
-    .limit(1)
-  if (owner && owner.slug !== slug) {
-    const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
-    return false
-  }
-  try {
-    await applyMalMetadata(slug, mal)
-    return true
-  }
-  catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] linked refresh failed ${slug}: ${reason}`)
-    return false
-  }
+async function linkSource(sourceRowId: number, animeId: number): Promise<void> {
+  await db()
+    .update(animeSources)
+    .set({ animeId, metadataSyncedAt: new Date(), updatedAt: new Date() })
+    .where(eq(animeSources.id, sourceRowId))
 }
 
-export async function resolveAnimeMetadata(slug: string, providedTitle?: string, providedDetail?: Awaited<ReturnType<typeof scrapeAnimeDetailFresh>> | null): Promise<boolean> {
-  let detailPromise: Promise<Awaited<ReturnType<typeof scrapeAnimeDetailFresh>>> | undefined
-  if (providedDetail !== undefined) detailPromise = Promise.resolve(providedDetail)
-  const loadDetail = () => (detailPromise ??= scrapeAnimeDetailFresh(slug).catch(() => null))
-  const title = (providedTitle || (await loadDetail())?.title || '').trim()
+async function refreshCanonicalMetadata(animeId: number): Promise<boolean> {
+  const [row] = await db().select({ malId: anime.malId }).from(anime).where(eq(anime.id, animeId)).limit(1)
+  if (!row) return false
+  const mal = await fetchMalAnime(row.malId)
+  if (!mal) return false
+  await upsertCanonicalAnime(mal)
+  return true
+}
+
+async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: AnimeSource, detail: ScrapedAnimeDetail | null): Promise<number | null> {
+  const slug = `${source.id}:${sourceRow.slug}`
+  const title = (detail?.title || '').trim()
   if (!title) {
     await recordFailure(slug, 'no scraped title')
-    return false
+    return null
   }
-  const merged = new Map<number, { id: number, title: string }>()
+  const merged = new Map<number, MalSearchEntry>()
   const search = async (variants: string[]): Promise<void> => {
     for (const variant of variants) {
       const batch = await searchMalAnimeEntries(variant)
@@ -293,115 +283,68 @@ export async function resolveAnimeMetadata(slug: string, providedTitle?: string,
   }
   await search(malSearchVariants(title))
   let ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
-  const japanese = (await loadDetail())?.japanese
+  const japanese = detail?.japanese
   if (ranked.length === 0 && japanese) {
     await search(malSearchVariants(japanese))
     ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
   }
   if (ranked.length === 0) {
     const top = [...merged.values()][0]?.title ?? '-'
-    const reason = `no MAL title matches "${title}" (top: "${top}")`
-    await recordFailure(slug, reason)
-    console.warn(`[metadata] no MAL title matches "${title}" (top: "${top}")`)
-    return false
+    await recordFailure(slug, `no MAL title matches "${title}" (top: "${top}")`)
+    return null
   }
 
-  let odYear: number | null | undefined
-  const loadOdYear = (): Promise<number | null> => {
-    if (odYear !== undefined) return Promise.resolve(odYear)
-    return loadDetail().then(detail => odYear = parseOdYear(detail?.releaseDate ?? null))
-  }
-  let yearFallback: { mal: NonNullable<Awaited<ReturnType<typeof fetchMalAnime>>>, diff: number } | null = null
+  const detailYear = parseOdYear(detail?.releaseDate ?? null)
+  let yearFallback: { mal: MalAnime, diff: number } | null = null
 
   for (const candidate of ranked.slice(0, 3)) {
     const mal = await fetchMalAnime(candidate.id)
-    if (!mal) {
-      const reason = `MAL fetch returned empty for id ${candidate.id}`
-      await recordFailure(slug, reason)
-      console.warn(`[metadata] failed ${slug}: ${reason}`)
-      continue
-    }
+    if (!mal) continue
 
     const siteSeason = seasonNumber(title)
     const candidateSeason = seasonNumber(candidate.title)
     if (siteSeason !== null && siteSeason > 1 && candidateSeason === null && mal.year !== null) {
-      const expectedYear = await loadOdYear()
-      if (expectedYear !== null && Math.abs(expectedYear - mal.year) > 1) {
-        if (!yearFallback || Math.abs(expectedYear - mal.year) < yearFallback.diff) {
-          yearFallback = { mal, diff: Math.abs(expectedYear - mal.year) }
+      if (detailYear !== null && Math.abs(detailYear - mal.year) > 1) {
+        if (!yearFallback || Math.abs(detailYear - mal.year) < yearFallback.diff) {
+          yearFallback = { mal, diff: Math.abs(detailYear - mal.year) }
         }
         continue
       }
     }
 
-    const [owner] = await db()
-      .select({ slug: anime.slug })
-      .from(anime)
-      .where(eq(anime.malId, mal.malId))
-      .limit(1)
-    if (owner && owner.slug !== slug) {
-      const reason = `mal_id ${mal.malId} already owned by ${owner.slug}`
-      await recordFailure(slug, reason)
-      console.warn(`[metadata] mal_id ${mal.malId} already owned, skipping ${slug}`)
-      return false
-    }
-
-    return applyMalMetadata(slug, mal).then(
-      () => true,
-      error => {
-        const reason = error instanceof Error ? error.message : String(error)
-        return recordFailure(slug, reason).then(() => {
-          console.warn(`[metadata] failed ${slug}: ${reason}`)
-          return false
-        })
-      },
-    )
+    const animeId = await upsertCanonicalAnime(mal)
+    await linkSource(sourceRow.id, animeId)
+    return animeId
   }
 
   if (yearFallback) {
-    const [owner] = await db()
-      .select({ slug: anime.slug })
-      .from(anime)
-      .where(eq(anime.malId, yearFallback.mal.malId))
-      .limit(1)
-    if (!owner || owner.slug === slug) {
-      return applyMalMetadata(slug, yearFallback.mal).then(
-        () => true,
-        error => {
-          const reason = error instanceof Error ? error.message : String(error)
-          return recordFailure(slug, reason).then(() => {
-            console.warn(`[metadata] failed ${slug}: ${reason}`)
-            return false
-          })
-        },
-      )
-    }
+    const animeId = await upsertCanonicalAnime(yearFallback.mal)
+    await linkSource(sourceRow.id, animeId)
+    return animeId
   }
 
-  const reason = `no usable MAL candidate for "${title}"`
-  await recordFailure(slug, reason)
-  console.warn(`[metadata] failed ${slug}: ${reason}`)
-  return false
+  await recordFailure(slug, `no usable MAL candidate for "${title}"`)
+  return null
 }
 
-export async function refreshAnimeBySlug(slug: string, refreshMetadata: boolean, known?: AnimeRefreshState): Promise<void> {
-  let state = known
-  if (!state) {
+export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata: boolean): Promise<void> {
+  const split = splitSource(compositeSlug)
+  if (!split) return
+  const source = split.source
+  const vendorSlug = split.rest
+
+  let sourceRow = await getSourceRow(source.id, vendorSlug)
+  if (!sourceRow) {
     const [row] = await db()
-      .select({ id: anime.id, malId: anime.malId, status: anime.status, metadataSyncedAt: anime.metadataSyncedAt })
-      .from(anime)
-      .where(eq(anime.slug, slug))
-      .limit(1)
-    state = {
-      id: row?.id ?? -1,
-      max: -1,
-      malId: row?.malId ?? null,
-      status: row?.status ?? null,
-      metadataSyncedAt: row?.metadataSyncedAt ?? null,
-    }
+      .insert(animeSources)
+      .values({ source: source.id, slug: vendorSlug, url: `${source.baseUrl}/anime/${vendorSlug}/` })
+      .onConflictDoNothing()
+      .returning()
+    sourceRow = row ?? await getSourceRow(source.id, vendorSlug)
+    if (!sourceRow) return
   }
-  const animeRow = state
-  const detail = await scrapeAnimeDetailFresh(slug)
+
+  const detail = await source.detailFresh(vendorSlug)
   let hasNewEpisodes = false
   let statusChanged = false
   if (detail) {
@@ -410,55 +353,74 @@ export async function refreshAnimeBySlug(slug: string, refreshMetadata: boolean,
       .map(entry => parseEpisodeDate(entry.date))
       .filter((date): date is Date => date !== null)
       .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-    const maxBefore = animeRow.max >= 0 ? animeRow.max : (await loadMaxMap([slug])).get(slug) ?? 0
+    const maxBefore = await loadSourceMax(sourceRow.id)
     const maxInDetail = detail.episodes.reduce((max, entry) => {
       const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
       return parsed != null && parsed > max ? parsed : max
     }, 0)
     hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
-    statusChanged = animeRow.status != null && animeRow.status !== status
-    await upsertEpisodes(animeRow.id, slug, detail.episodes, {
+    statusChanged = sourceRow.status != null && sourceRow.status !== status
+    await upsertEpisodes(source, sourceRow.id, detail.episodes)
+    await db().update(animeSources).set({
       status,
-      ...(status === 'COMPLETED' ? { day: null, ongoingRank: null } : {}),
       ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-      ...(hasNewEpisodes ? { lastNewEpisodeAt: new Date() } : {}),
       updatedAt: new Date(),
-    })
+    }).where(eq(animeSources.id, sourceRow.id))
   }
-  const linkedMalId = animeRow.malId
-  const metadataStale = !animeRow.metadataSyncedAt || Date.now() - animeRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
-  if (linkedMalId) {
+
+  const linkedAnimeId = sourceRow.animeId
+  if (linkedAnimeId) {
+    const metadataStale = !sourceRow.metadataSyncedAt || Date.now() - sourceRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
     if (statusChanged || (metadataStale && (hasNewEpisodes || refreshMetadata))) {
-      await refreshLinkedMalMetadata(slug, linkedMalId)
+      await refreshCanonicalMetadata(linkedAnimeId)
+      await db().update(animeSources).set({ metadataSyncedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
     }
+    if (hasNewEpisodes) {
+      await db().update(anime).set({ lastNewEpisodeAt: new Date() }).where(eq(anime.id, linkedAnimeId))
+    }
+    await syncAnimeAggregate(linkedAnimeId)
   }
   else if (refreshMetadata) {
-    await resolveAnimeMetadata(slug, detail?.title, detail)
+    const animeId = await resolveSourceMetadata(sourceRow, source, detail)
+    if (animeId) await syncAnimeAggregate(animeId)
   }
 }
 
-async function registerOngoingCards(cards: { source: AnimeSource, slug: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
+async function registerOngoingCards(source: AnimeSource, sourceId: string, cards: { slug: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
-    slug: `${card.source.id}:${card.slug}`,
+    source: sourceId,
+    slug: card.slug,
+    url: `${source.baseUrl}/anime/${card.slug}/`,
     status: card.status ?? 'ONGOING',
     day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
     ongoingRank: card.ongoingRank ?? null,
-    sourceUrl: `${card.source.baseUrl}/anime/${card.slug}/`,
   }))
   const client = db()
   for (const chunk of chunkValues(rows, 10)) {
-    await client.insert(anime).values(chunk).onConflictDoUpdate({
-      target: anime.slug,
+    await client.insert(animeSources).values(chunk).onConflictDoUpdate({
+      target: [animeSources.source, animeSources.slug],
       set: {
         status: sql`excluded.status`,
-        day: sql`coalesce(excluded.day, ${anime.day})`,
-        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${anime.latestEpisodeAt})`,
-        ongoingRank: sql`coalesce(excluded.ongoing_rank, ${anime.ongoingRank})`,
+        day: sql`coalesce(excluded.day, ${animeSources.day})`,
+        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${animeSources.latestEpisodeAt})`,
+        ongoingRank: sql`coalesce(excluded.ongoing_rank, ${animeSources.ongoingRank})`,
       },
     })
   }
+
+  const touched = new Set<number>()
+  for (const chunk of chunkValues(rows.map(row => row.slug), 200)) {
+    const linked = await client
+      .select({ animeId: animeSources.animeId })
+      .from(animeSources)
+      .where(and(eq(animeSources.source, sourceId), inArray(animeSources.slug, chunk)))
+    for (const row of linked) {
+      if (row.animeId) touched.add(row.animeId)
+    }
+  }
+  for (const animeId of touched) await syncAnimeAggregate(animeId)
 }
 
 async function backfillCompleted(source: AnimeSource): Promise<{ pages: number, registered: number }> {
@@ -480,14 +442,13 @@ async function backfillCompleted(source: AnimeSource): Promise<{ pages: number, 
     totalPages = Math.max(1, result.totalPages)
     if (result.anime.length > 0) {
       const cards = result.anime.map(card => ({
-        source,
         slug: card.slug,
         day: card.day,
         date: card.date,
         status: 'COMPLETED' as const,
       }))
       const done = await attempt(
-        registerOngoingCards(cards),
+        registerOngoingCards(source, source.id, cards),
         error => console.warn(`[catalog] ${source.id} completed register failed:`, error instanceof Error ? error.message : error),
       )
       if (done !== null) registered += result.anime.length
@@ -501,7 +462,7 @@ async function backfillCompleted(source: AnimeSource): Promise<{ pages: number, 
 async function syncOngoingCatalog(): Promise<void> {
   let ongoingRank = 0
   for (const source of getSources()) {
-    const cards: { source: AnimeSource, slug: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
+    const cards: { slug: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
     const first = await attempt(
       source.ongoingFresh(1),
       error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
@@ -509,7 +470,7 @@ async function syncOngoingCatalog(): Promise<void> {
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
         ongoingRank++
-        cards.push({ source, slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+        cards.push({ slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
       }
       const pages: number[] = []
       for (let page = 2; page <= first.totalPages; page++) pages.push(page)
@@ -521,15 +482,12 @@ async function syncOngoingCatalog(): Promise<void> {
         if (result === null) continue
         for (const card of result.anime) {
           ongoingRank++
-          cards.push({ source, slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+          cards.push({ slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
         }
       }
     }
-    const registered = await attempt(
-      registerOngoingCards(cards),
-      error => console.warn(`[catalog] ${source.id} register failed:`, error instanceof Error ? error.message : error),
-    )
-    if (registered !== null) console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    await registerOngoingCards(source, source.id, cards)
+    if (cards.length > 0) console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 }
 
@@ -561,4 +519,3 @@ export async function runBackfill(sourceId: string): Promise<void> {
     releaseSync(`backfill:${sourceId}`)
   }
 }
-

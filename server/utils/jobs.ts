@@ -4,7 +4,7 @@ import { db } from './db'
 import { claim, complete, enqueue, fail, prune, releaseStale } from './queue'
 import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
-import { refreshAnimeBySlug, runBackfill, runOngoingSync } from './refresh'
+import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 
 const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
@@ -16,7 +16,7 @@ const worker = `task:${process.pid}`
 
 async function handle(job: JobRow): Promise<void> {
   if (job.type === 'anime.refresh') {
-    await refreshAnimeBySlug(String(job.payload.slug ?? ''), true)
+    await refreshSourceBySlug(String(job.payload.slug ?? ''), true)
     return
   }
   if (job.type === 'catalog.ongoing') {
@@ -37,12 +37,15 @@ async function handle(job: JobRow): Promise<void> {
 async function seedRefreshJobs(): Promise<void> {
   await db().execute(sql`
     insert into jobs (type, payload, dedupe_key, priority, max_attempts)
-    select 'anime.refresh', jsonb_build_object('slug', a.slug), 'anime.refresh:' || a.slug, 0, 5
-    from anime a
-    where a.mal_id is null or a.episode_count = 0 or a.poster_key is null
-    order by case when a.status = 'ONGOING' then 0 else 1 end,
-             a.ongoing_rank asc nulls last,
-             a.updated_at asc
+    select 'anime.refresh', jsonb_build_object('slug', s.source || ':' || s.slug), 'anime.refresh:' || s.source || ':' || s.slug,
+           case when s.status = 'ONGOING' then 5 else 0 end, 5
+    from anime_sources s
+    where s.anime_id is null
+       or not exists (select 1 from episodes e where e.source_id = s.id)
+       or (s.status = 'ONGOING' and s.updated_at < now() - interval '2 hours')
+    order by case when s.status = 'ONGOING' then 0 else 1 end,
+             s.ongoing_rank asc nulls last,
+             s.updated_at asc
     on conflict do nothing
   `)
 }
@@ -53,9 +56,9 @@ async function seedEpisodeCacheJobs(): Promise<void> {
       insert into jobs (type, payload, dedupe_key, priority, max_attempts)
       select 'episode.cache', jsonb_build_object('slug', e.slug), 'episode.cache:' || e.slug, 1, 5
       from episodes e
-      join anime a on a.id = e.anime_id
+      join anime_sources s on s.id = e.source_id
       where (e.cache is null or e.cached_at < now() - interval '3 days')
-        and a.slug like ${`${sourceId}:%`}
+        and s.source = ${sourceId}
         and not exists (
           select 1 from jobs j
           where j.dedupe_key = 'episode.cache:' || e.slug and j.status in ('waiting', 'active', 'failed')
@@ -69,7 +72,8 @@ async function seedEpisodeCacheJobs(): Promise<void> {
     insert into jobs (type, payload, dedupe_key, priority, max_attempts)
     select 'episode.cache', jsonb_build_object('slug', e.slug), 'episode.cache:' || e.slug, -1, 5
     from episodes e
-    join anime a on a.id = e.anime_id
+    join anime_sources s on s.id = e.source_id
+    join anime a on a.id = s.anime_id
     where a.status = 'ONGOING'
       and (e.cache is null or e.cached_at < now() - interval '3 days')
       and not exists (

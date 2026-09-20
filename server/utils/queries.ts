@@ -3,7 +3,8 @@ import { alias } from 'drizzle-orm/pg-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
 import { posterSrc } from './media'
-import { anime, animeGenres, characters, episodes, genres, media } from '../database/schema'
+import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../database/schema'
+import { sourcePriority } from './sources'
 import { cleanSynopsis } from './synopsis'
 import type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#shared/types'
 
@@ -79,12 +80,13 @@ export async function listAnimePage(
   for (let i = 0; i < ids.length; i += BIND_CHUNK_SIZE) {
     const chunk = ids.slice(i, i + BIND_CHUNK_SIZE)
     const maxRows = await db()
-      .select({ animeId: episodes.animeId, max: sql<number | null>`max(${episodes.number})` })
+      .select({ animeId: animeSources.animeId, max: sql<number | null>`max(${episodes.number})` })
       .from(episodes)
-      .where(inArray(episodes.animeId, chunk))
-      .groupBy(episodes.animeId)
+      .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
+      .where(inArray(animeSources.animeId, chunk))
+      .groupBy(animeSources.animeId)
     for (const entry of maxRows) {
-      if (entry.max != null) maxById.set(entry.animeId, Number(entry.max))
+      if (entry.max != null && entry.animeId != null) maxById.set(entry.animeId, Number(entry.max))
     }
   }
 
@@ -173,7 +175,6 @@ export async function getCharactersForAnime(animeId: number): Promise<AnimeChara
 
 interface AnimeRecord {
   id: number
-  slug: string
   malId: number
   title: string
   posterKey: string | null
@@ -191,7 +192,6 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
   const [row] = await db()
     .select({
       id: anime.id,
-      slug: anime.slug,
       malId: anime.malId,
       title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
@@ -214,14 +214,26 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
   const row = await getAnimeByMalId(malId)
   if (!row) return null
 
-  const [episodeRows, genreRows] = await Promise.all([
+  const [sourceEpisodeRows, genreRows] = await Promise.all([
     db()
-      .select({ number: episodes.number, releaseDate: episodes.releaseDate })
+      .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source })
       .from(episodes)
-      .where(eq(episodes.animeId, row.id))
-      .orderBy(asc(episodes.number)),
+      .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
+      .where(eq(animeSources.animeId, row.id)),
     getGenresForAnime(row.id),
   ])
+
+  const episodeByNumber = new Map<number, { number: number, date: string }>()
+  const chosenPriority = new Map<number, number>()
+  for (const entry of sourceEpisodeRows) {
+    const priority = sourcePriority(entry.source)
+    const current = chosenPriority.get(entry.number)
+    if (current === undefined || priority < current) {
+      chosenPriority.set(entry.number, priority)
+      episodeByNumber.set(entry.number, { number: entry.number, date: entry.releaseDate ?? '' })
+    }
+  }
+  const episodeRows = [...episodeByNumber.values()].sort((a, b) => a.number - b.number)
 
   return {
     malId: row.malId,
@@ -240,39 +252,39 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     thumbnail: posterSrc(row.posterKey),
     synopsis: cleanSynopsis(row.synopsis ?? ''),
     season: formatSeason(row.season, row.year),
-    episodes: episodeRows.map(entry => ({
-      number: entry.number,
-      date: entry.releaseDate ?? '',
-    })),
+    episodes: episodeRows,
   }
+}
+
+export interface EpisodeCandidate {
+  episodeSlug: string
+  source: string
 }
 
 export async function resolveEpisode(
   malId: number,
   number: number,
-): Promise<{ animeId: number, animeSlug: string, anime: { title: string, thumbnail: string }, sourceSlug: string, episodeTitle: string } | null> {
-  const row = await db()
+): Promise<{ animeId: number, anime: { title: string, thumbnail: string }, candidates: EpisodeCandidate[] } | null> {
+  const rows = await db()
     .select({
       animeId: anime.id,
-      animeSlug: anime.slug,
       title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
       episodeSlug: episodes.slug,
-      episodeTitle: episodes.title,
+      source: animeSources.source,
     })
     .from(episodes)
-    .innerJoin(anime, eq(anime.id, episodes.animeId))
+    .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
+    .innerJoin(anime, eq(anime.id, animeSources.animeId))
     .where(and(eq(anime.malId, malId), eq(episodes.number, number)))
-    .limit(1)
 
-  const match = row[0]
-  if (!match) return null
+  if (rows.length === 0) return null
+  rows.sort((a, b) => sourcePriority(a.source) - sourcePriority(b.source))
+  const first = rows[0]!
   return {
-    animeId: match.animeId,
-    animeSlug: match.animeSlug,
-    anime: { title: match.title, thumbnail: posterSrc(match.posterKey) },
-    sourceSlug: match.episodeSlug,
-    episodeTitle: match.episodeTitle,
+    animeId: first.animeId,
+    anime: { title: first.title, thumbnail: posterSrc(first.posterKey) },
+    candidates: rows.map(row => ({ episodeSlug: row.episodeSlug, source: row.source })),
   }
 }
 
@@ -280,7 +292,9 @@ export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
   const rows = await db()
     .select({ number: episodes.number })
     .from(episodes)
-    .where(eq(episodes.animeId, animeId))
+    .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
+    .where(eq(animeSources.animeId, animeId))
+    .groupBy(episodes.number)
     .orderBy(asc(episodes.number))
   return rows.map(entry => entry.number)
 }

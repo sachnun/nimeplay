@@ -11,6 +11,13 @@ export const sources: Record<string, AnimeSource> = {
   ylnime,
 }
 
+const SOURCE_ORDER = ['otakudesu', 'ylnime', 'sokuja', 'animein']
+
+export function sourcePriority(id: string): number {
+  const index = SOURCE_ORDER.indexOf(id)
+  return index === -1 ? SOURCE_ORDER.length : index
+}
+
 export function getSources(): AnimeSource[] {
   return Object.values(sources)
 }

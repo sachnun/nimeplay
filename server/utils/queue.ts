@@ -73,5 +73,5 @@ export async function releaseStale(staleMs: number): Promise<void> {
 }
 
 export async function prune(before: Date): Promise<void> {
-  await db().execute(sql`delete from jobs where status = 'done' and updated_at < ${before}`)
+  await db().execute(sql`delete from jobs where status in ('done', 'failed') and updated_at < ${before}`)
 }

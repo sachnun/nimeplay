@@ -19,6 +19,26 @@ const infoItems = computed(() => [
   { label: 'Studio', value: props.otakudesu.studio },
   { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
+
+const headerRef = ref<HTMLElement | null>(null)
+const episodesRef = ref<HTMLElement | null>(null)
+const merged = ref(false)
+const measured = ref(false)
+
+function updateLayout() {
+  merged.value = (episodesRef.value?.offsetHeight ?? 0) > (headerRef.value?.offsetHeight ?? 0)
+  measured.value = true
+}
+
+let resizeObserver: ResizeObserver | null = null
+onMounted(() => {
+  resizeObserver = new ResizeObserver(updateLayout)
+  if (headerRef.value) resizeObserver.observe(headerRef.value)
+  if (episodesRef.value) resizeObserver.observe(episodesRef.value)
+  void nextTick(updateLayout)
+})
+onBeforeUnmount(() => resizeObserver?.disconnect())
+
 const router = useRouter()
 
 function goBack() {
@@ -43,8 +63,8 @@ function goBack() {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Back
         </button>
-        <div class="flex flex-col md:grid md:grid-cols-[1fr_minmax(280px,360px)] md:gap-8 xl:gap-10 gap-6">
-          <div class="min-w-0 flex flex-col gap-6">
+        <div class="flex flex-col md:grid md:grid-cols-[1fr_minmax(280px,360px)] md:gap-8 xl:gap-10 gap-6" :class="measured ? '' : 'invisible'">
+          <div ref="headerRef" class="min-w-0 md:col-start-1 md:row-start-1 md:self-start flex flex-col gap-6">
             <div class="flex gap-4">
               <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" class="flex-shrink-0 w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
               <div class="flex-1 min-w-0">
@@ -82,19 +102,20 @@ function goBack() {
               </h2>
               <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
-
-            <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
-
-            <CharacterList :characters="data?.characters" />
           </div>
 
-          <div class="hidden md:block">
-            <div class="bg-zinc-900/50 backdrop-blur rounded-lg p-4">
+          <div class="hidden md:block md:col-start-2 md:row-start-1 md:self-start" :class="merged ? 'md:row-span-2' : ''">
+            <div ref="episodesRef" class="bg-zinc-900/50 backdrop-blur rounded-lg p-4">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Episodes
               </h2>
               <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
+          </div>
+
+          <div class="min-w-0 md:col-start-1 md:row-start-2" :class="merged ? 'flex flex-col gap-6' : 'grid gap-6 md:col-span-2 md:grid-cols-[1fr_minmax(280px,400px)] xl:gap-10'">
+            <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
+            <CharacterList :characters="data?.characters" :compact="!merged" />
           </div>
         </div>
       </section>

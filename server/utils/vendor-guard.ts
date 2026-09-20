@@ -37,12 +37,6 @@ export function blockedSources(): string[] {
     .map(([id]) => id)
 }
 
-export function inflightCount(): number {
-  let total = 0
-  for (const state of states.values()) total += state.inflight
-  return total
-}
-
 async function acquire(id: string): Promise<void> {
   const state = get(id)
   if (state.inflight < CONCURRENCY) {

@@ -35,16 +35,23 @@ export async function claim(worker: string, limit: number, types?: string[], exc
     ? sql` and coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), '') not in (${sql.join(excludeSources.map(id => sql`${id}`), sql`, `)})`
     : sql``
   const result = await db().execute(sql`
-    update jobs
-    set status = 'active', locked_at = now(), locked_by = ${worker}, attempts = attempts + 1, updated_at = now()
-    where id in (
-      select id from jobs
-      where status = 'waiting' and run_at <= now() ${typeFilter} ${sourceFilter}
-      order by priority desc, run_at asc
-      for update skip locked
+    update jobs j
+    set status = 'active', locked_at = now(), locked_by = ${worker}, attempts = j.attempts + 1, updated_at = now()
+    from (
+      select id from (
+        select id, priority, run_at,
+          row_number() over (
+            partition by coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), '')
+            order by priority desc, run_at asc
+          ) rn
+        from jobs
+        where status = 'waiting' and run_at <= now() ${typeFilter} ${sourceFilter}
+      ) ranked
+      order by rn asc, priority desc, run_at asc
       limit ${limit}
-    )
-    returning *
+    ) picked
+    where j.id = picked.id and j.status = 'waiting'
+    returning j.*
   `) as unknown as { rows: JobRow[] }
   return result.rows
 }

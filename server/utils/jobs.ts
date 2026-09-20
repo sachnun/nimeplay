@@ -5,11 +5,10 @@ import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } fr
 import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
-import { blockedSources, inflightCount, recordFailure, recordSuccess, runGuarded, sourceOf } from './vendor-guard'
+import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './vendor-guard'
 
 const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
-const IDLE_POLL_MS = 1000
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
@@ -126,22 +125,12 @@ async function logStats(): Promise<void> {
   console.log('[tick]', JSON.stringify({ counts: counts.rows, waiting: waiting.rows }))
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-async function workerLoop(deadline: number): Promise<void> {
-  while (Date.now() < deadline) {
-    const [job] = await claim(worker, 1, TASK_TYPES, blockedSources())
-    if (!job) {
-      if (inflightCount() === 0) return
-      await sleep(IDLE_POLL_MS)
-      continue
-    }
-    await processJob(job)
-  }
-}
-
 async function drain(deadline: number): Promise<void> {
-  await Promise.all(Array.from({ length: BATCH }, () => workerLoop(deadline)))
+  while (Date.now() < deadline) {
+    const claimed = await claim(worker, BATCH, TASK_TYPES, blockedSources())
+    if (claimed.length === 0) return
+    await Promise.all(claimed.map(processJob))
+  }
 }
 
 export async function runTick(): Promise<void> {

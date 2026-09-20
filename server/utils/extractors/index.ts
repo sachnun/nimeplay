@@ -63,20 +63,24 @@ async function extractFallbackHost(embedUrl: string, html: string): Promise<stri
   }
 }
 
-export async function detectStreamKind(url: string): Promise<'hls' | 'file'> {
-  if (/\.m3u8($|\?)/i.test(url)) return 'hls'
+export async function probeStream(url: string, headers?: Record<string, string>): Promise<{ kind: 'hls' | 'file', ok: boolean }> {
+  const playlist = /\.m3u8($|\?)/i.test(url)
+  const request = { ...upstreamHeadersFor(url, playlist ? undefined : 'bytes=0-15'), ...headers }
+  for (const [key, value] of Object.entries(request)) {
+    if (value === '') delete request[key]
+  }
   try {
     const res = await fetch(url, {
-      headers: upstreamHeadersFor(url, 'bytes=0-15'),
+      headers: request,
       signal: AbortSignal.timeout(5000),
     })
     void res.body?.cancel()
     const contentType = (res.headers.get('content-type') || '').toLowerCase()
-    if (contentType.includes('mpegurl')) return 'hls'
+    return { kind: playlist || contentType.includes('mpegurl') ? 'hls' : 'file', ok: res.ok || res.status === 206 }
   }
   catch {
+    return { kind: playlist ? 'hls' : 'file', ok: false }
   }
-  return 'file'
 }
 
 export async function extractStreamUrl(embedUrl: string): Promise<string | null> {

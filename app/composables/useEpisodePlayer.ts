@@ -1,6 +1,6 @@
 import { fetchSkipTimes } from '~/utils/remote'
 import { loadHls, preloadHls } from '~/utils/hls'
-import { listQualityLevels, type MirrorCandidate } from '~/utils/player'
+import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
 import { pickInitialQuality, rememberQuality, useEpisodePlayerQuality } from './player/quality'
@@ -97,7 +97,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function bufferAhead() {
     const video = videoRef.value
     if (!video || video.buffered.length === 0) return 0
-    return Math.max(0, video.buffered.end(video.buffered.length - 1) - video.currentTime)
+    return Math.max(0, bufferedEndAt(video) - video.currentTime)
   }
 
   const showNative = computed(() => !!directUrl.value)

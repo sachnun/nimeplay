@@ -67,6 +67,17 @@ export function listQualityLevels(mirrors: EpisodeData['mirrors']): MirrorCandid
   return levels
 }
 
+export function bufferedEndAt(video: HTMLVideoElement): number {
+  const ranges = video.buffered
+  const time = video.currentTime
+  let end = 0
+  for (let i = 0; i < ranges.length; i++) {
+    if (ranges.start(i) > time) break
+    end = ranges.end(i)
+  }
+  return Math.max(end, time)
+}
+
 export function formatTime(s: number): string {
   if (!Number.isFinite(s) || s < 0) return '0:00'
   const h = Math.floor(s / 3600)

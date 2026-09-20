@@ -1,4 +1,5 @@
 import type { ComputedRef, Ref } from 'vue'
+import { bufferedEndAt } from '~/utils/player'
 import type { SkipTime } from '~/utils/types'
 
 type EpisodeLink = { num: number }
@@ -79,6 +80,7 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
 
   function onTimeUpdate(video: HTMLVideoElement) {
     if (!options.isSeeking.value) options.currentTime.value = video.currentTime
+    updateBuffered(video)
     if (options.skipTimes.value.length > 0) options.autoSkipCurrentSegment(video)
   }
 
@@ -87,8 +89,12 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     void options.fetchSkipTimesIfNeeded()
   }
 
+  function updateBuffered(video: HTMLVideoElement) {
+    if (video.buffered.length > 0) options.buffered.value = bufferedEndAt(video)
+  }
+
   function onProgress(video: HTMLVideoElement) {
-    if (video.buffered.length > 0) options.buffered.value = video.buffered.end(video.buffered.length - 1)
+    updateBuffered(video)
   }
 
   function onVolumeChange(video: HTMLVideoElement) {

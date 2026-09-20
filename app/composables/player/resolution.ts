@@ -10,7 +10,6 @@ interface EpisodePlayerResolutionOptions {
   episode: Ref<EpisodeData>
   loadingMessage: Ref<string>
   resolving: Ref<boolean>
-  onExhausted?: (tried: string[]) => void
 }
 
 type PrepareResult = {
@@ -23,7 +22,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   let fallbackFn: (() => void) | null = null
   let playbackSession = 0
   let fallbackRunning = false
-  let exhaustedNotified = false
 
   function triggerFallback() {
     fallbackFn?.()
@@ -33,13 +31,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     playbackSession += 1
     fallbackFn = null
     fallbackRunning = false
-    exhaustedNotified = false
-  }
-
-  function notifyExhausted(candidates: MirrorCandidate[], nextIndex: number) {
-    if (exhaustedNotified) return
-    exhaustedNotified = true
-    options.onExhausted?.(candidates.slice(0, nextIndex).map((candidate) => candidate.dataContent))
   }
 
   function isCurrentSession(sessionId: number) {
@@ -114,7 +105,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   function startPlaybackResolution(seamless: boolean) {
     const sessionId = ++playbackSession
     fallbackRunning = false
-    exhaustedNotified = false
     options.loadingMessage.value = seamless ? 'Mengganti kualitas...' : 'Menyiapkan player...'
     if (!seamless) {
       options.resolving.value = true
@@ -128,7 +118,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     const initialResolved = await tryMirror(startCandidate, sessionId)
     if (!isCurrentSession(sessionId) || initialResolved) return { resolved: initialResolved, nextIndex: fallbackIdx }
     const result = await resolveCandidateList(candidates, fallbackIdx, sessionId)
-    if (!result.resolved && isCurrentSession(sessionId)) notifyExhausted(candidates, result.nextIndex)
     return { resolved: result.resolved, nextIndex: result.nextIndex }
   }
 
@@ -148,7 +137,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
           setFallbackIdx(result.nextIndex)
           if (!isCurrentSession(sessionId)) return
-          if (!result.resolved) notifyExhausted(candidates, result.nextIndex)
           options.resolving.value = false
         } finally {
           if (isCurrentSession(sessionId)) fallbackRunning = false

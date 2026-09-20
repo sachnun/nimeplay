@@ -43,6 +43,19 @@ export default defineEventHandler(async (event) => {
   }
 
   const range = getRequestHeader(event, 'range') || undefined
+
+  if (request.megaKey) {
+    const mega = await streamMega(target.toString(), request.megaKey, range).catch(() => null)
+    if (!mega) throw createError({ statusCode: 502, statusMessage: 'Failed to fetch stream' })
+    setResponseStatus(event, mega.status)
+    setHeader(event, 'Content-Type', mega.contentType)
+    setHeader(event, 'Accept-Ranges', 'bytes')
+    if (mega.status === 206) setHeader(event, 'Content-Range', `bytes ${mega.start}-${mega.end}/${mega.total}`)
+    setHeader(event, 'Content-Length', String(mega.end - mega.start + 1))
+    setHeader(event, 'Cache-Control', 'no-store')
+    return mega.body
+  }
+
   const headers: Record<string, string> = { ...upstreamHeadersFor(target.toString(), range), ...request.headers }
   for (const [key, value] of Object.entries(headers)) {
     if (value === '') delete headers[key]

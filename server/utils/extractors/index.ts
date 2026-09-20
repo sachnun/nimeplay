@@ -3,6 +3,8 @@ import { isOdcloud, extractOdcloud } from './odcloud'
 import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, embedPageHeadersFor, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
+import { isBlogger, extractBlogger } from './blogger'
+import { isMega, extractMega } from '../mega'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -22,6 +24,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isYourupload, extract: extractYourupload },
   { matches: isFiledon, extract: extractFiledon },
   { matches: isPuterin, extract: extractPuterin },
+  { matches: isBlogger, extract: extractBlogger },
 ]
 
 async function fetchEmbedHtml(embedUrl: string): Promise<string> {
@@ -85,6 +88,11 @@ export async function probeStream(url: string, headers?: Record<string, string>)
 
 export async function extractStreamUrl(embedUrl: string): Promise<string | null> {
   if (isPlaceholderStreamUrl(embedUrl)) return null
+  if (isMega(embedUrl)) {
+    const direct = await extractMega(embedUrl)
+    if (!direct || isPlaceholderStreamUrl(direct)) return null
+    return asHttpUrl(direct)
+  }
   if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(embedUrl)) {
     const direct = asHttpUrl(embedUrl)
     if (!direct || isPlaceholderStreamUrl(direct)) return null

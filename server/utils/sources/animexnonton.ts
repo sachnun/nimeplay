@@ -19,6 +19,7 @@ const MIRROR_FIELDS: { quality: string, field: string, name: string }[] = [
   { quality: '720p', field: 'channel_url_hd_ori', name: 'Origin' },
   { quality: '480p', field: 'channel_url', name: 'FB' },
   { quality: '480p', field: 'channel_url_ori', name: 'Origin' },
+  { quality: '1080p', field: 'gdrive_url', name: 'GDrive' },
 ]
 
 interface CategoryItem {
@@ -260,6 +261,11 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   }
 }
 
+function gdriveDirect(url: string): string | null {
+  const id = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/)?.[1] ?? url.match(/[?&]id=([^&]+)/)?.[1]
+  return id ? `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t` : null
+}
+
 async function resolveMirror(opaque: string): Promise<string | null> {
   if (opaque.startsWith('http')) return opaque
   const match = opaque.match(/^(\d+)\|([a-z0-9_]+)$/)
@@ -271,7 +277,9 @@ async function resolveMirror(opaque: string): Promise<string | null> {
   const payload = data?.[field]
   if (!data?.secretKey || typeof payload !== 'string') return null
   const url = await decrypt(data.secretKey, payload)
-  return url && /^https?:\/\//.test(url) ? url : null
+  if (!url) return null
+  if (field === 'gdrive_url') return gdriveDirect(url)
+  return /^https?:\/\//.test(url) ? url : null
 }
 
 async function proxyHeaders(url: string): Promise<{ headers?: Record<string, string> } | null> {

@@ -89,7 +89,7 @@ function goBack() {
           </div>
 
           <div class="hidden md:relative md:block">
-            <div class="flex flex-col bg-zinc-900/50 backdrop-blur rounded-lg p-4 md:absolute md:inset-x-0 md:top-0 md:max-h-full">
+            <div class="flex flex-col md:absolute md:inset-x-0 md:top-0 md:max-h-full">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 shrink-0">
                 Episodes
               </h2>

@@ -1,6 +1,6 @@
 export function cleanSynopsis(value: string | null | undefined): string {
   if (!value) return ''
-  let result = value.trim()
+  let result = value.replace(/\r\n?/g, '\n').trim()
   let prev = ''
   while (prev !== result) {
     prev = result
@@ -9,5 +9,5 @@ export function cleanSynopsis(value: string | null | undefined): string {
       .replace(/\s*\(Source:[^()]*\)\s*$/i, '')
       .trim()
   }
-  return result
+  return result.replace(/\n{3,}/g, '\n\n')
 }

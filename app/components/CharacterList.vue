@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AnimeCharacter } from '~/utils/types'
 
-const props = defineProps<{ characters?: AnimeCharacter[]; compact?: boolean }>()
+const props = defineProps<{ characters?: AnimeCharacter[] }>()
 
 const showAll = ref(false)
 const mainChars = computed(() => (props.characters ?? []).filter((c) => c.role === 'Main'))
@@ -13,11 +13,11 @@ const displayed = computed(() => {
 </script>
 
 <template>
-  <section v-if="characters && characters.length > 0">
+  <section v-if="characters && characters.length > 0" class="@container">
     <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
       Characters
     </h2>
-    <div class="grid gap-x-3 gap-y-2.5 sm:gap-x-4" :class="compact ? 'grid-cols-4 md:grid-cols-2' : 'grid-cols-4 md:grid-cols-2 lg:grid-cols-4'">
+    <div class="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:gap-x-4 @[520px]:grid-cols-4">
       <div
         v-for="char in displayed"
         :key="char.name"

@@ -1,8 +1,6 @@
 import type { EpisodeData } from './types'
 import { qualityRank, sourcePriority } from '#shared/mirror'
 
-export { sourcePriority }
-
 export type MirrorCandidate = {
   dataContent: string
   quality: string

@@ -135,10 +135,6 @@ interface AniListMedia {
 let lastRequestAt = 0
 let blockedUntil = 0
 
-export function blockAniList(ms: number): void {
-  blockedUntil = Math.max(blockedUntil, Date.now() + ms)
-}
-
 export async function acquireAniListSlot(): Promise<void> {
   for (;;) {
     const now = Date.now()
@@ -435,11 +431,6 @@ function formatBonus(format: string | null | undefined): number {
   if (format === 'TV' || format === 'MOVIE') return 0.25
   if (SPINOFF_FORMATS.has(format)) return -0.25
   return 0
-}
-
-export async function searchMalAnime(title: string): Promise<number | null> {
-  const entries = await searchMalAnimeEntries(title)
-  return entries[0]?.id ?? null
 }
 
 const ROMAN_SEASONS: Record<string, number> = {

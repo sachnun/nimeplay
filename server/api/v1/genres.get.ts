@@ -11,7 +11,7 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async () => {
   const rows = await getGenreList()
   return { data: rows }
 })

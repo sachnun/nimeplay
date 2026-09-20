@@ -44,8 +44,8 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     return true
   }
 
-  function resultForCandidate(index: number, resolved: boolean) {
-    return { resolved, nextIndex: index + 1 }
+  function resultForCandidate(index: number) {
+    return { nextIndex: index + 1 }
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {
@@ -70,20 +70,20 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   }
 
   async function resolveCandidateAt(candidates: MirrorCandidate[], index: number, sessionId: number) {
-    if (!isCurrentSession(sessionId)) return { stop: true, resolved: false, nextIndex: index }
+    if (!isCurrentSession(sessionId)) return { stop: true, nextIndex: index }
     options.loadingMessage.value = 'Mencoba sumber video lain...'
     const next = candidates[index]
-    if (!next) return { stop: true, ...resultForCandidate(index, false) }
+    if (!next) return { stop: true, ...resultForCandidate(index) }
     const resolved = await tryMirror(next, sessionId)
-    return { stop: !isCurrentSession(sessionId) || resolved, ...resultForCandidate(index, resolved) }
+    return { stop: !isCurrentSession(sessionId) || resolved, ...resultForCandidate(index) }
   }
 
   async function resolveCandidateList(candidates: MirrorCandidate[], startIndex: number, sessionId: number) {
     for (let index = startIndex; index < candidates.length; index++) {
       const result = await resolveCandidateAt(candidates, index, sessionId)
-      if (result.stop) return { resolved: result.resolved, nextIndex: result.nextIndex }
+      if (result.stop) return { nextIndex: result.nextIndex }
     }
-    return { resolved: false, nextIndex: candidates.length }
+    return { nextIndex: candidates.length }
   }
 
   function resetForFallbackAttempt(seamless: boolean) {
@@ -116,12 +116,12 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
 
   async function resolveInitialPlayback(startCandidate: MirrorCandidate, candidates: MirrorCandidate[], fallbackIdx: number, sessionId: number) {
     const initialResolved = await tryMirror(startCandidate, sessionId)
-    if (!isCurrentSession(sessionId) || initialResolved) return { resolved: initialResolved, nextIndex: fallbackIdx }
+    if (!isCurrentSession(sessionId) || initialResolved) return { nextIndex: fallbackIdx }
     const result = await resolveCandidateList(candidates, fallbackIdx, sessionId)
-    return { resolved: result.resolved, nextIndex: result.nextIndex }
+    return { nextIndex: result.nextIndex }
   }
 
-  function finishPlaybackResolution(resolved: boolean, sessionId: number) {
+  function finishPlaybackResolution(sessionId: number) {
     if (!isCurrentSession(sessionId)) return
     fallbackRunning = false
     options.resolving.value = false
@@ -153,7 +153,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index }, seamless)
     const result = await resolveInitialPlayback(startCandidate, candidates, fallbackIdx, sessionId)
     fallbackIdx = result.nextIndex
-    finishPlaybackResolution(result.resolved, sessionId)
+    finishPlaybackResolution(sessionId)
   }
 
   return {

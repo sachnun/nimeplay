@@ -4,7 +4,6 @@ const emit = defineEmits<{ close: [] }>()
 
 useHead(() => (props.title ? { title: props.title, titleTemplate: '%s - Nimeplay' } : {}))
 
-const panelRef = ref<HTMLElement | null>(null)
 const scrollRef = ref<HTMLElement | null>(null)
 const vh = ref(import.meta.client ? window.innerHeight : 800)
 const panelHeightPx = ref(vh.value * 0.8)
@@ -206,7 +205,6 @@ defineExpose({ requestClose })
     <div class="absolute inset-0" @click="requestClose" />
 
     <div
-      ref="panelRef"
       class="absolute inset-x-0 bottom-0 flex flex-col rounded-t-2xl bg-background shadow-2xl shadow-black/70 overflow-hidden"
       :style="panelStyle"
       @transitionend="onTransitionEnd"

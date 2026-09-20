@@ -85,7 +85,7 @@ function goToEpisode(malId: number, episodeNum: string | number) {
         class="block rounded-t-lg overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
       >
         <div class="relative aspect-[3/4] overflow-hidden">
-          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 4 ? 'eager' : 'lazy'" :fetchpriority="i < 2 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
+          <img :src="anime.thumbnail" :alt="anime.title" width="300" height="400" :loading="i < 10 ? 'eager' : 'lazy'" :fetchpriority="i < 10 ? 'high' : 'auto'" decoding="async" sizes="(min-width: 640px) 200px, 50vw" class="object-cover w-full h-full">
           <div v-if="anime.episodes && /\d/.test(anime.episodes)" class="absolute top-2 right-2 bg-zinc-700 text-zinc-200 text-xs px-2 py-0.5 rounded font-medium">
             {{ anime.episodes }}
           </div>

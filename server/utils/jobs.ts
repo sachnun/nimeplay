@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../database/schema'
 import { db } from './db'
+import { alert } from './alert'
 import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } from './queue'
 import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
@@ -9,6 +10,8 @@ import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } fr
 
 const WALL_MS = 13 * 60 * 1000
 const BATCH = 16
+const WAITING_ALERT = 5000
+const DEAD_ALERT = 1000
 const STALE_MS = 10 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
@@ -107,8 +110,12 @@ async function processJob(job: JobRow): Promise<void> {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (classifyError(message) === 'transient') recordFailure(sourceId)
-      else recordSuccess(sourceId)
+      if (classifyError(message) === 'transient') {
+        if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
+      }
+      else {
+        recordSuccess(sourceId)
+      }
       await fail(job.id, message)
     }
   })
@@ -122,7 +129,14 @@ async function logStats(): Promise<void> {
     select coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), 'none') as vendor, count(*)::int as n
     from jobs where status = 'waiting' group by 1 order by n desc limit 5
   `) as unknown as { rows: { vendor: string, n: number }[] }
-  console.log('[tick]', JSON.stringify({ counts: counts.rows, waiting: waiting.rows }))
+  const dead = await db().execute(sql`
+    select count(*)::int as n from jobs where status = 'dead' and updated_at > now() - interval '1 hour'
+  `) as unknown as { rows: { n: number }[] }
+  const waitingTotal = counts.rows.find(row => row.status === 'waiting')?.n ?? 0
+  const deadHour = dead.rows[0]?.n ?? 0
+  console.log('[tick]', JSON.stringify({ counts: counts.rows, waiting: waiting.rows, deadHour }))
+  if (waitingTotal > WAITING_ALERT) await alert('queue:backlog', `job queue backlog: ${waitingTotal} waiting`, { waiting: waiting.rows })
+  if (deadHour > DEAD_ALERT) await alert('queue:dead', `${deadHour} jobs died in the last hour`, { counts: counts.rows })
 }
 
 async function drain(deadline: number): Promise<void> {

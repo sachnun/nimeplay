@@ -71,12 +71,12 @@ export function recordSuccess(id: string | null): void {
   state.openUntil = 0
 }
 
-export function recordFailure(id: string | null): void {
-  if (!id) return
+export function recordFailure(id: string | null): boolean {
+  if (!id) return false
   const state = get(id)
-  if (state.openUntil > Date.now()) return
-  if (++state.failures < BREAKER_THRESHOLD) return
+  if (state.openUntil > Date.now()) return false
+  if (++state.failures < BREAKER_THRESHOLD) return false
   state.failures = 0
   state.openUntil = Date.now() + BREAKER_OPEN_MS
-  console.warn(`[breaker] open ${id} for ${BREAKER_OPEN_MS / 60_000}m`)
+  return true
 }

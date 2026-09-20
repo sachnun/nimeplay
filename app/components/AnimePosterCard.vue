@@ -58,7 +58,7 @@ function openResume(event: Event) {
         <p v-if="resumeTo" class="text-xs text-zinc-400 mt-1 cursor-pointer" @click.stop.prevent="openResume">{{ subtitle }}</p>
         <p v-else-if="subtitle" class="text-xs text-zinc-400 mt-1">{{ subtitle }}</p>
       </div>
-      <div v-if="resumeTo && progressPct !== undefined" class="absolute bottom-2 left-2 right-2 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="openResume">
+      <div v-if="resumeTo && progressPct !== undefined" class="absolute bottom-2 left-3 right-3 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer" @click.stop.prevent="openResume">
         <div class="h-full bg-white rounded-full" :style="{ width: `${progressPct}%` }" />
       </div>
     </div>

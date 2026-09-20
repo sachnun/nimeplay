@@ -54,7 +54,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   fonts: {
     families: [
-      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true, preload: { subsets: ['latin'] } },
+      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true, preload: true },
       { name: 'Geist Mono', provider: 'fontsource', weights: ['400'], styles: ['normal'], subsets: ['latin'], global: true, preload: false },
     ],
   },

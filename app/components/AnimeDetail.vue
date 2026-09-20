@@ -43,53 +43,49 @@ function goBack() {
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           Back
         </button>
-        <div class="flex flex-col md:grid md:grid-cols-[auto_1fr_minmax(280px,360px)] md:gap-8 xl:gap-10 gap-5">
-          <div class="flex gap-4 md:block">
-            <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" class="flex-shrink-0 w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
-            <div class="md:hidden flex-1 min-w-0">
-              <h1 class="text-xl sm:text-2xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
-              <div class="flex flex-wrap gap-1.5 mt-3">
-                <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
-                  {{ genre.name }}
-                </NuxtLink>
-              </div>
-              <div class="flex items-center gap-1.5 mt-2 text-xs text-zinc-400">
-                <template v-for="(text, i) in [otakudesu.studio].filter(Boolean)" :key="text">
-                  <span v-if="i > 0" class="w-1 h-1 rounded-full bg-zinc-500 shrink-0" />
-                  <span>{{ text }}</span>
-                </template>
-              </div>
-            </div>
-          </div>
-
-          <div class="min-w-0">
-            <div class="hidden md:block">
-              <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
-              <div class="flex flex-wrap gap-2 mt-3">
-                <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
-                  {{ genre.name }}
-                </NuxtLink>
-              </div>
-            </div>
-            <div class="hidden md:block md:mt-5">
-              <section>
-                <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
-                  Information
-                </h2>
-                <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
-                  <div v-for="item in infoItems" :key="item.label" class="flex justify-between gap-2 sm:block">
-                    <span class="text-zinc-400 text-xs uppercase tracking-wide [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.label }}</span>
-                    <span class="sm:ml-0 sm:block text-zinc-100 text-sm [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.value }}</span>
-                  </div>
+        <div class="flex flex-col md:grid md:grid-cols-[1fr_minmax(280px,360px)] md:gap-8 xl:gap-10 gap-6">
+          <div class="min-w-0 flex flex-col gap-6">
+            <div class="flex gap-4">
+              <img :src="thumbnail" :alt="title" width="300" height="400" loading="eager" fetchpriority="high" decoding="async" class="flex-shrink-0 w-32 sm:w-40 lg:w-48 xl:w-56 rounded-lg shadow-2xl shadow-black/50 h-auto [filter:brightness(0.9)]">
+              <div class="flex-1 min-w-0">
+                <h1 class="text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-bold text-zinc-100 leading-tight">{{ title }}</h1>
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                  <NuxtLink v-for="genre in genres" :key="genre.slug" :to="`/${genre.slug}`" replace class="text-xs px-2 py-0.5 rounded-full bg-white/15 text-zinc-200 hover:bg-white/25 transition-colors">
+                    {{ genre.name }}
+                  </NuxtLink>
                 </div>
-              </section>
+                <div class="flex items-center gap-1.5 mt-2 text-xs text-zinc-400 md:hidden">
+                  <template v-for="(text, i) in [otakudesu.studio].filter(Boolean)" :key="text">
+                    <span v-if="i > 0" class="w-1 h-1 rounded-full bg-zinc-500 shrink-0" />
+                    <span>{{ text }}</span>
+                  </template>
+                </div>
+                <div class="hidden md:block md:mt-5">
+                  <section>
+                    <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">
+                      Information
+                    </h2>
+                    <div class="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                      <div v-for="item in infoItems" :key="item.label" class="flex justify-between gap-2 sm:block">
+                        <span class="text-zinc-400 text-xs uppercase tracking-wide [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.label }}</span>
+                        <span class="sm:ml-0 sm:block text-zinc-100 text-sm [text-shadow:0_1px_4px_rgba(0,0,0,0.8)]">{{ item.value }}</span>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
             </div>
-            <div class="md:hidden mt-4">
+
+            <div class="md:hidden">
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">
                 Episodes
               </h2>
               <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
+
+            <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
+
+            <CharacterList :characters="data?.characters" />
           </div>
 
           <div class="hidden md:block">
@@ -97,22 +93,11 @@ function goBack() {
               <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Episodes
               </h2>
-              <EpisodeList :episodes="episodes" :mal-id="malId" scrollable />
+              <EpisodeList :episodes="episodes" :mal-id="malId" />
             </div>
           </div>
         </div>
       </section>
-
-      <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6 lg:py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-[1fr_minmax(280px,400px)] gap-6 lg:gap-8 xl:gap-10">
-          <div class="space-y-6 lg:space-y-8 min-w-0">
-            <SynopsisSection :synopsis="data?.synopsis" :loading="loading" />
-          </div>
-          <div>
-            <CharacterList :characters="data?.characters" />
-          </div>
-        </div>
-      </div>
     </div>
 
   </div>

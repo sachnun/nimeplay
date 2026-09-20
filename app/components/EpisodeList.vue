@@ -5,7 +5,6 @@ import type { WatchProgressStatus } from '~/utils/storage'
 const props = defineProps<{
   episodes: number[]
   malId: number
-  scrollable?: boolean
 }>()
 
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
@@ -55,7 +54,7 @@ function episodeClass(number: number) {
 
 <template>
   <p v-if="episodes.length === 0" class="text-zinc-500 text-sm">No episodes available yet.</p>
-  <div v-else :class="scrollable ? 'max-h-[320px] overflow-y-auto pr-1 scrollbar-thin' : ''">
+  <div v-else>
     <div class="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
       <NuxtLink
         v-for="number in reversedEpisodes"

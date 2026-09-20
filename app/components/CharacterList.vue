@@ -17,7 +17,7 @@ const displayed = computed(() => {
     <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
       Characters
     </h2>
-    <div class="grid grid-cols-4 gap-x-3 gap-y-2.5 sm:gap-x-4 lg:grid-cols-2">
+    <div class="grid grid-cols-4 gap-x-3 gap-y-2.5 sm:gap-x-4 md:grid-cols-2 lg:grid-cols-4">
       <div
         v-for="char in displayed"
         :key="char.name"

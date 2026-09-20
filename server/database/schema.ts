@@ -160,6 +160,7 @@ export const jobs = pgTable('jobs', {
   lockedBy: text('locked_by'),
   lastError: text('last_error'),
   dedupeKey: text('dedupe_key'),
+  cpuUs: bigint('cpu_us', { mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, table => [

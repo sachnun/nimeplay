@@ -20,8 +20,8 @@ export default defineConfig({
     },
   },
   triggers: {
-    tick: { type: 'schedule', function: 'task', cron: '* * * * *', functionPath: '/tick' },
-    catalog: { type: 'schedule', function: 'task', cron: '*/30 * * * *', functionPath: '/catalog' },
-    media: { type: 'schedule', function: 'media', cron: '* * * * *', functionPath: '/tick' },
+    tick: { type: 'schedule', function: 'task', cron: '0 */2 * * *', functionPath: '/tick' },
+    catalog: { type: 'schedule', function: 'task', cron: '0 */6 * * *', functionPath: '/catalog' },
+    media: { type: 'schedule', function: 'media', cron: '0 */2 * * *', functionPath: '/tick' },
   },
 })

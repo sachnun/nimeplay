@@ -7,16 +7,19 @@ import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './vendor-guard'
+import type { LockHandle } from './lock'
+import { cpuMeter, type CpuBudget } from './budget'
 
-const WALL_MS = 13 * 60 * 1000
-const BATCH = 16
+const WALL_MS = 6 * 60 * 1000
+const BATCH = 6
 const WAITING_ALERT = 5000
 const DEAD_ALERT = 1000
-const STALE_MS = 10 * 60 * 1000
+const STALE_MS = 25 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const MIRROR_SEED_LIMIT = 500
 const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill', 'episode.cache']
+const EPISODE_SEED_EVERY_H = 6
 const worker = `task:${process.pid}`
 
 async function handle(job: JobRow): Promise<void> {
@@ -63,6 +66,7 @@ async function seedRefreshJobs(): Promise<void> {
 }
 
 async function seedEpisodeCacheJobs(): Promise<void> {
+  if (new Date().getUTCHours() % EPISODE_SEED_EVERY_H !== 0) return
   for (const sourceId of blockedSourceIds()) {
     await db().execute(sql`
       insert into jobs (type, payload, dedupe_key, priority, max_attempts)
@@ -100,25 +104,33 @@ async function seedEpisodeCacheJobs(): Promise<void> {
   `)
 }
 
-async function processJob(job: JobRow): Promise<void> {
+async function processJob(job: JobRow, lease: LockHandle): Promise<boolean> {
   const sourceId = sourceOf(job)
-  await runGuarded(sourceId, async () => {
-    try {
-      await handle(job)
-      await complete(job.id)
-      recordSuccess(sourceId)
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (classifyError(message) === 'transient') {
-        if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
-      }
-      else {
+  const sample = cpuMeter()
+  let held = true
+  try {
+    await runGuarded(sourceId, async () => {
+      try {
+        await handle(job)
+        await complete(job.id, Math.round(sample() * 1e6))
         recordSuccess(sourceId)
       }
-      await fail(job.id, message)
-    }
-  })
+      catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (classifyError(message) === 'transient') {
+          if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
+        }
+        else {
+          recordSuccess(sourceId)
+        }
+        await fail(job.id, message, Math.round(sample() * 1e6))
+      }
+    })
+  }
+  finally {
+    held = await lease.renew()
+  }
+  return held
 }
 
 async function logStats(): Promise<void> {
@@ -139,25 +151,28 @@ async function logStats(): Promise<void> {
   if (deadHour > DEAD_ALERT) await alert('queue:dead', `${deadHour} jobs died in the last hour`, { counts: counts.rows })
 }
 
-async function drain(deadline: number): Promise<void> {
+async function drain(deadline: number, lease: LockHandle, budget: CpuBudget): Promise<void> {
   while (Date.now() < deadline) {
+    if (!await lease.renew()) return
     const claimed = await claim(worker, BATCH, TASK_TYPES, blockedSources())
     if (claimed.length === 0) return
-    await Promise.all(claimed.map(processJob))
+    const held = await Promise.all(claimed.map(job => processJob(job, lease)))
+    if (!await budget.spend()) return
+    if (held.includes(false)) return
   }
 }
 
-export async function runTick(): Promise<void> {
+export async function runTick(lease: LockHandle, budget: CpuBudget): Promise<void> {
   const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await seedRefreshJobs()
   await seedEpisodeCacheJobs()
-  await drain(deadline)
+  await drain(deadline, lease, budget)
   await logStats()
 }
 
-export async function runCatalog(): Promise<void> {
+export async function runCatalog(lease: LockHandle, budget: CpuBudget): Promise<void> {
   const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
   await enqueue({ type: 'catalog.ongoing', dedupeKey: 'catalog.ongoing' })
@@ -165,5 +180,5 @@ export async function runCatalog(): Promise<void> {
     await enqueue({ type: 'catalog.backfill', payload: { sourceId: source.id }, dedupeKey: `catalog.backfill:${source.id}` })
   }
   await seedRefreshJobs()
-  await drain(deadline)
+  await drain(deadline, lease, budget)
 }

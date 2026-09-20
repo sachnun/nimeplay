@@ -56,17 +56,17 @@ export async function claim(worker: string, limit: number, types?: string[], exc
   return result.rows
 }
 
-export async function complete(id: number): Promise<void> {
+export async function complete(id: number, cpuUs: number | null = null): Promise<void> {
   await db()
     .update(jobs)
-    .set({ status: 'done', lockedAt: null, lockedBy: null, lastError: null, updatedAt: new Date() })
+    .set({ status: 'done', lockedAt: null, lockedBy: null, lastError: null, updatedAt: new Date(), cpuUs })
     .where(eq(jobs.id, id))
 }
 
 const RETRY_BASE_S = 30
 const RETRY_CAP_S = 1800
 const RETRY_JITTER_S = 15
-const RETRY_COOLDOWN_S = 6 * 60 * 60
+const RETRY_COOLDOWN_S = 24 * 60 * 60
 const PERMANENT_COOLDOWN_S = 7 * 24 * 60 * 60
 
 export type FailureKind = 'transient' | 'permanent'
@@ -78,7 +78,7 @@ export function classifyError(message: string): FailureKind {
   return status >= 400 && status < 500 ? 'permanent' : 'transient'
 }
 
-export async function fail(id: number, error: string): Promise<void> {
+export async function fail(id: number, error: string, cpuUs: number | null = null): Promise<void> {
   const message = error.slice(0, 500)
   const permanent = classifyError(error) === 'permanent'
   const backoff = sql`least(${RETRY_BASE_S}::double precision * power(2, greatest(attempts - 1, 0)), ${RETRY_CAP_S}::double precision) + random() * ${RETRY_JITTER_S}::double precision`
@@ -90,7 +90,7 @@ export async function fail(id: number, error: string): Promise<void> {
         when attempts >= max_attempts then now() + make_interval(secs => ${RETRY_COOLDOWN_S}::double precision)
         else now() + make_interval(secs => ${backoff})
       end,
-      locked_at = null, locked_by = null, last_error = ${message}, updated_at = now()
+      locked_at = null, locked_by = null, last_error = ${message}, updated_at = now(), cpu_us = ${cpuUs}
     where id = ${id}
   `)
 }

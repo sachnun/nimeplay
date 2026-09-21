@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
@@ -20,7 +20,20 @@ function blockedSourceIds(): Set<string> {
   return new Set(getSources().filter(source => source.workerBlocked === true).map(source => source.id))
 }
 
-const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0 and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
+const BLOCKED_SOURCE_IDS = [...blockedSourceIds()]
+
+function playableEpisodeExists(id: SQL): SQL {
+  const playable = BLOCKED_SOURCE_IDS.length === 0
+    ? sql`true`
+    : sql`s.source <> all(${sql.raw(`array[${BLOCKED_SOURCE_IDS.map(source => `'${source}'`).join(',')}]::text[]`)}) or coalesce(jsonb_array_length(e.cache -> 'mirrors'), 0) > 0`
+  return sql`exists (select 1 from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${id} and (${playable}))`
+}
+
+function posterReady(posterKey: SQL): SQL {
+  return sql`${posterKey} is not null and exists (select 1 from media m where m.key = ${posterKey})`
+}
+
+const CATALOG_READY = sql`${anime.malId} is not null and ${posterReady(sql`${anime.posterKey}`)} and ${playableEpisodeExists(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
 const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
 
@@ -179,7 +192,8 @@ async function searchByFullText(match: string): Promise<SearchResult[]> {
         setweight(to_tsvector('simple', coalesce(anime.synopsis, '')), 'D') as doc
       from anime
       where anime.mal_id is not null
-        and anime.episode_count > 0
+        and ${posterReady(sql`${anime.posterKey}`)}
+        and ${playableEpisodeExists(sql`${anime.id}`)}
         and (anime.status is distinct from 'COMPLETED' or (anime.extra ->> 'episodeTotal') is null or anime.episode_count >= (anime.extra ->> 'episodeTotal')::int)
     ) a
     where a.doc @@ to_tsquery('simple', ${match})
@@ -210,7 +224,8 @@ async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
       from jsonb_array_elements_text(a.extra -> 'titles') as titles(title_value)
     ) alt on true
     where a.mal_id is not null
-      and a.episode_count > 0
+      and ${posterReady(sql.raw('a.poster_key'))}
+      and ${playableEpisodeExists(sql.raw('a.id'))}
       and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
       and (a.title % ${raw} or coalesce(alt.sim, 0) >= 0.3)
     order by sim desc, a.rating desc nulls last

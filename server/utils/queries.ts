@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
@@ -22,6 +22,14 @@ function blockedSourceIds(): Set<string> {
 
 const CATALOG_READY = sql`${anime.malId} is not null and ${anime.episodeCount} > 0 and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
+const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
+
+function statusCondition(status: 'ONGOING' | 'COMPLETED') {
+  return status === 'COMPLETED'
+    ? eq(anime.status, 'COMPLETED')
+    : or(eq(anime.status, 'ONGOING'), sql`${anime.latestEpisodeAt} >= ${RECENT_EPISODE_SQL}`)
+}
+
 function formatSeason(season: string | null, year: number | null): string {
   if (!season) return year ? String(year) : ''
   const name = season.replace(/(^|\s)\S/g, part => part.toUpperCase())
@@ -39,7 +47,7 @@ async function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> 
   const [row] = await db()
     .select({ count: sql<number>`cast(count(*) as integer)` })
     .from(anime)
-    .where(and(eq(anime.status, status), CATALOG_READY))
+    .where(and(statusCondition(status), CATALOG_READY))
   return row?.count ?? 0
 }
 
@@ -56,7 +64,7 @@ export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
 ): Promise<{ anime: AnimeCard[], totalPages: number }> {
-  const filter = and(eq(anime.status, status), CATALOG_READY)
+  const filter = and(statusCondition(status), CATALOG_READY)
 
   const orderBy = status === 'ONGOING'
     ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]

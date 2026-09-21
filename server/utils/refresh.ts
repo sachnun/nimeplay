@@ -137,15 +137,12 @@ async function syncAnimeAggregate(animeId: number): Promise<void> {
   `)
   await client.execute(sql`
     update anime a set
-      status = case when s.status = 'ONGOING' then 'ONGOING' when s.status = 'COMPLETED' then 'COMPLETED' else a.status end,
       day = coalesce(s.day, a.day),
       ongoing_rank = coalesce(s.rank, a.ongoing_rank),
       latest_episode_at = greatest(a.latest_episode_at, s.latest_at),
       updated_at = now()
     from (
       select
-        case when count(*) filter (where status = 'ONGOING') > 0 then 'ONGOING'
-             when count(*) filter (where status = 'COMPLETED') > 0 then 'COMPLETED' end as status,
         min(ongoing_rank) as rank,
         max(latest_episode_at) as latest_at,
         (array_agg(day order by ongoing_rank asc nulls last, updated_at desc) filter (where day is not null))[1] as day
@@ -212,6 +209,7 @@ async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     rating: mal.score,
     rank: mal.rank,
     popularity: mal.popularity,
+    ...(mal.status ? { status: mal.status } : {}),
     season: mal.season,
     year: mal.year,
     trailerId: mal.trailerId,

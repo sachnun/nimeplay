@@ -20,7 +20,6 @@ export interface MalSearchEntry {
   popularity?: number | null
   season?: string | null
   year?: number | null
-  status?: string | null
   genres?: string[]
 }
 
@@ -33,6 +32,7 @@ export interface MalAnime {
   score: number | null
   rank: number | null
   popularity: number | null
+  status: 'ONGOING' | 'COMPLETED' | null
   season: string | null
   year: number | null
   trailerId: string | null
@@ -49,7 +49,6 @@ const SEARCH_QUERY = `query ($search: String) {
       id
       idMal
       format
-      status
       averageScore
       popularity
       season
@@ -65,6 +64,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
   Media(idMal: $idMal, type: ANIME) {
     id
     idMal
+    status
     title { romaji english native }
     coverImage { extraLarge large }
     description(asHtml: false)
@@ -98,7 +98,6 @@ interface AniListSearchMedia {
   id: number
   idMal: number | null
   format?: string | null
-  status?: string | null
   averageScore?: number | null
   popularity?: number | null
   season?: string | null
@@ -111,6 +110,7 @@ interface AniListSearchMedia {
 interface AniListMedia {
   id: number
   idMal: number | null
+  status?: string | null
   title: JikanTitle
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
   description?: string | null
@@ -131,6 +131,13 @@ interface AniListMedia {
       voiceActors?: { name?: { full?: string | null } | null, image?: { large?: string | null } | null }[] | null
     }[]
   } | null
+}
+
+export function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
+  if (!raw) return null
+  if (raw === 'FINISHED' || raw === 'CANCELLED') return 'COMPLETED'
+  if (raw === 'RELEASING' || raw === 'NOT_YET_RELEASED' || raw === 'HIATUS') return 'ONGOING'
+  return null
 }
 
 let lastRequestAt = 0
@@ -385,7 +392,6 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
         popularity: item.popularity ?? null,
         season: item.season ? item.season.toLowerCase() : null,
         year: item.seasonYear ?? null,
-        status: item.status ?? null,
         genres: item.genres ?? [],
       })
     }
@@ -534,6 +540,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     score: media.averageScore != null ? Math.round(media.averageScore) / 10 : null,
     rank: media.rankings?.find(entry => entry.type === 'RATED')?.rank ?? null,
     popularity: media.popularity ?? null,
+    status: catalogStatus(media.status),
     season: media.season ? media.season.toLowerCase() : null,
     year: media.seasonYear ?? null,
     trailerId: trailer,

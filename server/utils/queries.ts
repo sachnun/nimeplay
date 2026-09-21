@@ -87,7 +87,7 @@ export async function listAnimePage(
       day: anime.day,
       season: anime.season,
       year: anime.year,
-      maxEpisode: sql<number | null>`(select max(e.number) from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${anime.id})`,
+      maxEpisode: sql<number | null>`(select max(e.number) from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${sql.raw('"anime"."id"')})`,
       total: sql<number>`cast(count(*) over() as integer)`,
     })
     .from(anime)

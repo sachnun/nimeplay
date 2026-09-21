@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from './db'
 import { toFtsQuery } from './fts'
@@ -10,7 +10,6 @@ import type { EpisodeData } from './sources/types'
 import type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#shared/types'
 
 const PAGE_SIZE = 24
-const BIND_CHUNK_SIZE = 40
 
 function isPlayable(source: string, cache: EpisodeData | null, blocked: Set<string>): boolean {
   return !blocked.has(source) || (cache?.mirrors?.length ?? 0) > 0
@@ -29,11 +28,7 @@ function playableEpisodeExists(id: SQL): SQL {
   return sql`exists (select 1 from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${id} and (${playable}))`
 }
 
-function posterReady(posterKey: SQL): SQL {
-  return sql`${posterKey} is not null and exists (select 1 from media m where m.key = ${posterKey})`
-}
-
-const CATALOG_READY = sql`${anime.malId} is not null and ${posterReady(sql`${anime.posterKey}`)} and ${playableEpisodeExists(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
+const CATALOG_READY = sql`${anime.malId} is not null and ${playableEpisodeExists(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
 const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
 
@@ -83,9 +78,8 @@ export async function listAnimePage(
     ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
     : [sql`${anime.year} desc nulls last`, desc(SEASON_RANK), asc(anime.title), asc(anime.id)]
 
-  const rowsQuery = db()
+  const rows = await db()
     .select({
-      id: anime.id,
       malId: anime.malId,
       title: sql<string>`coalesce(${anime.title}, '')`,
       posterKey: anime.posterKey,
@@ -93,6 +87,8 @@ export async function listAnimePage(
       day: anime.day,
       season: anime.season,
       year: anime.year,
+      maxEpisode: sql<number | null>`(select max(e.number) from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${anime.id})`,
+      total: sql<number>`cast(count(*) over() as integer)`,
     })
     .from(anime)
     .where(filter)
@@ -100,24 +96,9 @@ export async function listAnimePage(
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 
-  const [total, rows] = await Promise.all([getStatusCount(status), rowsQuery])
   if (rows.length === 0) {
+    const total = await getStatusCount(status)
     return { anime: [], totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
-  }
-
-  const maxById = new Map<number, number>()
-  const ids = rows.map(row => row.id)
-  for (let i = 0; i < ids.length; i += BIND_CHUNK_SIZE) {
-    const chunk = ids.slice(i, i + BIND_CHUNK_SIZE)
-    const maxRows = await db()
-      .select({ animeId: animeSources.animeId, max: sql<number | null>`max(${episodes.number})` })
-      .from(episodes)
-      .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
-      .where(inArray(animeSources.animeId, chunk))
-      .groupBy(animeSources.animeId)
-    for (const entry of maxRows) {
-      if (entry.max != null && entry.animeId != null) maxById.set(entry.animeId, Number(entry.max))
-    }
   }
 
   return {
@@ -125,12 +106,12 @@ export async function listAnimePage(
       malId: row.malId!,
       title: row.title,
       thumbnail: posterSrc(row.posterKey),
-      episode: maxById.get(row.id) ? `Episode ${maxById.get(row.id)}` : '',
+      episode: row.maxEpisode ? `Episode ${row.maxEpisode}` : '',
       day: row.day ?? '',
       date: formatSeason(row.season, row.year),
       rating: row.rating != null ? String(row.rating) : undefined,
     })),
-    totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+    totalPages: Math.max(1, Math.ceil(rows[0]!.total / PAGE_SIZE)),
   }
 }
 
@@ -192,7 +173,6 @@ async function searchByFullText(match: string): Promise<SearchResult[]> {
         setweight(to_tsvector('simple', coalesce(anime.synopsis, '')), 'D') as doc
       from anime
       where anime.mal_id is not null
-        and ${posterReady(sql`${anime.posterKey}`)}
         and ${playableEpisodeExists(sql`${anime.id}`)}
         and (anime.status is distinct from 'COMPLETED' or (anime.extra ->> 'episodeTotal') is null or anime.episode_count >= (anime.extra ->> 'episodeTotal')::int)
     ) a
@@ -224,7 +204,6 @@ async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
       from jsonb_array_elements_text(a.extra -> 'titles') as titles(title_value)
     ) alt on true
     where a.mal_id is not null
-      and ${posterReady(sql.raw('a.poster_key'))}
       and ${playableEpisodeExists(sql.raw('a.id'))}
       and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
       and (a.title % ${raw} or coalesce(alt.sim, 0) >= 0.3)
@@ -433,6 +412,7 @@ export async function getGenreAnimePage(
       season: anime.season,
       year: anime.year,
       genres: sql<string>`coalesce(string_agg(${allGenres.name}, ', '), '')`,
+      total: sql<number>`cast(count(*) over() as integer)`,
     })
     .from(animeGenres)
     .innerJoin(anime, eq(anime.id, animeGenres.animeId))
@@ -444,7 +424,11 @@ export async function getGenreAnimePage(
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 
-  const [total, rows] = await Promise.all([getGenreCount(genre.id), rowsQuery])
+  const rows = await rowsQuery
+  if (rows.length === 0) {
+    const total = await getGenreCount(genre.id)
+    return { anime: [], totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
+  }
 
   const cards: GenreAnimeCard[] = rows.map(row => ({
     malId: row.malId!,
@@ -457,5 +441,5 @@ export async function getGenreAnimePage(
     date: formatSeason(row.season, row.year),
   }))
 
-  return { anime: cards, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
+  return { anime: cards, totalPages: Math.max(1, Math.ceil(rows[0]!.total / PAGE_SIZE)) }
 }

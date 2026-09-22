@@ -134,7 +134,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     currentTime.value = 0
     duration.value = 0
     buffered.value = 0
-    isPlaying.value = false
+    isPlaying.value = autoPlayOnLoad
     isSeeking.value = false
     seekIndicator.value = null
     scrubPreview.value = null
@@ -370,9 +370,17 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function togglePlay() {
     const video = videoRef.value
-    if (!video) return
-    if (video.paused) void video.play().catch(() => {})
-    else video.pause()
+    if (isPlaying.value) {
+      isPlaying.value = false
+      autoPlayOnLoad = false
+      videoLoading.value = false
+      video?.pause()
+      return
+    }
+    isPlaying.value = true
+    autoPlayOnLoad = true
+    if (video && video.readyState >= 2) void video.play().catch(() => {})
+    else videoLoading.value = true
   }
 
   function seekTo(time: number) {
@@ -537,6 +545,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     volume,
     isMuted,
     isFullscreen,
+    videoLoading,
     nextEpisode,
     skipTimes,
     autoSkipCurrentSegment,
@@ -620,7 +629,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function updatePlayingState(playing: boolean) {
     if (playing) {
-      videoLoading.value = false
       if (pendingStartHide) {
         pendingStartHide = false
         resetIdle(START_CONTROLS_IDLE_MS)
@@ -735,7 +743,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (current.readyState >= 2 || !current.paused) videoLoading.value = false
     if (!videoLoading.value) clearStallTimer()
     const onReady = () => resumeAndAutoplay(current)
-    current.addEventListener('canplay', onReady, { once: true })
+    current.addEventListener('canplay', onReady)
     onCleanup(() => {
       current.removeEventListener('canplay', onFirstFrame)
       current.removeEventListener('loadeddata', onFirstFrame)

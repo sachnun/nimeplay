@@ -13,6 +13,7 @@ interface EpisodePlayerMediaEventOptions {
   volume: Ref<number>
   isMuted: Ref<boolean>
   isFullscreen: Ref<boolean>
+  videoLoading: Ref<boolean>
   nextEpisode: ComputedRef<EpisodeLink | null>
   skipTimes: Ref<SkipTime[]>
   autoSkipCurrentSegment: (video: HTMLVideoElement) => void
@@ -65,8 +66,17 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
 
   function onPause() {
     options.isPlaying.value = false
+    options.videoLoading.value = false
     options.doSaveProgress()
     clearPlaybackTimers()
+  }
+
+  function onPlaying() {
+    options.videoLoading.value = false
+  }
+
+  function onWaiting() {
+    if (options.isPlaying.value) options.videoLoading.value = true
   }
 
   function onEnded() {
@@ -109,6 +119,8 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     const handleVolumeChange = () => onVolumeChange(video)
     video.addEventListener('play', onPlay)
     video.addEventListener('pause', onPause)
+    video.addEventListener('playing', onPlaying)
+    video.addEventListener('waiting', onWaiting)
     video.addEventListener('ended', onEnded)
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('durationchange', handleDurationChange)
@@ -118,6 +130,8 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     return () => {
       video.removeEventListener('play', onPlay)
       video.removeEventListener('pause', onPause)
+      video.removeEventListener('playing', onPlaying)
+      video.removeEventListener('waiting', onWaiting)
       video.removeEventListener('ended', onEnded)
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('durationchange', handleDurationChange)

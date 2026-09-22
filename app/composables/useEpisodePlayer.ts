@@ -371,7 +371,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function togglePlay() {
     const video = videoRef.value
     if (!video) return
-    if (video.paused) void video.play()
+    if (video.paused) void video.play().catch(() => {})
     else video.pause()
   }
 

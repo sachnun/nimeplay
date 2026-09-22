@@ -96,7 +96,6 @@ onMounted(() => {
     />
     <PlayerBottomControls
       :current-episode-num="pendingEpisodeNum"
-      :disabled="true"
       :episode-count="metaData?.episodes.length || 0"
       :next-episode="pendingNext"
       :prev-episode="pendingPrev"

@@ -144,7 +144,6 @@ const {
       :controls-visible="controlsVisible"
       :current-episode-num="currentEpisodeNum"
       :current-time="currentTime"
-      :disabled="showLoading"
       :duration="duration"
       :episode-count="episodes.length"
       :is-fullscreen="isFullscreen"

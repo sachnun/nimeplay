@@ -103,13 +103,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <div v-if="loading && items.length === 0" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
-      <div v-for="n in 8" :key="n" class="rounded-lg overflow-hidden bg-card">
-        <div class="aspect-[3/4] bg-zinc-800 animate-pulse" />
-      </div>
-    </div>
-
-    <div v-else-if="items.length > 0" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
+    <div v-if="items.length > 0" class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4">
       <AnimePosterCard
         v-for="item in items"
         :key="item.malId"

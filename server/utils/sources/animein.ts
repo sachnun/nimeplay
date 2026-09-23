@@ -56,7 +56,7 @@ interface AnimeinServer {
 
 async function apiGet<T>(path: string): Promise<T | null> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
+    const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
     if (res && res.status === 200) {
       try {
         const body = JSON.parse(res.text) as { status?: number, error?: boolean, data?: T }
@@ -267,7 +267,6 @@ export const animein: AnimeSource = {
   id: 'animein',
   name: 'ANIMEIN',
   baseUrl: 'https://animeinweb.com',
-  workerBlocked: true,
   ongoingFresh: scrapeOngoingFresh,
   completedFresh: scrapeCompletedFresh,
   detailFresh: scrapeAnimeDetailFresh,

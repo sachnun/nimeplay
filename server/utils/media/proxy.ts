@@ -25,8 +25,8 @@ function matches(host: string, suffix: string): boolean {
   return host === suffix || host.endsWith(`.${suffix}`)
 }
 
-export function proxyUrl(input: string): string {
-  if (!enabled) return input
+export function proxyUrl(input: string, force = false): string {
+  if (!enabled && !force) return input
   let host: string
   try {
     host = new URL(input).hostname

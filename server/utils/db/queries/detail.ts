@@ -4,7 +4,7 @@ import { posterSrc } from '../../media'
 import { sourcePriority } from '../../sources'
 import { cleanSynopsis } from '../../mal/synopsis'
 import { db } from '../index'
-import { CATALOG_READY, blockedSourceSet, formatSeason, isPlayable } from './shared'
+import { CATALOG_READY, formatSeason } from './shared'
 import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 
 export async function getGenresForAnime(animeId: number): Promise<Genre[]> {
@@ -82,7 +82,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
 
   const [sourceEpisodeRows, genreRows, characterRows] = await Promise.all([
     db()
-      .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source, cache: episodes.cache })
+      .select({ number: episodes.number, releaseDate: episodes.releaseDate, source: animeSources.source })
       .from(episodes)
       .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
       .where(eq(animeSources.animeId, row.id)),
@@ -90,11 +90,9 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     getCharactersForAnime(row.id),
   ])
 
-  const blocked = blockedSourceSet()
   const episodeByNumber = new Map<number, { number: number, date: string }>()
   const chosenPriority = new Map<number, number>()
   for (const entry of sourceEpisodeRows) {
-    if (!isPlayable(entry.source, entry.cache, blocked)) continue
     const priority = sourcePriority(entry.source)
     const current = chosenPriority.get(entry.number)
     if (current === undefined || priority < current) {

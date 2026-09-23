@@ -8,6 +8,7 @@ interface PlainResponse {
 interface PlainOptions {
   headers?: Record<string, string>
   timeoutMs?: number
+  proxy?: boolean
 }
 
 interface NodeRequest {
@@ -66,7 +67,7 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
     'accept': 'application/json, */*',
     ...options.headers,
   }
-  const target = proxyUrl(url)
+  const target = proxyUrl(url, options.proxy)
   const https = await loadModule(target)
   if (!https) {
     try {
@@ -102,7 +103,7 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
     'accept': 'image/avif,image/webp,image/*,*/*',
     ...options.headers,
   }
-  const target = proxyUrl(url)
+  const target = proxyUrl(url, options.proxy)
   const https = await loadModule(target)
   if (!https) {
     try {

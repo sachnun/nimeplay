@@ -3,7 +3,6 @@ import { anime, animeSources, episodes } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { sourcePriority } from '../../sources'
 import { db } from '../index'
-import { blockedSourceSet, isPlayable } from './shared'
 
 export interface EpisodeCandidate {
   episodeSlug: string
@@ -39,15 +38,14 @@ export async function resolveEpisode(
 
 export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
   const rows = await db()
-    .select({ number: episodes.number, source: animeSources.source, cache: episodes.cache })
+    .select({ number: episodes.number })
     .from(episodes)
     .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
     .where(eq(animeSources.animeId, animeId))
 
-  const blocked = blockedSourceSet()
   const numbers = new Set<number>()
   for (const entry of rows) {
-    if (isPlayable(entry.source, entry.cache, blocked)) numbers.add(entry.number)
+    numbers.add(entry.number)
   }
   return [...numbers].sort((a, b) => a - b)
 }

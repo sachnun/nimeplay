@@ -47,7 +47,6 @@ export interface AnimeSource {
   id: string
   name: string
   baseUrl: string
-  workerBlocked?: boolean
   ongoingFresh(page: number): Promise<ListResult>
   completedFresh(page: number): Promise<ListResult>
   detailFresh(slug: string): Promise<ScrapedAnimeDetail | null>

@@ -1,4 +1,5 @@
 import { seasonNumber } from './season'
+import { isMovieTitle, isSeasonTitle, movieSeasonClash } from './title'
 import { jaroWinkler, tokenSetRatio } from './fuzzy'
 import type { JikanTitle } from './anilist'
 import type { MalSearchEntry } from './types'
@@ -169,6 +170,7 @@ function hasSpinoffPenalty(siteTitle: string, malTitle: string): boolean {
 }
 
 export function titlesMatch(siteTitle: string, malTitle: string): boolean {
+  if (movieSeasonClash(siteTitle, malTitle)) return false
   if (hasSpinoffMark(siteTitle, malTitle)) return false
   const siteNorm = normalizeTitle(siteTitle)
   const malNorm = normalizeTitle(malTitle)
@@ -228,19 +230,21 @@ function contentOverlap(siteTitle: string, malTitle: string): number {
 
 const SPINOFF_FORMATS = new Set(['OVA', 'ONA', 'SPECIAL', 'MUSIC', 'TV_SHORT'])
 
-function formatBonus(format: string | null | undefined): number {
+function formatBonus(format: string | null | undefined, siteTitle: string): number {
   if (!format) return 0
-  if (format === 'TV' || format === 'MOVIE') return 0.25
+  if (format === 'MOVIE') return isMovieTitle(siteTitle) ? 0.25 : -0.25
+  if (format === 'TV') return 0.25
   if (SPINOFF_FORMATS.has(format)) return -0.25
   return 0
 }
 
 export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
   const scored = entries.flatMap((entry) => {
+    if (entry.format === 'MOVIE' && !isMovieTitle(siteTitle) && isSeasonTitle(siteTitle)) return []
     const titles = entry.titles?.length ? entry.titles : [entry.title]
     const matched = titles.filter(title => titlesMatch(siteTitle, title))
     if (matched.length === 0) return []
-    const score = Math.max(...titles.map(title => matchScore(siteTitle, title))) + formatBonus(entry.format)
+    const score = Math.max(...titles.map(title => matchScore(siteTitle, title))) + formatBonus(entry.format, siteTitle)
     const hasContent = matched.some(title => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(title)) > 0 || tokenJaccard(siteTitle, title) >= 0.3)
     return [{ entry, score, hasContent }]
   })

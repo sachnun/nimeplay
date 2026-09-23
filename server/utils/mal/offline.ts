@@ -1,6 +1,6 @@
 import { titleSimilarity } from './fuzzy'
 import { seasonNumber } from './season'
-import { baseTitle, bracketVariants, cleanTitle, isSpinoffTitle, normalizeTitleKey, tokenizeTitle } from './title'
+import { baseTitle, bracketVariants, cleanTitle, isMovieTitle, isSpinoffTitle, movieSeasonClash, normalizeTitleKey, tokenizeTitle } from './title'
 
 const DATASET_URL = 'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json'
 const MIN_SCORE = 0.86
@@ -14,7 +14,7 @@ interface OfflineEntry {
 }
 
 interface OfflineIndex {
-  exact: Map<string, number>
+  exact: Map<string, number[]>
   postings: Map<string, number[]>
   entries: OfflineEntry[]
 }
@@ -33,7 +33,7 @@ async function buildIndex(): Promise<OfflineIndex | null> {
     if (!res.ok) return null
     const dataset = JSON.parse(await res.text()) as { data?: { title?: string, type?: string, synonyms?: string[], sources?: string[] }[] }
     const entries: OfflineEntry[] = []
-    const exact = new Map<string, number>()
+    const exact = new Map<string, number[]>()
     const postings = new Map<string, number[]>()
     for (const item of dataset.data ?? []) {
       const malId = (item.sources ?? []).map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1]).find(Boolean)
@@ -43,10 +43,13 @@ async function buildIndex(): Promise<OfflineIndex | null> {
       entries.push({ malId: Number(malId), title: item.title, type: (item.type ?? '').toUpperCase(), titles })
       for (const title of titles) {
         const key = normalizeTitleKey(title)
-        if (key && !exact.has(key)) exact.set(key, index)
+        if (!key) continue
+        const list = exact.get(key)
+        if (list) list.push(index)
+        else exact.set(key, [index])
         for (const token of new Set(tokenizeTitle(title))) {
-          const list = postings.get(token)
-          if (list) list.push(index)
+          const posting = postings.get(token)
+          if (posting) posting.push(index)
           else postings.set(token, [index])
         }
       }
@@ -63,45 +66,53 @@ export function loadOfflineIndex(): Promise<OfflineIndex | null> {
   return loading
 }
 
+function scoreEntry(entry: OfflineEntry, queries: string[]): number {
+  let score = 0
+  for (const candidateQuery of queries) {
+    if (isSpinoffTitle(entry.title, candidateQuery)) continue
+    const querySeason = seasonNumber(candidateQuery)
+    for (const candidate of entry.titles) {
+      if (isSpinoffTitle(candidate, candidateQuery)) continue
+      const candidateSeason = seasonNumber(candidate)
+      if (querySeason !== null && candidateSeason !== null && querySeason !== candidateSeason) continue
+      if (querySeason === null && candidateSeason !== null && candidateSeason > 1) continue
+      if (querySeason !== null && querySeason > 1 && candidateSeason === null) continue
+      score = Math.max(score, titleSimilarity(candidateQuery, cleanTitle(candidate)))
+      if (querySeason === null || querySeason === 1) score = Math.max(score, titleSimilarity(baseTitle(candidateQuery), baseTitle(candidate)))
+    }
+  }
+  return score
+}
+
 export async function offlineLookup(query: string): Promise<OfflineMatch | null> {
   const title = query.trim()
   if (!title) return null
   const index = await loadOfflineIndex()
   if (!index) return null
   const queries = bracketVariants(title)
+  const exact = new Set<number>()
+  const candidates = new Set<number>()
   for (const candidateQuery of queries) {
-    const exactIndex = index.exact.get(normalizeTitleKey(candidateQuery))
-    if (exactIndex !== undefined) {
-      const entry = index.entries[exactIndex]!
-      return { malId: entry.malId, title: entry.title, score: 1 }
+    for (const entryIndex of index.exact.get(normalizeTitleKey(candidateQuery)) ?? []) {
+      exact.add(entryIndex)
+      candidates.add(entryIndex)
+    }
+    for (const token of new Set(tokenizeTitle(candidateQuery))) {
+      for (const entryIndex of index.postings.get(token) ?? []) candidates.add(entryIndex)
     }
   }
-  const counts = new Map<number, number>()
-  for (const candidateQuery of queries) {
-    for (const token of new Set(tokenizeTitle(candidateQuery))) {
-      for (const entryIndex of index.postings.get(token) ?? []) counts.set(entryIndex, (counts.get(entryIndex) ?? 0) + 1)
-    }
+  if (exact.size === 1) {
+    const entry = index.entries[[...exact][0]!]!
+    if (!movieSeasonClash(title, entry.title)) return { malId: entry.malId, title: entry.title, score: 1 }
   }
   let best: { entryIndex: number, score: number } | null = null
   let second = 0
-  for (const [entryIndex] of counts) {
+  for (const entryIndex of candidates) {
     const entry = index.entries[entryIndex]!
-    let score = 0
-    for (const candidateQuery of queries) {
-      if (isSpinoffTitle(entry.title, candidateQuery)) continue
-      const querySeason = seasonNumber(candidateQuery)
-      for (const candidate of entry.titles) {
-        if (isSpinoffTitle(candidate, candidateQuery)) continue
-        const candidateSeason = seasonNumber(candidate)
-        if (querySeason !== null && candidateSeason !== null && querySeason !== candidateSeason) continue
-        if (querySeason === null && candidateSeason !== null && candidateSeason > 1) continue
-        if (querySeason !== null && querySeason > 1 && candidateSeason === null) continue
-        score = Math.max(score, titleSimilarity(candidateQuery, cleanTitle(candidate)))
-        if (querySeason === null || querySeason === 1) score = Math.max(score, titleSimilarity(baseTitle(candidateQuery), baseTitle(candidate)))
-      }
-    }
+    if (movieSeasonClash(title, entry.title)) continue
+    let score = scoreEntry(entry, queries)
     if (score === 0) continue
-    if (entry.type === 'MOVIE' && !/\bmovie\b/i.test(title)) score -= 0.05
+    if (entry.type === 'MOVIE' && !isMovieTitle(title)) score -= 0.05
     else if ((entry.type === 'OVA' || entry.type === 'ONA' || entry.type === 'SPECIAL' || entry.type === 'MUSIC') && !/\b(ova|ona|special|music)\b/i.test(title)) score -= 0.15
     if (score <= 0) continue
     if (!best || score > best.score) {

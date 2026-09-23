@@ -34,3 +34,18 @@ export function isSpinoffTitle(candidate: string, query: string): boolean {
   const q = query.toLowerCase()
   return SPINOFF_MARKERS.some(marker => marker.test(c) && !marker.test(q))
 }
+
+const MOVIE_MARKERS = /\b(movie|film|gekijouban)\b|剧场版|劇場版/i
+const SEASON_MARKERS = /(season\s*\d+|\bs\s*\d+\b|\d+\s*(?:st|nd|rd|th)\s+season|temporada|saison|staffel|seizoen|sezon)/i
+
+export function isMovieTitle(value: string): boolean {
+  return MOVIE_MARKERS.test(value)
+}
+
+export function isSeasonTitle(value: string): boolean {
+  return SEASON_MARKERS.test(value)
+}
+
+export function movieSeasonClash(siteTitle: string, malTitle: string): boolean {
+  return isMovieTitle(malTitle) && !isMovieTitle(siteTitle) && isSeasonTitle(siteTitle)
+}

@@ -41,6 +41,7 @@ export function malSearchVariants(title: string): string[] {
     if (cleaned && !variants.includes(cleaned)) variants.push(cleaned)
   }
   push(title)
+  push(title.replace(/\s*[([][^)\]]*[)\]]\s*/g, ' ').replace(/\s+/g, ' ').trim())
   const seasonMatch = title.match(/(.+?)\s+Season\s+(\d+)\s*$/i)
   if (seasonMatch?.[1] && seasonMatch[2]) {
     const base = seasonMatch[1].trim()

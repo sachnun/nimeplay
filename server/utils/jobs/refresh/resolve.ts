@@ -75,12 +75,19 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
     await recordMetadataFailure(slug, `no MAL title matches "${title}" (top: "${top}")`)
     return null
   }
-  log(`[metadata] match ${slug}`, { title, candidates: merged.size, ranked: ranked.length, top: ranked[0]?.title })
+  const episodeCount = detail?.episodes.length ?? 0
+  const candidates = ranked.filter(entry => !(entry.format === 'MOVIE' && episodeCount > 2))
+  if (candidates.length === 0) {
+    log(`[metadata] miss ${slug}`, { title, candidates: merged.size, episodes: episodeCount, top: ranked[0]?.title })
+    await recordMetadataFailure(slug, `only movie candidates for ${episodeCount}-episode source "${title}"`)
+    return null
+  }
+  log(`[metadata] match ${slug}`, { title, candidates: merged.size, ranked: ranked.length, top: candidates[0]?.title })
 
   const detailYear = parseOdYear(detail?.releaseDate ?? null)
   let yearFallback: { mal: MalAnime, diff: number } | null = null
 
-  for (const candidate of ranked.slice(0, 3)) {
+  for (const candidate of candidates.slice(0, 3)) {
     const mal = await fetchMalAnime(candidate.id)
     if (!mal) continue
 

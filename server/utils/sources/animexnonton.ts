@@ -1,4 +1,5 @@
 import { sealStreamToken } from '../stream'
+import { proxyUrl } from '../proxy'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const API_BASE_FALLBACK = 'https://wincamp.web.id/animexnonton/api'
@@ -135,7 +136,7 @@ async function postEndpoint<T>(name: string, fields: Record<string, string | num
     const base = await apiBase()
     const body = new URLSearchParams()
     for (const [key, value] of Object.entries(fields)) body.set(key, String(value))
-    const res = await fetch(`${base}/phalcon/api/${name}/`, {
+    const res = await fetch(proxyUrl(`${base}/phalcon/api/${name}/`), {
       method: 'POST',
       headers: { ...API_HEADERS, 'content-type': 'application/x-www-form-urlencoded' },
       body,

@@ -16,12 +16,6 @@ pnpm db:seed
 pnpm dev
 ```
 
-## Tasks
-
-```bash
-pnpm function:deploy
-```
-
 ## API
 
 `/api/v1/*`

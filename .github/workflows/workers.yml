@@ -20,18 +20,39 @@ concurrency:
   group: workers-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: workers
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - id: schema
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
+          if [ -z "$files" ] || printf '%s\n' "$files" | grep -qE '^(server/database/migrations/|drizzle\.config\.ts)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.schema.outputs.changed == 'true'
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm exec wrangler deploy

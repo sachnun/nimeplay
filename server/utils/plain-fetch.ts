@@ -1,3 +1,5 @@
+import { proxyUrl } from './proxy'
+
 interface PlainResponse {
   status: number
   text: string
@@ -38,21 +40,23 @@ interface PlainBinaryResponse {
 const DEFAULT_UA = 'okhttp/4.9.0'
 const DEFAULT_TIMEOUT_MS = 8000
 
-let httpsPromise: Promise<NodeHttps | null> | null = null
+const modules = new Map<string, Promise<NodeHttps | null>>()
 
-function loadHttps(): Promise<NodeHttps | null> {
-  if (!httpsPromise) {
-    httpsPromise = (async () => {
+function loadModule(url: string): Promise<NodeHttps | null> {
+  const specifier = url.startsWith('http://') ? 'node:http' : 'node:https'
+  let loaded = modules.get(specifier)
+  if (!loaded) {
+    loaded = (async () => {
       try {
-        const specifier = 'node:https'
         return await import(/* @vite-ignore */ specifier) as NodeHttps
       }
       catch {
         return null
       }
     })()
+    modules.set(specifier, loaded)
   }
-  return httpsPromise
+  return loaded
 }
 
 export async function plainGet(url: string, options: PlainOptions = {}): Promise<PlainResponse | null> {
@@ -62,10 +66,11 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
     'accept': 'application/json, */*',
     ...options.headers,
   }
-  const https = await loadHttps()
+  const target = proxyUrl(url)
+  const https = await loadModule(target)
   if (!https) {
     try {
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
       return { status: res.status, text: await res.text() }
     }
     catch {
@@ -79,7 +84,7 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
       settled = true
       resolve(value)
     }
-    const req = https.request(url, { method: 'GET', headers }, (res) => {
+    const req = https.request(target, { method: 'GET', headers }, (res) => {
       const chunks: Buffer[] = []
       res.on('data', (chunk) => { chunks.push(chunk as Buffer) })
       res.on('end', () => done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }))
@@ -97,7 +102,7 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
     'accept': 'image/avif,image/webp,image/*,*/*',
     ...options.headers,
   }
-  const https = await loadHttps()
+  const https = await loadModule(url)
   if (!https) {
     try {
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })

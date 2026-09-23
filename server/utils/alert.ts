@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import { db } from './db'
 
 const COOLDOWN_MS = 30 * 60 * 1000
-const WEBHOOK_TIMEOUT_MS = 5000
 
 async function claim(key: string): Promise<boolean> {
   const result = await db().execute(sql`
@@ -26,19 +25,4 @@ export async function alert(key: string, message: string, fields?: Record<string
   }
 
   console.warn(`[alert] ${message}`, fields ? JSON.stringify(fields) : '')
-
-  const webhook = process.env.ALERT_WEBHOOK_URL
-  if (!webhook) return
-
-  try {
-    await fetch(webhook, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: `[nimeplay] ${message}`, key, fields }),
-      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
-    })
-  }
-  catch (error) {
-    console.error('[alert] webhook failed:', error instanceof Error ? error.message : error)
-  }
 }

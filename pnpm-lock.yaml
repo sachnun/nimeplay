@@ -166,12 +166,6 @@ importers:
 
   .:
     dependencies:
-      '@neon/config':
-        specifier: ^1.7.2
-        version: 1.7.2
-      '@neon/functions':
-        specifier: ^0.11.0
-        version: 0.11.0
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -196,9 +190,6 @@ importers:
       idb:
         specifier: ^8.0.3
         version: 8.0.3
-      impit:
-        specifier: ^0.14.5
-        version: 0.14.5
       nuxt:
         specifier: ^4.5.2
         version: 4.5.2(@babel/plugin-syntax-jsx@7.29.7(@babel/core@7.29.7(supports-color@10.2.2)))(@babel/plugin-syntax-typescript@7.29.7(@babel/core@7.29.7(supports-color@10.2.2)))(@oxc-project/types@0.150.0)(@types/node@26.6.1)(@vue/compiler-sfc@3.5.42)(aws4fetch@1.0.20)(commander@15.0.0)(db0@0.3.4(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260916.1)(@neondatabase/serverless@1.1.0)(@types/pg@8.23.1)(pg@8.23.0)))(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260916.1)(@neondatabase/serverless@1.1.0)(@types/pg@8.23.1)(pg@8.23.0))(esbuild@0.28.2)(ioredis@5.11.1(supports-color@10.2.2))(lightningcss@1.33.0)(magicast@0.5.5)(rolldown@1.2.9)(rollup-plugin-visualizer@7.1.1(rolldown@1.2.9)(rollup@4.63.3))(rollup@4.63.3)(srvx@0.11.22)(supports-color@10.2.2)(terser@5.51.2)(tsx@4.23.13)(typescript@6.0.3)(vite@8.3.0(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13))(vue-tsc@3.3.11(typescript@6.0.3))
@@ -1431,23 +1422,6 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
-
-  '@neon/config@1.7.2':
-    resolution: {integrity: sha512-AFLHYl5Qg6p7cGjMxrXpmdniNMO6gOIzv5gAr+5LRMaXeFggTGEWP8Tpe48CKKeE1PUtyE0XoKazDNjQWGvUAw==}
-    engines: {node: '>=20.19.0'}
-
-  '@neon/functions@0.11.0':
-    resolution: {integrity: sha512-xyIEk9aULR2nBTzyTgxljkM8aS+Ppe9oVw/t5mdqYOlY/mLFppHSZHq8hiWVDWy6Ca8oLd3loTtfVz+cZQQjsA==}
-    engines: {node: '>=20.19.0'}
-    peerDependencies:
-      hono: ^4.7.8
-    peerDependenciesMeta:
-      hono:
-        optional: true
-
-  '@neon/sdk@6.0.0':
-    resolution: {integrity: sha512-ILfSjXGvCaR1zz9Z8y97Hwe6N4fAHDtab473GpMNbfUzAYMhZXJGuzW3KUEjX5U87OHF/+2RuJLZNI/L7ly5IQ==}
-    engines: {node: '>=20.19.0'}
 
   '@neondatabase/serverless@1.1.0':
     resolution: {integrity: sha512-r3ZZhRjEcfEdKIZnoB1RusNgvHuaBRqfCzV4Gi+5A9yUX0S4HTws/ASWqt13wL4y4I+0rqsWGdA2w7EQXHi3+Q==}
@@ -3041,62 +3015,6 @@ packages:
 
   image-meta@0.2.2:
     resolution: {integrity: sha512-3MOLanc3sb3LNGWQl1RlQlNWURE5g32aUphrDyFeCsxBTk08iE3VNe4CwsUZ0Qs1X+EfX0+r29Sxdpza4B+yRA==}
-
-  impit-darwin-arm64@0.14.5:
-    resolution: {integrity: sha512-9B2fc/GLfb14SgIB6fK1zIgMsXPjCu14Xu9hudSyrZF+ue6XaJXFF/G1BS27FtDFdPAYAeUTReFOJBrglteYKg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-
-  impit-darwin-x64@0.14.5:
-    resolution: {integrity: sha512-EBH6H6SSRuMpw85/n+luT0EcbNbp6vQpUaEywH4bM2bk/xy8y6JN25O/Mzxa4YGUauoytmMqXs0kDzU5lxEjaA==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [darwin]
-
-  impit-linux-arm64-gnu@0.14.5:
-    resolution: {integrity: sha512-K7gB/KiekPZ+rDoFZqbBf1jROOHibZneGmM0lt/5xcn2lO+7e9GgArdPFj6sh4fvhtOckXxEc1ExpZP+lDy3Cg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  impit-linux-arm64-musl@0.14.5:
-    resolution: {integrity: sha512-QvjBwjYu1LXP+ota94z9fThRZjH75/Bai36eHvXUTiiFyesRRsmClc72ReyyaarnNNjcsl2RActqFMDrx77DXg==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  impit-linux-x64-gnu@0.14.5:
-    resolution: {integrity: sha512-+8hErR5H3+4N9r4vf5Cz6cSe57n/0zh5ksHBu2H9i5pENcM/VBRJ5qU5a3YjQwN4Ohtw/ROHBLF6V99eXUzThA==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  impit-linux-x64-musl@0.14.5:
-    resolution: {integrity: sha512-e6526hjfX8BV3XNhB1V7Xd3dJIEbLEwudZagwt4XdLqKcxHsU0iYnUyTJCogSQeEtZFepCSKUnGeg/r2lzxHow==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  impit-win32-arm64-msvc@0.14.5:
-    resolution: {integrity: sha512-cABSwp3T1kNNp7++nyE8OlRuq8q9Cis3bWRHJjnTncfJ+NQlY0z1z3aLrI9ii1vvinCurCEWASuTptVSor5U1g==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [win32]
-
-  impit-win32-x64-msvc@0.14.5:
-    resolution: {integrity: sha512-JvjNkJ3mSB9nf74Ftdlr+KNxCC0EOAH6KUfEUqWRrGEnniIaUOMknxQw56Gbk7Zr1/e5eAOwxS/EBlASp6Yj4w==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [win32]
-
-  impit@0.14.5:
-    resolution: {integrity: sha512-MzoDiPBL5+QI5IEro4VDgZdm0BPY0LIf8tUykEFDjEI8NrjRL/qiiCqg4GDlIg5UbJzrKwCdvIgpRRArbbu7Dg==}
-    engines: {node: '>= 20'}
 
   impound@1.2.0:
     resolution: {integrity: sha512-hbFh2WURN+XQ364SbblzubhEEj/B3qZCe80l/EHXPWM6/kZP2mvOllxwRBBWNxe4gLbqXZL0fxOZwoDCSlJZQw==}
@@ -4798,9 +4716,6 @@ packages:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
     engines: {node: '>= 14'}
 
-  zod@4.6.5:
-    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
-
 snapshots:
 
   '@babel/code-frame@7.29.7':
@@ -5619,16 +5534,6 @@ snapshots:
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
-
-  '@neon/config@1.7.2':
-    dependencies:
-      '@neon/sdk': 6.0.0
-      jiti: 2.7.0
-      zod: 4.6.5
-
-  '@neon/functions@0.11.0': {}
-
-  '@neon/sdk@6.0.0': {}
 
   '@neondatabase/serverless@1.1.0': {}
 
@@ -7468,41 +7373,6 @@ snapshots:
 
   image-meta@0.2.2: {}
 
-  impit-darwin-arm64@0.14.5:
-    optional: true
-
-  impit-darwin-x64@0.14.5:
-    optional: true
-
-  impit-linux-arm64-gnu@0.14.5:
-    optional: true
-
-  impit-linux-arm64-musl@0.14.5:
-    optional: true
-
-  impit-linux-x64-gnu@0.14.5:
-    optional: true
-
-  impit-linux-x64-musl@0.14.5:
-    optional: true
-
-  impit-win32-arm64-msvc@0.14.5:
-    optional: true
-
-  impit-win32-x64-msvc@0.14.5:
-    optional: true
-
-  impit@0.14.5:
-    optionalDependencies:
-      impit-darwin-arm64: 0.14.5
-      impit-darwin-x64: 0.14.5
-      impit-linux-arm64-gnu: 0.14.5
-      impit-linux-arm64-musl: 0.14.5
-      impit-linux-x64-gnu: 0.14.5
-      impit-linux-x64-musl: 0.14.5
-      impit-win32-arm64-msvc: 0.14.5
-      impit-win32-x64-msvc: 0.14.5
-
   impound@1.2.0(esbuild@0.28.2)(rolldown@1.2.9)(rollup@4.63.3)(vite@8.3.0(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
@@ -9339,5 +9209,3 @@ snapshots:
       archiver-utils: 5.0.2
       compress-commons: 6.0.2
       readable-stream: 4.7.0
-
-  zod@4.6.5: {}

@@ -15,12 +15,9 @@
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx server/database/seed.ts",
-    "function:deploy": "neon deploy"
+    "db:seed": "tsx server/database/seed.ts"
   },
   "dependencies": {
-    "@neon/config": "^1.7.2",
-    "@neon/functions": "^0.11.0",
     "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
     "@nuxtjs/device": "^4.0.0",
@@ -29,7 +26,6 @@
     "drizzle-orm": "^0.45.2",
     "hls.js": "^1.7.3",
     "idb": "^8.0.3",
-    "impit": "^0.14.5",
     "nuxt": "^4.5.2",
     "pg": "^8.23.0",
     "sharp": "^0.35.4",

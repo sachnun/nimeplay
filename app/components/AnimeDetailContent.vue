@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeDetail } from '~/utils/types'
+import type { AnimeDetail } from '~/types'
 
 defineProps<{ anime: AnimeDetail; hideBack?: boolean }>()
 </script>

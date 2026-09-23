@@ -1,4 +1,4 @@
-import type { Genre } from '~/utils/types'
+import type { Genre } from '~/types'
 
 interface GenreListResponse {
   data: Genre[]

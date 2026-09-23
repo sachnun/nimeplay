@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeDetail } from '~/utils/types'
+import type { AnimeDetail } from '~/types'
 
 const route = useRoute()
 const malId = computed(() => Number(route.params.malId) || 0)

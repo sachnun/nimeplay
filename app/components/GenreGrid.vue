@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GenreAnimeCard } from '~/utils/types'
+import type { GenreAnimeCard } from '~/types'
 
 interface PageData {
   anime: GenreAnimeCard[]

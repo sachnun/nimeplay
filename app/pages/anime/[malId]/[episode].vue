@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { preloadHls } from '~/utils/hls'
-import type { EpisodeMetaData, EpisodePageData } from '~/utils/types'
+import type { EpisodeMetaData, EpisodePageData } from '~/types'
 
 const route = useRoute()
 const router = useRouter()

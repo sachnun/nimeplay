@@ -1,4 +1,4 @@
-import type { SkipTime } from './types'
+import type { SkipTime } from '~/types'
 
 interface AniskipResponse {
   found: boolean

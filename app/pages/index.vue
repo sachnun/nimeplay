@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeCard, Genre } from '~/utils/types'
+import type { AnimeCard, Genre } from '~/types'
 
 interface HomeData {
   ongoingData: { anime: AnimeCard[]; totalPages: number }

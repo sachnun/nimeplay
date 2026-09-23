@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AnimeCharacter } from '~/utils/types'
+import type { AnimeCharacter } from '~/types'
 
 const props = defineProps<{ characters?: AnimeCharacter[] }>()
 

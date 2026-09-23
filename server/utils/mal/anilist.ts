@@ -1,3 +1,4 @@
+import { proxyFetch } from '../media/proxy'
 import { warn } from '../log'
 
 const ANILIST_URL = 'https://graphql.anilist.co'
@@ -119,7 +120,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
   for (let attempt = 0; attempt < 4; attempt++) {
     await acquireAniListSlot()
     try {
-      const res = await fetch(ANILIST_URL, {
+      const res = await proxyFetch(ANILIST_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ query, variables }),

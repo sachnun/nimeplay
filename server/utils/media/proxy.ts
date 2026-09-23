@@ -12,6 +12,9 @@ const BYPASS_HOSTS = [
   'mega.co.nz',
   'github.io',
 ]
+const NO_REGION_HOSTS = [
+  'anilist.co',
+]
 
 let enabled = false
 
@@ -33,6 +36,7 @@ export function proxyUrl(input: string): string {
     return input
   }
   if (BYPASS_HOSTS.some(suffix => matches(host, suffix))) return input
+  if (NO_REGION_HOSTS.some(suffix => matches(host, suffix))) return `${PROXY}/${input}`
   const pool = POOL_OVERRIDES.find(([suffix]) => matches(host, suffix))?.[1] ?? DEFAULT_POOL
   return `${PROXY}/${pool}/${input}`
 }

@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { preloadHls } from '~/utils/hls'
-import type { EpisodeData } from '~/utils/types'
+import type { EpisodeData } from '~/types'
 import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {

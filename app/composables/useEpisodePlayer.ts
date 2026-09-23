@@ -1,11 +1,17 @@
-import { fetchSkipTimes } from '~/utils/remote'
-import { loadHls, preloadHls } from '~/utils/hls'
+import { preloadHls } from '~/utils/hls'
 import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
 import { useEpisodePlayerGestures } from './player/gestures'
+import { useEpisodePlayerKeyboard } from './player/keyboard'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
-import { pickInitialQuality, useEpisodePlayerQuality } from './player/quality'
+import { useEpisodePlayerMediaSession } from './player/media-session'
+import { useEpisodePlayerProgress } from './player/progress'
+import { useEpisodePlayerQuality, pickInitialQuality } from './player/quality'
 import { useEpisodePlayerResolution } from './player/resolution'
-import type { EpisodeData, EpisodePageData, SkipTime } from '~/utils/types'
+import { useEpisodePlayerSource } from './player/source'
+import { useEpisodePlayerSkip } from './player/skip'
+import { useEpisodePlayerVolume } from './player/volume'
+import { useEpisodePlayerFullscreen } from './player/fullscreen'
+import type { EpisodeData, EpisodePageData, SkipTime } from '~/types'
 
 interface EpisodePlayerProps {
   malId: number
@@ -23,7 +29,6 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
 const CONTROLS_IDLE_MS = 3000
 const MOBILE_CONTROLS_IDLE_MS = 5000
 const START_CONTROLS_IDLE_MS = 1200
-const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
@@ -58,21 +63,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const speedBoost = ref(false)
   const wasLongPress = ref(false)
 
-  const containerRef = ref<HTMLDivElement | null>(null)
+  const containerRef = shallowRef<HTMLDivElement | null>(null)
   const videoRef = shallowRef<HTMLVideoElement | null>(null)
 
-  let hls: any | null = null
   let watchedMarked = false
-  let autoPlayOnLoad = true
-  let resumeTime = 0
-  let lastSavedTime = 0
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   let pendingStartHide = false
   let countdownTimer: ReturnType<typeof setInterval> | null = null
-  let volumeTimer: ReturnType<typeof setTimeout> | null = null
-  let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
-  let skipFetched = false
   let resetEpoch = 0
   let resetSettled: Promise<void> | null = null
 
@@ -112,45 +110,71 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return isTouchDevice.value ? MOBILE_CONTROLS_IDLE_MS : CONTROLS_IDLE_MS
   }
 
-  function destroyHls() {
-    if (hls) {
-      hls.destroy()
-      hls = null
-    }
-  }
+  const progressStore = useEpisodePlayerProgress({
+    videoRef,
+    malId: props.malId,
+    currentEpisodeNum,
+    episodes: props.episodes,
+    duration,
+    progressKey,
+  })
 
-  function setHlsMaxBufferLength(length: number) {
-    if (hls) hls.config.maxBufferLength = length
-  }
+  const skip = useEpisodePlayerSkip({
+    malId: props.malId,
+    currentEpisodeNum,
+    autoSkip,
+    skipTimes,
+    videoRef,
+  })
+
+  const volumeControls = useEpisodePlayerVolume({ videoRef, volume, isMuted, showVolume, volumeIndicator })
+
+  const fullscreen = useEpisodePlayerFullscreen({ containerRef, isFullscreen, resetIdle, cancelAutoNext })
+
+  const keyboard = useEpisodePlayerKeyboard({
+    videoRef,
+    togglePlay,
+    seekRelative,
+    showSeekFeedback,
+    changeVolume: volumeControls.changeVolume,
+    toggleMute: volumeControls.toggleMute,
+    toggleFullscreen: fullscreen.toggleFullscreen,
+  })
+
+  const mediaSession = useEpisodePlayerMediaSession({
+    getTitle: () => episode.value.title,
+    getEpisodeNumber: () => currentEpisodeNum.value,
+    getAlbum: () => props.animeTitle,
+    getArtwork: () => episode.value.thumbnail || props.animeThumbnail,
+  })
 
   async function resetForEpisode() {
     const epoch = ++resetEpoch
     clearAnyTimer(countdownTimer)
     resetPlaybackTracking()
     countdownTimer = null
-    lastSavedTime = 0
-    resumeTime = 0
+    progressStore.resetSave()
+    source.clearResume()
     autoNextCountdown.value = null
     currentTime.value = 0
     duration.value = 0
     buffered.value = 0
-    isPlaying.value = autoPlayOnLoad
+    isPlaying.value = source.autoPlayWanted()
     isSeeking.value = false
     seekIndicator.value = null
     scrubPreview.value = null
     resolving.value = true
     loadingMessage.value = 'Menyiapkan player...'
-    skipFetched = false
     pendingStartHide = true
-    skipTimes.value = []
+    skip.resetSkip()
     clearGestureState()
     resetQuality()
 
     const pendingReset = (async () => {
       try {
-        const resume = await savedResumeTime()
+        const resume = await progressStore.savedResumeTime()
         if (epoch !== resetEpoch) return
-        resumeTime = resume
+        source.setResume(resume)
         watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
       }
       catch {}
@@ -160,30 +184,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (resetSettled === pendingReset) resetSettled = null
   }
 
-  async function savedResumeTime() {
-    const saved = await getProgress(progressKey.value)
-    if (!saved || (await getEpisodeStatus(progressKey.value)) !== 'in_progress') return 0
-    return saved.currentTime > 0 ? saved.currentTime : 0
-  }
-
-  function hasFiniteDuration(video: HTMLVideoElement | null) {
-    return Boolean(video?.duration && Number.isFinite(video.duration))
-  }
-
-  async function doSaveProgress() {
-    const video = videoRef.value
-    if (!video || !hasFiniteDuration(video)) return
-    if (video.currentTime === lastSavedTime) return
-    lastSavedTime = video.currentTime
-    await saveProgress(progressKey.value, {
-      currentTime: video.currentTime,
-      duration: video.duration,
-      malId: props.malId,
-      episodeNumber: currentEpisodeNum.value,
-      latestEpisode: latestAvailableEpisode(),
-    })
-  }
-
   async function saveNextEpisodeResume() {
     if (!nextEpisode.value) return
     await saveProgress(`${props.malId}:${nextEpisode.value.num}`, {
@@ -191,49 +191,15 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       duration: 1,
       malId: props.malId,
       episodeNumber: nextEpisode.value.num,
-      latestEpisode: latestAvailableEpisode(),
+      latestEpisode: progressStore.latestAvailableEpisode(),
     })
-  }
-
-  function latestAvailableEpisode() {
-    return props.episodes.length ? Math.max(...props.episodes) : undefined
-  }
-
-  function progressFallbackDuration() {
-    return duration.value || 1
-  }
-
-  function progressCurrentTime(fallback: number) {
-    const video = videoRef.value
-    return video ? video.currentTime : fallback
-  }
-
-  function progressDuration(fallback: number) {
-    const video = videoRef.value
-    if (!hasFiniteDuration(video)) return fallback
-    return video?.duration ?? fallback
-  }
-
-  function currentProgressPayload() {
-    const fallbackDuration = progressFallbackDuration()
-    return {
-      currentTime: progressCurrentTime(fallbackDuration),
-      duration: progressDuration(fallbackDuration),
-      malId: props.malId,
-      episodeNumber: currentEpisodeNum.value,
-      latestEpisode: latestAvailableEpisode(),
-    }
-  }
-
-  function clearWatchTimers() {
-    clearWatchedTimer()
   }
 
   async function doMark() {
     if (watchedMarked) return
     watchedMarked = true
-    await markWatched(progressKey.value, currentProgressPayload())
-    clearWatchTimers()
+    await markWatched(progressKey.value, progressStore.currentProgressPayload())
+    clearWatchedTimer()
   }
 
   function shouldHideControlsOnIdle() {
@@ -283,20 +249,29 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     resolving,
   })
 
+  const source = useEpisodePlayerSource({
+    videoRef,
+    directUrl,
+    directKind,
+    videoLoading,
+    loadingMessage,
+    triggerFallback,
+  })
+
   const { reset: resetQuality, start: startQuality, stop: stopQuality } = useEpisodePlayerQuality({
     videoRef,
     levels: qualityLevels,
     activeQuality,
     isSwitching: () => resolving.value,
     bufferAhead,
-    bandwidthEstimate: () => hls?.bandwidthEstimate ?? NaN,
+    bandwidthEstimate: source.bandwidthEstimate,
     onSelect: applyQuality,
   })
 
   function applyQuality(level: MirrorCandidate) {
     const video = videoRef.value
-    autoPlayOnLoad = !!video && !video.paused
-    if (video && video.currentTime > 0) resumeTime = video.currentTime
+    source.setAutoPlay(!!video && !video.paused)
+    if (video && video.currentTime > 0) source.setResume(video.currentTime)
     void playWithFallback(level, false, true)
   }
 
@@ -313,9 +288,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     loadingMessage.value = 'Menyiapkan episode...'
     directUrl.value = null
     directKind.value = null
-    autoPlayOnLoad = shouldAutoPlay
-    resumeTime = 0
-    destroyHls()
+    source.setAutoPlay(shouldAutoPlay)
+    source.clearResume()
+    source.destroyHls()
     const video = videoRef.value
     if (video) {
       video.pause()
@@ -372,13 +347,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const video = videoRef.value
     if (isPlaying.value) {
       isPlaying.value = false
-      autoPlayOnLoad = false
+      source.setAutoPlay(false)
       videoLoading.value = false
       video?.pause()
       return
     }
     isPlaying.value = true
-    autoPlayOnLoad = true
+    source.setAutoPlay(true)
     if (video && video.readyState >= 2) void video.play().catch(() => {})
     else videoLoading.value = true
   }
@@ -397,39 +372,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     video.currentTime = newTime
   }
 
-  function showVolumeControl() {
-    if (volumeTimer) clearTimeout(volumeTimer)
-    showVolume.value = true
-  }
-
-  function hideVolumeControl() {
-    volumeTimer = setTimeout(() => { showVolume.value = false }, 300)
-  }
-
-  function toggleMute() {
-    if (videoRef.value) videoRef.value.muted = !videoRef.value.muted
-    showVolumeIndicator()
-  }
-
-  function showVolumeIndicator() {
-    const video = videoRef.value
-    if (!video) return
-    if (volumeIndicatorTimer) clearTimeout(volumeIndicatorTimer)
-    volumeIndicator.value = { volume: video.volume, isMuted: video.muted }
-    volumeIndicatorTimer = setTimeout(() => { volumeIndicator.value = null }, 1000)
-  }
-
-  function changeVolume(v: number) {
-    const clamped = Math.max(0, Math.min(1, v))
-    volume.value = clamped
-    if (clamped > 0) isMuted.value = false
-    const video = videoRef.value
-    if (!video) return
-    video.volume = clamped
-    if (video.muted && clamped > 0) video.muted = false
-    showVolumeIndicator()
-  }
-
   function showSeekFeedback(side: 'left' | 'right', seconds: number) {
     if (seekIndicatorTimer) clearTimeout(seekIndicatorTimer)
     seekIndicator.value = { side, seconds }
@@ -437,98 +379,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     seekIndicatorTimer = setTimeout(() => { seekIndicator.value = null }, 600)
   }
 
-  async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
-    try {
-      if (orientation === 'landscape') await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
-      else (screen.orientation as unknown as { unlock: () => void }).unlock()
-    } catch (error) { console.warn('screen.orientation lock/unlock failed', error) }
-  }
-
-  async function exitPlayerFullscreen() {
-    if (document.fullscreenElement) {
-      try { await document.exitFullscreen() } catch (error) { console.warn('exitFullscreen failed', error) }
-    }
-    isFullscreen.value = false
-    cancelAutoNext()
-    await lockPlayerOrientation('portrait')
-  }
-
-  async function toggleFullscreen() {
-    const el = containerRef.value
-    if (!el) return
-    if (isFullscreen.value || document.fullscreenElement) {
-      await exitPlayerFullscreen()
-      return
-    }
-
-    try { await el.requestFullscreen() } catch (error) { console.warn('requestFullscreen failed', error) }
-    await lockPlayerOrientation('landscape')
-
-    if (document.fullscreenElement || isFullscreen.value) {
-      isFullscreen.value = true
-      resetIdle()
-    }
-  }
-
   function clearIdleTimer() {
     if (idleTimer) clearTimeout(idleTimer)
     idleTimer = null
-  }
-
-  function isInteractiveTarget(target: HTMLElement | null) {
-    return Boolean(target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"]')))
-  }
-
-  function handleKeyboardShortcut(event: KeyboardEvent) {
-    const volume = videoRef.value?.volume ?? 1
-    const shortcuts: Record<string, () => void> = {
-      ' ': togglePlay,
-      k: togglePlay,
-      ArrowLeft: () => { seekRelative(-5); showSeekFeedback('left', 5) },
-      ArrowRight: () => { seekRelative(5); showSeekFeedback('right', 5) },
-      ArrowUp: () => changeVolume(volume + 0.1),
-      ArrowDown: () => changeVolume(volume - 0.1),
-      m: toggleMute,
-      f: () => { void toggleFullscreen() },
-    }
-    const handler = shortcuts[keyboardShortcutKey(event)]
-    if (!handler) return false
-    event.preventDefault()
-    handler()
-    return true
-  }
-
-  function keyboardShortcutKey(event: KeyboardEvent) {
-    return event.key.length === 1 ? event.key.toLowerCase() : event.key
-  }
-
-  async function lookupSkipTimes(epNum: number, episodeLength: number) {
-    skipTimes.value = await fetchSkipTimes(props.malId, epNum, episodeLength)
-  }
-
-  function shouldSkipSegment(skipTime: SkipTime, time: number) {
-    return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
-  }
-
-  function autoSkipCurrentSegment(video: HTMLVideoElement) {
-    if (!autoSkip.value) return
-    const current = skipTimes.value.find((skipTime) => shouldSkipSegment(skipTime, video.currentTime))
-    if (current) video.currentTime = current.interval.endTime
-  }
-
-  async function fetchSkipTimesIfNeeded() {
-    if (skipFetched) return
-    const episodeLength = currentVideoDuration()
-    if (episodeLength === null) return
-    skipFetched = true
-    const epNum = currentEpisodeNum.value
-    if (!epNum) return
-    await lookupSkipTimes(epNum, episodeLength)
-  }
-
-  function currentVideoDuration() {
-    const video = videoRef.value
-    return hasFiniteDuration(video) ? video?.duration ?? null : null
   }
 
   const {
@@ -548,11 +401,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     videoLoading,
     nextEpisode,
     skipTimes,
-    autoSkipCurrentSegment,
+    autoSkipCurrentSegment: skip.autoSkipCurrentSegment,
     canMarkWatched: () => !watchedMarked,
     doMark,
-    doSaveProgress,
-    fetchSkipTimesIfNeeded,
+    doSaveProgress: progressStore.doSaveProgress,
+    fetchSkipTimesIfNeeded: skip.fetchSkipTimesIfNeeded,
     saveNextEpisodeResume,
     startAutoNextCountdown,
   })
@@ -587,10 +440,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     resetIdle,
     seekRelative,
     seekTo,
-    setHlsMaxBufferLength,
+    setHlsMaxBufferLength: source.setHlsMaxBufferLength,
     toggleControlsVisibility,
     togglePlay,
-    toggleFullscreen,
+    toggleFullscreen: fullscreen.toggleFullscreen,
   })
 
   watch(progressKey, resetForEpisode, { immediate: true })
@@ -618,10 +471,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (import.meta.client) void setAutoSkip(value)
   })
 
-  function setMediaPlaybackState(playing: boolean) {
-    if (import.meta.client && 'mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
-  }
-
   function showPausedControls() {
     showControls.value = true
     clearIdleTimer()
@@ -637,124 +486,12 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       else resetIdle()
     }
     else showPausedControls()
-    setMediaPlaybackState(playing)
+    mediaSession.setMediaPlaybackState(playing)
   }
 
   watch(isPlaying, updatePlayingState)
 
-  function mediaArtwork() {
-    const artworkUrl = episode.value.thumbnail || props.animeThumbnail
-    if (!artworkUrl) return []
-    let src = artworkUrl
-    try {
-      src = new URL(artworkUrl, window.location.href).href
-    }
-    catch {}
-    return [96, 192, 256, 384, 512].map((size) => ({ src, sizes: `${size}x${size}`, type: 'image/jpeg' }))
-  }
-
-  function updateMediaMetadata() {
-    if (!import.meta.client || !('mediaSession' in navigator)) return
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: episode.value.title,
-      artist: `Episode ${currentEpisodeNum.value}`,
-      album: props.animeTitle,
-      artwork: mediaArtwork(),
-    })
-  }
-
-  watch([() => episode.value.title, () => currentEpisodeNum.value], updateMediaMetadata, { immediate: true })
-
-  function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    video.src = url
-    video.addEventListener('error', onVideoError, { once: true })
-  }
-
-  async function attachHlsSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    const Hls = (await loadHls()).default
-    if (Hls.isSupported()) {
-      hls = new Hls({
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-      })
-      hls.loadSource(url)
-      hls.attachMedia(video)
-      hls.on(Hls.Events.ERROR, (_: unknown, data: { fatal?: boolean }) => {
-        if (data.fatal) triggerFallback()
-      })
-      return
-    }
-    if (video.canPlayType('application/vnd.apple.mpegurl')) return attachNativeSource(video, url, onVideoError)
-    triggerFallback()
-  }
-
-  function resumeAndAutoplay(video: HTMLVideoElement) {
-    if (resumeTime > 0) {
-      video.currentTime = resumeTime
-      resumeTime = 0
-    }
-    if (!autoPlayOnLoad) return
-    autoPlayOnLoad = false
-    if (video.paused) void video.play().catch(() => {})
-  }
-
-  async function attachVideoSource(video: HTMLVideoElement, url: string, kind: 'hls' | 'file' | null, onVideoError: () => void) {
-    if (kind === 'hls') return attachHlsSource(video, url, onVideoError)
-    attachNativeSource(video, url, onVideoError)
-  }
-
-  watch([directUrl, videoRef], async ([url, video], _, onCleanup) => {
-    if (!video) return
-    if (!url) {
-      destroyHls()
-      try {
-        video.pause()
-        video.removeAttribute('src')
-        video.load()
-      }
-      catch {}
-      return
-    }
-    loadingMessage.value = 'Memuat video...'
-    videoLoading.value = true
-    destroyHls()
-    let stallTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-      stallTimer = null
-      const el = videoRef.value
-      if (!el || !videoLoading.value) return
-      if (el.readyState >= 2 || !el.paused) videoLoading.value = false
-      else triggerFallback()
-    }, 15000)
-    const clearStallTimer = () => {
-      if (stallTimer) clearTimeout(stallTimer)
-      stallTimer = null
-    }
-    const onFirstFrame = () => {
-      videoLoading.value = false
-      clearStallTimer()
-    }
-    const onVideoError = () => triggerFallback()
-    video.addEventListener('canplay', onFirstFrame, { once: true })
-    video.addEventListener('loadeddata', onFirstFrame, { once: true })
-    video.addEventListener('playing', onFirstFrame, { once: true })
-
-    await attachVideoSource(video as HTMLVideoElement, url as string, directKind.value, onVideoError)
-
-    const current = video as HTMLVideoElement
-    if (current.readyState >= 2 || !current.paused) videoLoading.value = false
-    if (!videoLoading.value) clearStallTimer()
-    const onReady = () => resumeAndAutoplay(current)
-    current.addEventListener('canplay', onReady)
-    onCleanup(() => {
-      current.removeEventListener('canplay', onFirstFrame)
-      current.removeEventListener('loadeddata', onFirstFrame)
-      current.removeEventListener('playing', onFirstFrame)
-      current.removeEventListener('canplay', onReady)
-      current.removeEventListener('error', onVideoError)
-      clearStallTimer()
-      destroyHls()
-    })
-  })
+  watch([() => episode.value.title, () => currentEpisodeNum.value], mediaSession.updateMediaMetadata, { immediate: true })
 
   function prefetchNextEpisode() {
     const target = nextEpisode.value
@@ -780,14 +517,14 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       if (isFullscreen.value) resetIdle()
       if (!isFullscreen.value) {
         cancelAutoNext()
-        void lockPlayerOrientation('portrait')
+        void fullscreen.lockPlayerOrientation('portrait')
       }
     }
     const onKey = (event: KeyboardEvent) => {
       if (!showNative.value) return
       const target = event.target instanceof HTMLElement ? event.target : null
-      if (isInteractiveTarget(target)) return
-      handleKeyboardShortcut(event)
+      if (keyboard.isInteractiveTarget(target)) return
+      keyboard.handleKeyboardShortcut(event)
     }
     const onPointerActivity = () => resetIdle()
     const onLeave = () => {
@@ -802,33 +539,22 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     containerRef.value?.addEventListener('mousemove', onPointerActivity)
     containerRef.value?.addEventListener('mouseleave', onLeave)
 
-    if ('mediaSession' in navigator) {
-      const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
-        try { navigator.mediaSession.setActionHandler(action, handler) } catch (error) { console.warn('mediaSession.setActionHandler failed', error) }
-      }
-      setHandler('play', () => { if (videoRef.value) void videoRef.value.play() })
-      setHandler('pause', () => videoRef.value?.pause())
-      setHandler('seekbackward', (details) => seekRelative(-(details.seekOffset ?? 10)))
-      setHandler('seekforward', (details) => seekRelative(details.seekOffset ?? 10))
-      setHandler('previoustrack', () => { if (prevEpisode.value) navigateEpisode(prevEpisode.value.num) })
-      setHandler('nexttrack', () => { if (nextEpisode.value) navigateEpisode(nextEpisode.value.num) })
-    }
+    mediaSession.installHandlers({ videoRef, seekRelative, prevEpisode, nextEpisode, navigateEpisode })
 
     onBeforeUnmount(() => {
-      doSaveProgress()
+      progressStore.doSaveProgress()
       const current = videoRef.value
       if (current) {
         try { current.pause() } catch {}
         current.removeAttribute('src')
         try { current.load() } catch {}
       }
-      destroyHls()
+      source.destroyHls()
       stopQuality()
       invalidatePlaybackSession()
       clearAnyTimer(countdownTimer)
       clearAnyTimer(idleTimer)
-      clearAnyTimer(volumeTimer)
-      clearAnyTimer(volumeIndicatorTimer)
+      volumeControls.resetVolumeTimers()
       clearAnyTimer(seekIndicatorTimer)
       clearPlaybackTimers()
       clearGestureState()
@@ -836,7 +562,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       window.removeEventListener('keydown', onKey)
       containerRef.value?.removeEventListener('mousemove', onPointerActivity)
       containerRef.value?.removeEventListener('mouseleave', onLeave)
-      if (isFullscreen.value || document.fullscreenElement) void exitPlayerFullscreen()
+      if (isFullscreen.value || document.fullscreenElement) void fullscreen.exitPlayerFullscreen()
       if ('mediaSession' in navigator) navigator.mediaSession.metadata = null
     })
   })
@@ -845,7 +571,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     autoNextCountdown,
     autoSkip,
     bufferedPct,
-    changeVolume,
+    changeVolume: volumeControls.changeVolume,
     containerRef,
     controlsVisible,
     currentEpisodeNum,
@@ -863,7 +589,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     handleVideoTouchEnd,
     handleVideoTouchMove,
     handleVideoTouchStart,
-    hideVolumeControl,
+    hideVolumeControl: volumeControls.hideVolumeControl,
     isFullscreen,
     isMuted,
     isPlaying,
@@ -887,13 +613,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     showLoading,
     showNative,
     showVolume,
-    showVolumeControl,
+    showVolumeControl: volumeControls.showVolumeControl,
     skipTimes,
     speedBoost,
     toggleAutoSkip,
     toggleEpisodesPanel,
-    toggleFullscreen,
-    toggleMute,
+    toggleFullscreen: fullscreen.toggleFullscreen,
+    toggleMute: volumeControls.toggleMute,
     togglePlay,
     videoRef,
     volume,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EpisodeData } from '~/utils/types'
+import type { EpisodeData } from '~/types'
 
 const props = defineProps<{
   malId: number

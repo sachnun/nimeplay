@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SkipTime } from '~/utils/types'
+import type { SkipTime } from '~/types'
 
 withDefaults(defineProps<{
   autoSkip?: boolean

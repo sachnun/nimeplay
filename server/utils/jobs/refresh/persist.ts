@@ -37,10 +37,12 @@ export async function getSourceRow(sourceId: string, vendorSlug: string): Promis
   return row ?? null
 }
 
+const EPISODE_JUNK = /pembatas|^\s*[=\-–—|+]+/i
+
 export async function upsertEpisodes(source: AnimeSource, sourceId: number, list: { title: string, slug: string, date: string }[]): Promise<void> {
   const rows = list
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
-    .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null)
+    .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null && !EPISODE_JUNK.test(row.entry.title))
 
   const client = db()
   for (const chunk of chunkValues(rows, 15)) {

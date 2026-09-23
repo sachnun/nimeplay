@@ -1,5 +1,6 @@
 import { sealStreamToken } from '../media/stream'
 import { proxyUrl } from '../media/proxy'
+import { keepSeriesEpisodes } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const API_BASE_FALLBACK = 'https://wincamp.web.id/animexnonton/api'
@@ -198,7 +199,10 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   if (!title) return null
 
   const posts = (data?.posts ?? []).filter((post): post is CategoryPost & { channel_id: number } => Number.isFinite(post.channel_id))
+  const channels = keepSeriesEpisodes(title, slug, posts.map(post => ({ title: post.channel_name ?? '' })))
+  const kept = new Set(channels.map(channel => channel.title))
   const episodes = posts
+    .filter(post => kept.has(post.channel_name ?? ''))
     .map((post) => {
       const number = parseEpisodeNumber(post.channel_name ?? '') ?? (posts.length === 1 ? 1 : null)
       if (number === null) return null

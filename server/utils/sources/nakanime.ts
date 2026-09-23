@@ -1,4 +1,5 @@
 import { plainGet } from '../net/fetch'
+import { keepSeriesEpisodes } from './shared'
 import { sealStreamToken } from '../media/stream'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
@@ -140,7 +141,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   const { data } = await apiGet<NakanimeDetail>(`/anime/?name=${encodeURIComponent(slug)}`)
   if (!data || !data.title) return null
   const info = parseInfo(data.info)
-  const episodes = (data.episodes ?? []).filter(episode => episode.slug)
+  const episodes = keepSeriesEpisodes(data.title, data.slug || slug, (data.episodes ?? []).filter(episode => episode.slug))
   return {
     title: data.title,
     japanese: '',

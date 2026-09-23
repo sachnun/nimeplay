@@ -101,3 +101,47 @@ export function parseEpisodeDate(raw: string): Date | null {
   const date = new Date(Date.UTC(year, month, day))
   return date.getUTCDate() === day ? date : null
 }
+
+const EPISODE_SUFFIX = /[-–|:]?\s*(episode|eps)\s*\d+.*$/i
+const TRAILING_NUMBER = /\s*\d+\s*(\(end\))?\s*$/i
+
+function episodeLabel(title: string): string {
+  return title.replace(EPISODE_SUFFIX, '').replace(TRAILING_NUMBER, '').trim()
+}
+
+function labelKey(label: string): string {
+  return label.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '')
+}
+
+function keyMatches(a: string, b: string): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  return a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))
+}
+
+export function keepSeriesEpisodes<T extends { title: string }>(seriesTitle: string, seriesSlug: string, episodes: T[]): T[] {
+  const counts = new Map<string, number>()
+  for (const episode of episodes) {
+    const key = labelKey(episodeLabel(episode.title))
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const labeled = [...counts.values()].reduce((sum, count) => sum + count, 0)
+  if (labeled === 0) return episodes
+  let dominant = ''
+  let dominantCount = 0
+  for (const [key, count] of counts) {
+    if (count > dominantCount) {
+      dominant = key
+      dominantCount = count
+    }
+  }
+  const trusted = dominantCount >= 2 && dominantCount >= labeled * 0.7
+  const seriesKey = labelKey(seriesTitle)
+  const slugKey = labelKey(seriesSlug)
+  return episodes.filter((episode) => {
+    const key = labelKey(episodeLabel(episode.title))
+    if (!key) return true
+    if (keyMatches(key, seriesKey) || keyMatches(key, slugKey)) return true
+    return trusted && keyMatches(key, dominant)
+  })
+}

@@ -75,10 +75,6 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     options.videoLoading.value = false
   }
 
-  function onWaiting() {
-    if (options.isPlaying.value) options.videoLoading.value = true
-  }
-
   function onEnded() {
     options.isPlaying.value = false
     options.doSaveProgress()
@@ -120,7 +116,6 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     video.addEventListener('play', onPlay)
     video.addEventListener('pause', onPause)
     video.addEventListener('playing', onPlaying)
-    video.addEventListener('waiting', onWaiting)
     video.addEventListener('ended', onEnded)
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('durationchange', handleDurationChange)
@@ -131,7 +126,6 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
       video.removeEventListener('play', onPlay)
       video.removeEventListener('pause', onPause)
       video.removeEventListener('playing', onPlaying)
-      video.removeEventListener('waiting', onWaiting)
       video.removeEventListener('ended', onEnded)
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('durationchange', handleDurationChange)

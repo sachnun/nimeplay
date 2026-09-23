@@ -629,6 +629,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function updatePlayingState(playing: boolean) {
     if (playing) {
+      videoLoading.value = false
       if (pendingStartHide) {
         pendingStartHide = false
         resetIdle(START_CONTROLS_IDLE_MS)

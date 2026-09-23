@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm'
 import { db } from './db'
 
-const DEFAULT_TTL_MS = 5 * 60 * 1000
-const HEARTBEAT_MS = 60 * 1000
+const DEFAULT_TTL_MS = 45 * 60 * 1000
 
 export interface LockHandle {
+  touch: () => Promise<void>
   release: () => Promise<void>
 }
 
@@ -20,15 +20,13 @@ export async function acquireLock(key: string, ttlMs = DEFAULT_TTL_MS): Promise<
   `) as unknown as { rows: { value: string }[] }
   if (result.rows[0]?.value !== owner) return null
 
-  const timer = setInterval(() => {
-    db()
-      .execute(sql`update app_state set updated_at = now() where key = ${key} and value = ${owner}`)
-      .catch(() => {})
-  }, HEARTBEAT_MS)
-
   return {
+    touch: async () => {
+      await db()
+        .execute(sql`update app_state set updated_at = now() where key = ${key} and value = ${owner}`)
+        .catch(() => {})
+    },
     release: async () => {
-      clearInterval(timer)
       await db()
         .execute(sql`delete from app_state where key = ${key} and value = ${owner}`)
         .catch(() => {})

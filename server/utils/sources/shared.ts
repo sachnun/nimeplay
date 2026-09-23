@@ -1,5 +1,5 @@
 import { getSpoofHeaders } from '../spoof'
-import { fetchImpersonated } from '../impersonate'
+import { proxyFetch } from '../proxy'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
@@ -18,7 +18,7 @@ export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promi
   let lastError: unknown
   for (let attempt = 0; attempt < HTML_ATTEMPTS; attempt++) {
     try {
-      const res = await fetchImpersonated(url, {
+      const res = await proxyFetch(url, {
         headers: getSpoofHeaders(url, 'navigate'),
         signal: AbortSignal.timeout(timeoutMs),
       })
@@ -36,7 +36,7 @@ export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promi
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
   const headers = getSpoofHeaders(referer, 'cors')
   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const res = await fetchImpersonated(url, {
+  const res = await proxyFetch(url, {
     method: 'POST',
     headers,
     body,

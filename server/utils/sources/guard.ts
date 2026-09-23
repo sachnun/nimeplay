@@ -1,8 +1,8 @@
-import type { JobRow } from '../database/schema'
-import { splitSource } from './sources'
+import type { JobRow } from '../../database/schema'
+import { splitSource } from './index'
 
-const CONCURRENCY = 4
-const BREAKER_THRESHOLD = 5
+const CONCURRENCY = 16
+const BREAKER_THRESHOLD = 8
 const BREAKER_OPEN_MS = 10 * 60 * 1000
 
 interface GuardState {

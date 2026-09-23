@@ -6,16 +6,16 @@ import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } fr
 import { getSources } from './sources'
 import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
-import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './vendor-guard'
+import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './sources/guard'
 
-const WALL_MS = 13 * 60 * 1000
-const BATCH = 16
+const WALL_MS = 30 * 60 * 1000
+const BATCH = 64
 const WAITING_ALERT = 5000
 const DEAD_ALERT = 1000
-const STALE_MS = 10 * 60 * 1000
+const STALE_MS = 15 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
-const MIRROR_SEED_LIMIT = 500
+const MIRROR_SEED_LIMIT = 2000
 const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill', 'episode.cache']
 const worker = `task:${process.pid}`
 

@@ -1,12 +1,33 @@
 import * as cheerio from 'cheerio'
 import { getSpoofHeaders } from '../spoof'
-import { fetchImpersonated } from '../impersonate'
 import { sealStreamToken } from '../stream'
+import { proxyFetch, proxyUrl } from '../proxy'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
-const BASE_URL = 'https://sokuja.net'
+const ENTRY_URL = 'https://sokuja.net'
+const CANONICAL_URL = 'https://x6.sokuja.uk'
 const TIMEOUT_MS = 12000
+
+let basePromise: Promise<string> | null = null
+
+async function baseUrl(): Promise<string> {
+  basePromise ??= (async () => {
+    try {
+      const res = await fetch(proxyUrl(ENTRY_URL), {
+        redirect: 'manual',
+        headers: getSpoofHeaders(ENTRY_URL, 'navigate'),
+        signal: AbortSignal.timeout(8000),
+      })
+      const location = res.headers.get('location')
+      return location ? new URL(location, ENTRY_URL).origin : CANONICAL_URL
+    }
+    catch {
+      return CANONICAL_URL
+    }
+  })()
+  return basePromise
+}
 
 const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [
   /\s*Subtitle\s+Indonesia/gi,
@@ -89,7 +110,8 @@ function parseTotalPages($: cheerio.CheerioAPI, page: number): number {
 }
 
 async function latestEpisodeMap(): Promise<Map<string, number>> {
-  const html = await fetchHTML(`${BASE_URL}/`, TIMEOUT_MS)
+  const base = await baseUrl()
+  const html = await fetchHTML(`${base}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const section = $('h2').filter((_, el) => $(el).text().trim() === 'Update Terbaru').first().closest('section')
   const map = new Map<string, number>()
@@ -114,7 +136,7 @@ async function mergeLatestEpisodes(cards: ScrapedAnimeCard[]): Promise<void> {
 }
 
 async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
-  const url = `${BASE_URL}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
+  const url = `${await baseUrl()}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
   const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const anime = parseCards($)
@@ -148,7 +170,7 @@ function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: stri
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS)
+  const html = await fetchHTML(`${await baseUrl()}/anime/${slug}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const series = jsonLd($).find(entry => entry['@type'] === 'TVSeries') as JsonLdTvSeries | undefined
   const title = cleanTitle(String(series?.name ?? $('h1').first().text()).trim())
@@ -184,9 +206,9 @@ interface MirrorApiEntry {
 }
 
 async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> {
-  const url = `${BASE_URL}/api/video-mirrors/?e=${episodeId}`
+  const url = `${await baseUrl()}/api/video-mirrors/?e=${episodeId}`
   try {
-    const res = await fetchImpersonated(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
+    const res = await proxyFetch(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
     if (!res.ok) return []
     const data = await res.json() as { mirrors?: MirrorApiEntry[] }
     const grouped = new Map<string, { name: string; dataContent: string }[]>()
@@ -205,7 +227,7 @@ async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> 
 }
 
 async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${BASE_URL}/${slug}/`, TIMEOUT_MS)
+  const html = await fetchHTML(`${await baseUrl()}/${slug}/`, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const title = $('h1').first().text().trim()
   const video = jsonLd($).find(entry => entry.partOfSeries) as JsonLdVideo | undefined
@@ -230,7 +252,7 @@ async function resolveMirror(opaque: string): Promise<string | null> {
 export const sokuja: AnimeSource = {
   id: 'sokuja',
   name: 'Sokuja',
-  baseUrl: BASE_URL,
+  baseUrl: CANONICAL_URL,
   ongoingFresh: page => scrapeListFresh('ongoing', page),
   completedFresh: page => scrapeListFresh('completed', page),
   detailFresh: scrapeAnimeDetailFresh,

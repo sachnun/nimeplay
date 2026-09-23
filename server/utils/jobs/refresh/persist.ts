@@ -140,6 +140,7 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   const values: typeof anime.$inferInsert = {
     malId: mal.malId,
     ...(mal.title ? { title: mal.title } : {}),
+    ...(mal.type ? { type: mal.type } : {}),
     synopsis: mal.synopsis,
     ...(posterKey ? { posterKey } : {}),
     rating: mal.score,

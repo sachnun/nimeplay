@@ -10,6 +10,10 @@ export function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMP
   return null
 }
 
+function seasonYear(media: Pick<AniListMedia, 'seasonYear' | 'startDate'>): number | null {
+  return media.seasonYear ?? media.startDate?.year ?? null
+}
+
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
   const cleaned = query
     .replace(/[!?:,.'"“”‘’]/g, ' ')
@@ -31,7 +35,7 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
         score: item.averageScore != null ? Math.round(item.averageScore) / 10 : null,
         popularity: item.popularity ?? null,
         season: item.season ? item.season.toLowerCase() : null,
-        year: item.seasonYear ?? null,
+        year: seasonYear(item),
         genres: item.genres ?? [],
       })
     }
@@ -65,6 +69,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     malId,
     title: titleOf(media.title),
     titles: titlesOf(media.title),
+    type: media.format ?? null,
     poster: media.coverImage?.extraLarge ?? media.coverImage?.large ?? null,
     synopsis: cleanSynopsis(decodeEntities(stripHtml(media.description ?? ''))),
     score: media.averageScore != null ? Math.round(media.averageScore) / 10 : null,
@@ -72,7 +77,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     popularity: media.popularity ?? null,
     status: catalogStatus(media.status),
     season: media.season ? media.season.toLowerCase() : null,
-    year: media.seasonYear ?? null,
+    year: seasonYear(media),
     trailerId: trailer,
     studio: media.studios?.nodes?.map(studio => studio.name).join(', ') || null,
     source: sourceLabel(media.source),

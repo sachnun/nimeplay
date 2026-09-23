@@ -18,6 +18,7 @@ export interface AniListSearchMedia {
   popularity?: number | null
   season?: string | null
   seasonYear?: number | null
+  startDate?: { year?: number | null } | null
   genres?: string[] | null
   synonyms?: string[] | null
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
@@ -28,6 +29,7 @@ export interface AniListMedia {
   id: number
   idMal: number | null
   status?: string | null
+  format?: string | null
   title: JikanTitle
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
   description?: string | null
@@ -36,6 +38,7 @@ export interface AniListMedia {
   popularity?: number | null
   season?: string | null
   seasonYear?: number | null
+  startDate?: { year?: number | null } | null
   trailer?: { id?: string | null, site?: string | null } | null
   studios?: { nodes?: { name: string }[] } | null
   genres?: string[] | null
@@ -60,6 +63,7 @@ const SEARCH_QUERY = `query ($search: String) {
       popularity
       season
       seasonYear
+      startDate { year }
       genres
       synonyms
       coverImage { extraLarge large }
@@ -73,6 +77,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
     id
     idMal
     status
+    format
     title { romaji english native }
     coverImage { extraLarge large }
     description(asHtml: false)
@@ -81,6 +86,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
     popularity
     season
     seasonYear
+    startDate { year }
     trailer { id site }
     studios(isMain: true) { nodes { name } }
     genres

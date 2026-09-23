@@ -22,6 +22,7 @@ export interface MalAnime {
   malId: number
   title: string
   titles: string[]
+  type: string | null
   poster: string | null
   synopsis: string
   score: number | null

@@ -5,7 +5,6 @@ const POOL_OVERRIDES: [string, string][] = [
   ['sokuja.uk', 'pl'],
 ]
 const BYPASS_HOSTS = [
-  'api.jikan.moe',
   'myanimelist.net',
   'malcdn.com',
   'mega.nz',

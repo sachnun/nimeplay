@@ -5,7 +5,7 @@ const ANILIST_URL = 'https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
 const MIN_INTERVAL_MS = 700
 
-export interface JikanTitle {
+export interface TitleNames {
   romaji?: string | null
   english?: string | null
   native?: string | null
@@ -23,7 +23,7 @@ export interface AniListSearchMedia {
   genres?: string[] | null
   synonyms?: string[] | null
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
-  title: JikanTitle
+  title: TitleNames
 }
 
 export interface AniListMedia {
@@ -31,7 +31,7 @@ export interface AniListMedia {
   idMal: number | null
   status?: string | null
   format?: string | null
-  title: JikanTitle
+  title: TitleNames
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
   description?: string | null
   averageScore?: number | null

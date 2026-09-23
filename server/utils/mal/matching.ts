@@ -1,7 +1,7 @@
 import { seasonNumber } from './season'
 import { isMovieTitle, isSeasonTitle, movieSeasonClash } from './title'
 import { jaroWinkler, tokenSetRatio } from './fuzzy'
-import type { JikanTitle } from './anilist'
+import type { TitleNames } from './anilist'
 import type { MalSearchEntry } from './types'
 
 export function decodeEntities(value: string): string {
@@ -18,15 +18,15 @@ export function stripHtml(value: string): string {
   return value.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
 }
 
-export function titleOf(title: JikanTitle): string {
+export function titleOf(title: TitleNames): string {
   return decodeEntities(title.english || title.romaji || title.native || '')
 }
 
-export function matchTitleOf(title: JikanTitle): string {
+export function matchTitleOf(title: TitleNames): string {
   return decodeEntities(title.romaji || title.english || title.native || '')
 }
 
-export function titlesOf(title: JikanTitle): string[] {
+export function titlesOf(title: TitleNames): string[] {
   const values = [title.english, title.romaji, title.native]
     .map(value => decodeEntities(value ?? '').trim())
     .filter(Boolean)

@@ -1,10 +1,10 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../../../database/schema'
+import { anime, animeGenres, animeSources, characters, episodes, genres } from '../../../database/schema'
 import type { AnimeSourceRow } from '../../../database/schema'
 import { db } from '../../db'
 import { fetchMalAnime } from '../../mal'
 import { isValidMediaKey, mediaRef, type MediaRef } from '../../media'
-import { enqueueMany } from '../queue'
+import { ingestMedia } from '../../media/ingest'
 import type { MalAnime } from '../../mal/types'
 import type { AnimeSource } from '../../sources/types'
 import { chunkValues, episodeNumber } from './util'
@@ -120,21 +120,8 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   const posterRef = mediaRef(mal.poster, 'posters')
   const characterRefs = mal.characters.map(c => mediaRef(c.imageUrl, 'characters'))
   const refs = [posterRef, ...characterRefs].filter((ref): ref is MediaRef => ref !== null && isValidMediaKey(ref.key))
-  const wanted = [...new Map(refs.map(ref => [ref.sourceUrl, ref])).values()]
-  const mirrored = wanted.length > 0
-    ? await db().select({ sourceUrl: media.sourceUrl, key: media.key }).from(media).where(inArray(media.sourceUrl, wanted.map(ref => ref.sourceUrl)))
-    : []
-  const mirroredKeys = new Map(mirrored.map(row => [row.sourceUrl, row.key]))
-  await enqueueMany(wanted
-    .filter(ref => !mirroredKeys.has(ref.sourceUrl))
-    .map(ref => ({
-      type: 'media.mirror',
-      payload: { key: ref.key, sourceUrl: ref.sourceUrl },
-      dedupeKey: `media.mirror:${ref.sourceUrl}`,
-      priority: 0,
-      maxAttempts: 3,
-    })))
-  const imageKey = (ref: MediaRef | null): string | null => (ref ? (mirroredKeys.get(ref.sourceUrl) ?? ref.key) : null)
+  const mediaKeys = await ingestMedia(refs)
+  const imageKey = (ref: MediaRef | null): string | null => (ref ? (mediaKeys.get(ref.sourceUrl) ?? ref.key) : null)
 
   const posterKey = imageKey(posterRef)
   const values: typeof anime.$inferInsert = {

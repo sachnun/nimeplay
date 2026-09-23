@@ -5,7 +5,6 @@ import { setNodeDatabase } from '../server/utils/db'
 import { enableProxy } from '../server/utils/media/proxy'
 import { loadOfflineIndex } from '../server/utils/mal/offline'
 import { runCatalog, runTick } from '../server/utils/jobs'
-import { runMediaTick } from '../server/utils/media/jobs'
 import { error as logError, log } from '../server/utils/log'
 
 const TICK_MS = 6 * 60_000
@@ -35,7 +34,7 @@ try {
     const catalog = startedAt - lastCatalog >= CATALOG_MS
     if (catalog) lastCatalog = startedAt
     try {
-      await Promise.allSettled([catalog ? runCatalog() : runTick(), runMediaTick()])
+      await (catalog ? runCatalog() : runTick())
     }
     catch (error) {
       logError('[loop] iteration failed', { error: error instanceof Error ? error.message : String(error) })

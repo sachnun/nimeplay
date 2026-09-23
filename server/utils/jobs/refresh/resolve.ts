@@ -1,11 +1,12 @@
 import { fetchMalAnime, searchMalAnimeEntries } from '../../mal'
 import { malSearchVariants, seasonNumber } from '../../mal/season'
 import { rankMalAnimeMatches } from '../../mal/matching'
+import { offlineLookup } from '../../mal/offline'
 import { log, ok } from '../../log'
 import type { MalAnime, MalSearchEntry } from '../../mal/types'
 import type { AnimeSourceRow } from '../../../database/schema'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
-import { linkSource, recordMetadataFailure, upsertCanonicalAnime } from './persist'
+import { findAnimeIdByTitle, linkSource, recordMetadataFailure, upsertCanonicalAnime } from './persist'
 
 function parseOdYear(value: string | null | undefined): number | null {
   if (!value) return null
@@ -21,6 +22,24 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
   if (!title) {
     await recordMetadataFailure(slug, 'no scraped title')
     return null
+  }
+
+  const offline = await offlineLookup(title)
+  if (offline && offline.score >= 0.9) {
+    const mal = await fetchMalAnime(offline.malId)
+    if (mal) {
+      const animeId = await upsertCanonicalAnime(mal)
+      await linkSource(sourceRow.id, animeId)
+      ok(`[metadata] linked ${slug}`, { malId: mal.malId, title: mal.title, via: 'offline', score: Number(offline.score.toFixed(3)) })
+      return animeId
+    }
+  }
+
+  const existingAnimeId = await findAnimeIdByTitle(title)
+  if (existingAnimeId) {
+    await linkSource(sourceRow.id, existingAnimeId)
+    ok(`[metadata] linked ${slug}`, { animeId: existingAnimeId, via: 'db' })
+    return existingAnimeId
   }
   const merged = new Map<number, MalSearchEntry>()
   const search = async (variants: string[]): Promise<void> => {

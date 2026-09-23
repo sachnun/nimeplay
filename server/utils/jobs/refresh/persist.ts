@@ -179,6 +179,24 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   return animeId
 }
 
+function normalizeTitleKey(value: string): string {
+  return value.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '')
+}
+
+export async function findAnimeIdByTitle(title: string): Promise<number | null> {
+  const key = normalizeTitleKey(title)
+  if (!key) return null
+  const result = await db().execute(sql`
+    select id from anime
+    where regexp_replace(lower(title), '[^a-z0-9]+', '', 'g') = ${key}
+       or exists (
+         select 1 from jsonb_array_elements_text(coalesce(extra->'titles', '[]'::jsonb)) as t(value)
+         where regexp_replace(lower(t.value), '[^a-z0-9]+', '', 'g') = ${key}
+       )
+    limit 1`) as unknown as { rows: { id: number }[] }
+  return result.rows[0]?.id ?? null
+}
+
 export async function linkSource(sourceRowId: number, animeId: number): Promise<void> {
   await db()
     .update(animeSources)

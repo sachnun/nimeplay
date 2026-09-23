@@ -90,5 +90,7 @@ export function titleSimilarity(a: string, b: string): number {
   const nb = stripToAlnum(b)
   if (!na || !nb) return 0
   const charSim = Math.max(jaroWinkler(na, nb), normalizedDamerau(na, nb))
-  return charSim * 0.75 + tokenSetRatio(a, b) * 0.25
+  const lenRatio = Math.min(na.length, nb.length) / Math.max(na.length, nb.length)
+  const score = charSim * 0.75 + tokenSetRatio(a, b) * 0.25
+  return lenRatio < 0.5 ? score * lenRatio * 2 : score
 }

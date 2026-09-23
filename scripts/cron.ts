@@ -4,6 +4,7 @@ import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
 import { acquireLock } from '../server/utils/jobs/lock'
 import { enableProxy } from '../server/utils/media/proxy'
+import { loadOfflineIndex } from '../server/utils/mal/offline'
 import { runCatalog, runTick } from '../server/utils/jobs'
 import { runMediaTick } from '../server/utils/media/jobs'
 import { error as logError, log } from '../server/utils/log'
@@ -32,6 +33,9 @@ if (!handle) {
 const deadline = Date.now() + RUN_MS
 let lastCatalog = 0
 log('[loop] start', { sha: process.env.GITHUB_SHA?.slice(0, 7) ?? 'local', tickMs: TICK_MS, catalogMs: CATALOG_MS, runMs: RUN_MS })
+const offlineStartedAt = Date.now()
+await loadOfflineIndex().catch(() => null)
+log('[loop] offline index ready', { ms: Date.now() - offlineStartedAt })
 
 try {
   while (!stopping && Date.now() < deadline) {

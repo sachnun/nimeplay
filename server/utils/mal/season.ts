@@ -56,9 +56,16 @@ export function malSearchVariants(title: string): string[] {
     const romans = ['', '', 'II', 'III', 'IV', 'V', 'VI']
     if (romans[num]) push(`${base} ${romans[num]}`)
   }
+  const stripped = title
+    .replace(/\s+(?:season\s*\d+|\d+\s*(?:st|nd|rd|th)\s+season|s\d+)\s*$/i, '')
+    .replace(/\s+part\s*\d+\s*$/i, '')
+    .trim()
+  if (stripped && stripped !== title) push(stripped)
+  const plain = (stripped || title).normalize('NFKD').replace(/\p{Diacritic}/gu, '')
+  if (plain !== (stripped || title)) push(plain)
   const words = title.split(/\s+/).filter(Boolean)
-  for (let n = words.length - 1; n >= 3 && variants.length < 6; n--) {
+  for (let n = words.length - 1; n >= 3 && variants.length < 8; n--) {
     push(words.slice(0, n).join(' '))
   }
-  return variants.slice(0, 6)
+  return variants.slice(0, 8)
 }

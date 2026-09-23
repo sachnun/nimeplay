@@ -1,4 +1,5 @@
 import { seasonNumber } from './season'
+import { jaroWinkler, tokenSetRatio } from './fuzzy'
 import type { JikanTitle } from './anilist'
 import type { MalSearchEntry } from './types'
 
@@ -138,7 +139,7 @@ function baseScore(siteBase: string, malBase: string): number {
   const malNorm = normalizeTitle(malBase)
   if (!siteNorm || !malNorm) return 0
   if (siteNorm === malNorm) return 1.5
-  const sim = similarity(siteNorm, malNorm)
+  const sim = Math.max(similarity(siteNorm, malNorm), jaroWinkler(siteNorm, malNorm))
   const siteTokens = matchWords(siteBase)
   const malSet = new Set(matchWords(malBase))
   let inter = 0
@@ -146,7 +147,7 @@ function baseScore(siteBase: string, malBase: string): number {
     if (malSet.has(token)) inter++
   }
   const jac = inter / Math.max(1, Math.max(siteTokens.length, malSet.size))
-  let score = sim * 0.7 + jac * 0.8
+  let score = sim * 0.7 + jac * 0.8 + tokenSetRatio(siteBase, malBase) * 0.25
   if (isAbbrevOnBase(siteBase, malBase)) score += 0.6
   if (sim >= 0.8) score += 0.3
   return score
@@ -175,7 +176,7 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   const siteSeason = seasonNumber(siteTitle)
   const malSeason = seasonNumber(malTitle)
   if (siteSeason !== null && malSeason !== null && siteSeason !== malSeason) return false
-  if (similarity(siteNorm, malNorm) >= 0.8) return true
+  if (Math.max(similarity(siteNorm, malNorm), jaroWinkler(siteNorm, malNorm)) >= 0.8) return true
   if (isTitlePrefix(siteNorm, malNorm) && !(siteSeason !== null && siteSeason > 1 && malSeason === null)) return true
   const siteBase = stripSeasonMarker(siteTitle)
   const malBase = stripSeasonMarker(malTitle)
@@ -198,9 +199,10 @@ function matchScore(siteTitle: string, malTitle: string): number {
   const malNorm = normalizeTitle(malTitle)
   const siteSeason = seasonNumber(siteTitle)
   const malSeason = seasonNumber(malTitle)
-  let score = similarity(siteNorm, malNorm)
+  let score = Math.max(similarity(siteNorm, malNorm), jaroWinkler(siteNorm, malNorm))
   if (siteNorm === malNorm) score += 1
   score += tokenJaccard(stripSeasonMarker(siteTitle), stripSeasonMarker(malTitle)) * 0.5
+  score += tokenSetRatio(stripSeasonMarker(siteTitle), stripSeasonMarker(malTitle)) * 0.3
   score -= Math.max(0, malNorm.length - siteNorm.length) / 150
   if (siteSeason !== null && malSeason !== null && siteSeason === malSeason) score += 0.6
   if (siteSeason !== null && siteSeason > 1 && malSeason === null) score -= 0.3

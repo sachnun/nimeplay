@@ -67,8 +67,11 @@ export function normalizedDamerau(a: string, b: string): number {
 }
 
 export function tokenSetRatio(a: string, b: string): number {
-  const aSet = new Set(tokens(a))
-  const bSet = new Set(tokens(b))
+  const aTokens = tokens(a)
+  const bTokens = tokens(b)
+  if (aTokens.length === 0 || bTokens.length === 0) return normalizedDamerau(a, b)
+  const aSet = new Set(aTokens)
+  const bSet = new Set(bTokens)
   const inter = [...aSet].filter(token => bSet.has(token)).sort()
   const aOnly = [...aSet].filter(token => !bSet.has(token)).sort()
   const bOnly = [...bSet].filter(token => !aSet.has(token)).sort()
@@ -76,4 +79,16 @@ export function tokenSetRatio(a: string, b: string): number {
   const t1 = [...inter, ...aOnly].join(' ')
   const t2 = [...inter, ...bOnly].join(' ')
   return Math.max(normalizedDamerau(t0, t1), normalizedDamerau(t0, t2), normalizedDamerau(t1, t2))
+}
+
+function stripToAlnum(value: string): string {
+  return value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '')
+}
+
+export function titleSimilarity(a: string, b: string): number {
+  const na = stripToAlnum(a)
+  const nb = stripToAlnum(b)
+  if (!na || !nb) return 0
+  const charSim = Math.max(jaroWinkler(na, nb), normalizedDamerau(na, nb))
+  return charSim * 0.75 + tokenSetRatio(a, b) * 0.25
 }

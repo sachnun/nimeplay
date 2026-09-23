@@ -5,25 +5,3 @@
 </p>
 
 Watch anime with no ads, no comments, no popups, no distractions.
-
-## Run locally
-
-```bash
-cp .env.example .env.local
-pnpm install
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
-```
-
-## API
-
-`/api/v1/*`
-Docs: `/docs`
-
-## Deploy
-
-```bash
-pnpm build
-npx wrangler --cwd .output deploy
-```

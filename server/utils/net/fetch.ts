@@ -102,10 +102,11 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
     'accept': 'image/avif,image/webp,image/*,*/*',
     ...options.headers,
   }
-  const https = await loadModule(url)
+  const target = proxyUrl(url)
+  const https = await loadModule(target)
   if (!https) {
     try {
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
       return { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', bytes: new Uint8Array(await res.arrayBuffer()) }
     }
     catch {
@@ -119,7 +120,7 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
       settled = true
       resolve(value)
     }
-    const req = https.request(url, { method: 'GET', headers }, (res) => {
+    const req = https.request(target, { method: 'GET', headers }, (res) => {
       const chunks: Buffer[] = []
       res.on('data', (chunk) => { chunks.push(chunk as Buffer) })
       res.on('end', () => {

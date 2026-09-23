@@ -4,7 +4,7 @@ const emit = defineEmits<{ close: [] }>()
 
 useHead(() => (props.title ? { title: props.title, titleTemplate: '%s - Nimeplay' } : {}))
 
-const scrollRef = ref<HTMLElement | null>(null)
+const scrollRef = shallowRef<HTMLElement | null>(null)
 const vh = ref(import.meta.client ? window.innerHeight : 800)
 const panelHeightPx = ref(vh.value * 0.8)
 const dragY = ref(vh.value)

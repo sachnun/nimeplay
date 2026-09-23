@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Genre } from '~/utils/types'
+import type { Genre } from '~/types'
 
 const props = defineProps<{
   genres: Genre[]
@@ -11,7 +11,7 @@ const emit = defineEmits<{
   signIn: []
 }>()
 
-const detailsRef = ref<HTMLDetailsElement | null>(null)
+const detailsRef = shallowRef<HTMLDetailsElement | null>(null)
 const detailsOpen = ref(false)
 
 function onToggle(e: Event) {

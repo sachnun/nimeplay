@@ -5,7 +5,7 @@ const props = defineProps<{
 
 const expanded = ref(false)
 const clamped = ref(false)
-const textRef = ref<HTMLParagraphElement | null>(null)
+const textRef = shallowRef<HTMLParagraphElement | null>(null)
 
 const hasSynopsis = computed(() => !!props.synopsis?.trim())
 const text = computed(() => props.synopsis ?? '')

@@ -8,7 +8,7 @@ const props = defineProps<{
   currentEpisodeNumber: number
 }>()
 
-const currentEpRef = ref<HTMLButtonElement | null>(null)
+const currentEpRef = shallowRef<HTMLButtonElement | null>(null)
 const statuses = ref<Record<string, WatchProgressStatus>>({})
 
 function setCurrentEpRef(el: Element | ComponentPublicInstance | null, number: number) {

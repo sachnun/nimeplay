@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SearchResult } from '~/utils/types'
+import type { SearchResult } from '~/types'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: []; open: [] }>()
@@ -7,7 +7,7 @@ const emit = defineEmits<{ close: []; open: [] }>()
 const query = ref('')
 const results = ref<SearchResult[]>([])
 const loading = ref(false)
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = shallowRef<HTMLInputElement | null>(null)
 let debounce: ReturnType<typeof setTimeout> | null = null
 let searchToken = 0
 let pendingQuery = ''

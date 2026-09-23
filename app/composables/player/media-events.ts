@@ -23,6 +23,7 @@ interface EpisodePlayerMediaEventOptions {
   fetchSkipTimesIfNeeded: () => Promise<void>
   saveNextEpisodeResume: () => void | Promise<void>
   startAutoNextCountdown: () => void
+  onPlaybackStart: () => void
 }
 
 function clearTimer(timer: ReturnType<typeof setInterval> | null) {
@@ -60,6 +61,7 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
 
   function onPlay() {
     options.isPlaying.value = true
+    options.onPlaybackStart()
     startWatchedTimer()
     if (!progressSaveTimer) progressSaveTimer = setInterval(options.doSaveProgress, 5000)
   }

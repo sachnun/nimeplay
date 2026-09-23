@@ -408,6 +408,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     fetchSkipTimesIfNeeded: skip.fetchSkipTimesIfNeeded,
     saveNextEpisodeResume,
     startAutoNextCountdown,
+    onPlaybackStart: onPlaybackStarted,
   })
 
   const {
@@ -476,15 +477,17 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     clearIdleTimer()
   }
 
-  function updatePlayingState(playing: boolean) {
-    if (playing) {
-      videoLoading.value = false
-      if (pendingStartHide) {
-        pendingStartHide = false
-        resetIdle(START_CONTROLS_IDLE_MS)
-      }
-      else resetIdle()
+  function onPlaybackStarted() {
+    videoLoading.value = false
+    if (pendingStartHide) {
+      pendingStartHide = false
+      resetIdle(START_CONTROLS_IDLE_MS)
     }
+    else resetIdle()
+  }
+
+  function updatePlayingState(playing: boolean) {
+    if (playing) onPlaybackStarted()
     else showPausedControls()
     mediaSession.setMediaPlaybackState(playing)
   }

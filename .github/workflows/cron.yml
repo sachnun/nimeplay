@@ -16,7 +16,7 @@ on:
 
 concurrency:
   group: cron
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read

@@ -56,5 +56,9 @@ export function malSearchVariants(title: string): string[] {
     const romans = ['', '', 'II', 'III', 'IV', 'V', 'VI']
     if (romans[num]) push(`${base} ${romans[num]}`)
   }
-  return variants.slice(0, 4)
+  const words = title.split(/\s+/).filter(Boolean)
+  for (let n = words.length - 1; n >= 3 && variants.length < 6; n--) {
+    push(words.slice(0, n).join(' '))
+  }
+  return variants.slice(0, 6)
 }

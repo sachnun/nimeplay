@@ -25,6 +25,7 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
       entries.set(item.idMal, {
         id: item.idMal,
         title: matchTitleOf(item.title),
+        titles: [...new Set([...titlesOf(item.title), ...(item.synonyms ?? [])].map(value => decodeEntities(value).trim()).filter(Boolean))],
         format: item.format ?? null,
         poster: item.coverImage?.extraLarge ?? item.coverImage?.large ?? null,
         score: item.averageScore != null ? Math.round(item.averageScore) / 10 : null,

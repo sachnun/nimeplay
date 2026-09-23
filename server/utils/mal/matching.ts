@@ -70,6 +70,11 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / longest
 }
 
+function isTitlePrefix(a: string, b: string): boolean {
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a]
+  return short.length >= 8 && short.length / long.length >= 0.25 && long.startsWith(short)
+}
+
 function phoneticNormalize(value: string): string {
   return value.toLowerCase().split('ou').join('o').split('oo').join('o').split('skirt').join('suka').split('ph').join('f').split('dungeon').join('danjon')
 }
@@ -171,6 +176,7 @@ export function titlesMatch(siteTitle: string, malTitle: string): boolean {
   const malSeason = seasonNumber(malTitle)
   if (siteSeason !== null && malSeason !== null && siteSeason !== malSeason) return false
   if (similarity(siteNorm, malNorm) >= 0.8) return true
+  if (isTitlePrefix(siteNorm, malNorm) && !(siteSeason !== null && siteSeason > 1 && malSeason === null)) return true
   const siteBase = stripSeasonMarker(siteTitle)
   const malBase = stripSeasonMarker(malTitle)
   const score = baseScore(siteBase, malBase)
@@ -228,9 +234,16 @@ function formatBonus(format: string | null | undefined): number {
 }
 
 export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
-  const passing = entries.filter(entry => titlesMatch(siteTitle, entry.title))
-  if (passing.length === 0) return []
-  const content = passing.filter(entry => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(entry.title)) > 0 || tokenJaccard(siteTitle, entry.title) >= 0.3)
-  const pool = content.length > 0 ? content : passing
-  return [...pool].sort((a, b) => (matchScore(siteTitle, b.title) + formatBonus(b.format)) - (matchScore(siteTitle, a.title) + formatBonus(a.format)))
+  const scored = entries.flatMap((entry) => {
+    const titles = entry.titles?.length ? entry.titles : [entry.title]
+    const matched = titles.filter(title => titlesMatch(siteTitle, title))
+    if (matched.length === 0) return []
+    const score = Math.max(...titles.map(title => matchScore(siteTitle, title))) + formatBonus(entry.format)
+    const hasContent = matched.some(title => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(title)) > 0 || tokenJaccard(siteTitle, title) >= 0.3)
+    return [{ entry, score, hasContent }]
+  })
+  if (scored.length === 0) return []
+  const content = scored.filter(item => item.hasContent)
+  const pool = content.length > 0 ? content : scored
+  return pool.sort((a, b) => b.score - a.score).map(item => item.entry)
 }

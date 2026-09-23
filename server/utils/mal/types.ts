@@ -8,6 +8,7 @@ export interface MalCharacter {
 export interface MalSearchEntry {
   id: number
   title: string
+  titles: string[]
   format?: string | null
   poster?: string | null
   score?: number | null

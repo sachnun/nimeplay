@@ -17,6 +17,7 @@ export interface AniListSearchMedia {
   season?: string | null
   seasonYear?: number | null
   genres?: string[] | null
+  synonyms?: string[] | null
   coverImage?: { extraLarge?: string | null, large?: string | null } | null
   title: JikanTitle
 }
@@ -58,6 +59,7 @@ const SEARCH_QUERY = `query ($search: String) {
       season
       seasonYear
       genres
+      synonyms
       coverImage { extraLarge large }
       title { romaji english native }
     }

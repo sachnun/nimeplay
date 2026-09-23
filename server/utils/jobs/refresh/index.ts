@@ -10,15 +10,13 @@ import { acquireSync, releaseSync } from './state'
 import { episodeNumber } from './util'
 import { log, ok, warn } from '../../log'
 
-const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
-
 function normalizeStatus(raw: string): string {
   const value = raw.toLowerCase()
   if (value.includes('completed') || value.includes('finished')) return 'COMPLETED'
   return 'ONGOING'
 }
 
-export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata: boolean): Promise<void> {
+export async function refreshSourceBySlug(compositeSlug: string): Promise<void> {
   const split = splitSource(compositeSlug)
   if (!split) return
   const source = split.source
@@ -37,7 +35,6 @@ export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata
 
   const detail = await source.detailFresh(vendorSlug)
   let hasNewEpisodes = false
-  let statusChanged = false
   if (detail) {
     const status = normalizeStatus(detail.status)
     const latestEpisodeAt = detail.episodes
@@ -50,7 +47,6 @@ export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata
       return parsed != null && parsed > max ? parsed : max
     }, 0)
     hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
-    statusChanged = sourceRow.status != null && sourceRow.status !== status
     await upsertEpisodes(source, sourceRow.id, detail.episodes)
     await db().update(animeSources).set({
       status,
@@ -61,8 +57,7 @@ export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata
 
   const linkedAnimeId = sourceRow.animeId
   if (linkedAnimeId) {
-    const metadataStale = !sourceRow.metadataSyncedAt || Date.now() - sourceRow.metadataSyncedAt.getTime() > METADATA_REFRESH_MS
-    if (statusChanged || (metadataStale && (hasNewEpisodes || refreshMetadata))) {
+    if (!sourceRow.metadataSyncedAt) {
       await refreshCanonicalMetadata(linkedAnimeId)
       await db().update(animeSources).set({ metadataSyncedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
     }
@@ -71,7 +66,7 @@ export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata
     }
     await syncAnimeAggregate(linkedAnimeId)
   }
-  else if (refreshMetadata) {
+  else {
     const animeId = await resolveSourceMetadata(sourceRow, source, detail)
     if (animeId) await syncAnimeAggregate(animeId)
   }

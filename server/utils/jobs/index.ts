@@ -20,7 +20,7 @@ const worker = `task:${process.pid}`
 
 async function handle(job: JobRow): Promise<void> {
   if (job.type === 'anime.refresh') {
-    await refreshSourceBySlug(String(job.payload.slug ?? ''), true)
+    await refreshSourceBySlug(String(job.payload.slug ?? ''))
     return
   }
   if (job.type === 'catalog.ongoing') {

@@ -7,6 +7,24 @@ const API_BASE = 'https://anime.nakanime.my.id/api'
 const REQUEST_TIMEOUT_MS = 8000
 const QUALITY_RE = /^\d{3,4}p$/i
 const DEFAULT_QUALITY = '720p'
+const MAX_CONCURRENCY = 2
+
+let active = 0
+const waiters: (() => void)[] = []
+
+async function acquireSlot(): Promise<void> {
+  if (active < MAX_CONCURRENCY) {
+    active++
+    return
+  }
+  await new Promise<void>(resolve => waiters.push(resolve))
+}
+
+function releaseSlot(): void {
+  const next = waiters.shift()
+  if (next) next()
+  else active--
+}
 
 interface ApiEnvelope<T> {
   data?: T
@@ -51,22 +69,28 @@ interface NakanimeStreamData {
 }
 
 async function apiGet<T>(path: string): Promise<{ data: T | null, lastPage: number }> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
-    if (res && res.status === 200) {
-      try {
-        const body = JSON.parse(res.text) as ApiEnvelope<T>
-        if (body.data !== undefined && body.data !== null) {
-          return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
+  await acquireSlot()
+  try {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
+      if (res && res.status === 200 && res.text.trim()) {
+        try {
+          const body = JSON.parse(res.text) as ApiEnvelope<T>
+          if (body.data !== undefined && body.data !== null) {
+            return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
+          }
+        }
+        catch {
+          // fall through to retry on malformed body
         }
       }
-      catch {
-        return { data: null, lastPage: 1 }
-      }
+      await new Promise(resolve => setTimeout(resolve, 300 * 2 ** attempt))
     }
-    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 400))
+    return { data: null, lastPage: 1 }
   }
-  return { data: null, lastPage: 1 }
+  finally {
+    releaseSlot()
+  }
 }
 
 function normalizeStatus(value: string | undefined): 'ONGOING' | 'COMPLETED' | undefined {

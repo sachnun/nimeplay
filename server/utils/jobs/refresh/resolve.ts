@@ -8,6 +8,15 @@ import type { AnimeSourceRow } from '../../../database/schema'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
 import { findAnimeIdByTitle, linkSource, recordMetadataFailure, upsertCanonicalAnime } from './persist'
 
+function slugTitle(slug: string): string {
+  return slug
+    .replace(/-subtitle-indonesia$/i, '')
+    .replace(/-sub-indo$/i, '')
+    .replace(/-sub$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim()
+}
+
 function parseOdYear(value: string | null | undefined): number | null {
   if (!value) return null
   const match = value.match(/(\d{4})/)
@@ -18,11 +27,13 @@ function parseOdYear(value: string | null | undefined): number | null {
 
 export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: AnimeSource, detail: ScrapedAnimeDetail | null): Promise<number | null> {
   const slug = `${source.id}:${sourceRow.slug}`
-  const title = (detail?.title || '').trim()
+  const scraped = (detail?.title || '').trim()
+  const title = scraped || slugTitle(sourceRow.slug)
   if (!title) {
     await recordMetadataFailure(slug, 'no scraped title')
     return null
   }
+  if (!scraped) log(`[metadata] slug fallback ${slug}`, { title })
 
   const offline = await offlineLookup(title)
   if (offline && offline.score >= 0.9) {

@@ -17,6 +17,8 @@ export function seasonNumber(title: string): number | null {
       if (group !== undefined) return Number(group)
     }
   }
+  const localized = /(?:temporada|saison|staffel|stagione|seizoen|sezona|sezon|сезон)\s*(\d+)/i.exec(lower)
+  if (localized?.[1]) return Number(localized[1])
   const ordinal = /\b(\d+)(?:st|nd|rd|th)\b/.exec(lower)
   if (ordinal) return Number(ordinal[1])
   const trailingNumber = /\s(\d{1,2})$/.exec(lower.trim())

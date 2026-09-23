@@ -9,6 +9,7 @@ import type { MalAnime } from '../../mal/types'
 import type { AnimeSource } from '../../sources/types'
 import { chunkValues, episodeNumber } from './util'
 import { warn } from '../../log'
+import { normalizeTitleKey } from '../../mal/title'
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -177,10 +178,6 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   }
   await syncGenres(animeId, mal.genres)
   return animeId
-}
-
-function normalizeTitleKey(value: string): string {
-  return value.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '')
 }
 
 export async function findAnimeIdByTitle(title: string): Promise<number | null> {

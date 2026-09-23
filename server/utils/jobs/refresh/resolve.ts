@@ -1,6 +1,7 @@
 import { fetchMalAnime, searchMalAnimeEntries } from '../../mal'
 import { malSearchVariants, seasonNumber } from '../../mal/season'
 import { rankMalAnimeMatches } from '../../mal/matching'
+import { log, ok } from '../../log'
 import type { MalAnime, MalSearchEntry } from '../../mal/types'
 import type { AnimeSourceRow } from '../../../database/schema'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
@@ -40,9 +41,11 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
   }
   if (ranked.length === 0) {
     const top = [...merged.values()][0]?.title ?? '-'
+    log(`[metadata] miss ${slug}`, { title, candidates: merged.size, japanese: Boolean(japanese), top })
     await recordMetadataFailure(slug, `no MAL title matches "${title}" (top: "${top}")`)
     return null
   }
+  log(`[metadata] match ${slug}`, { title, candidates: merged.size, ranked: ranked.length, top: ranked[0]?.title })
 
   const detailYear = parseOdYear(detail?.releaseDate ?? null)
   let yearFallback: { mal: MalAnime, diff: number } | null = null
@@ -64,12 +67,14 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
 
     const animeId = await upsertCanonicalAnime(mal)
     await linkSource(sourceRow.id, animeId)
+    ok(`[metadata] linked ${slug}`, { malId: mal.malId, title: mal.title })
     return animeId
   }
 
   if (yearFallback) {
     const animeId = await upsertCanonicalAnime(yearFallback.mal)
     await linkSource(sourceRow.id, animeId)
+    ok(`[metadata] linked ${slug}`, { malId: yearFallback.mal.malId, title: yearFallback.mal.title, via: 'year' })
     return animeId
   }
 

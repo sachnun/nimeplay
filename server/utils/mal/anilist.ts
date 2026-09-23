@@ -1,3 +1,5 @@
+import { warn } from '../log'
+
 const ANILIST_URL = 'https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
 const MIN_INTERVAL_MS = 700
@@ -123,7 +125,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
         continue
       }
       if (!res.ok) {
-        console.warn(`[anilist] ${res.status} ${res.statusText}`)
+        warn(`[anilist] ${res.status} ${res.statusText}`)
         return null
       }
       const body = await res.json() as { data?: T }
@@ -131,7 +133,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
     }
     catch (error) {
       const message = error instanceof Error ? error.message : error
-      console.warn('[anilist] fetch error:', message)
+      warn('[anilist] fetch error', { error: String(message) })
       if (typeof message === 'string' && message.includes('Too many subrequests')) return null
       await new Promise(resolve => setTimeout(resolve, 500))
     }

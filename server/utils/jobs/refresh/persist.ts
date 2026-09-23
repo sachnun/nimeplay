@@ -8,13 +8,14 @@ import { enqueueMany } from '../queue'
 import type { MalAnime } from '../../mal/types'
 import type { AnimeSource } from '../../sources/types'
 import { chunkValues, episodeNumber } from './util'
+import { warn } from '../../log'
 
 function slugify(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
 export function recordMetadataFailure(slug: string, message: string): Promise<void> {
-  console.warn(`[metadata] failed ${slug}: ${message}`)
+  warn(`[metadata] failed ${slug}`, { error: message })
   return Promise.resolve()
 }
 

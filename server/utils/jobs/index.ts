@@ -7,6 +7,7 @@ import { getSources } from '../sources'
 import { blockedSourceIds, cacheEpisodeData } from '../db/episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from '../sources/guard'
+import { log, ok, warn } from '../log'
 
 const WALL_MS = 30 * 60 * 1000
 const BATCH = 64
@@ -102,14 +103,18 @@ async function seedEpisodeCacheJobs(): Promise<void> {
 
 async function processJob(job: JobRow): Promise<void> {
   const sourceId = sourceOf(job)
+  const label = String(job.payload.slug ?? job.payload.sourceId ?? job.type)
+  const startedAt = Date.now()
   await runGuarded(sourceId, async () => {
     try {
       await handle(job)
       await complete(job.id)
       recordSuccess(sourceId)
+      ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: message })
       if (classifyError(message) === 'transient') {
         if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
       }
@@ -134,7 +139,7 @@ async function logStats(): Promise<void> {
   `) as unknown as { rows: { n: number }[] }
   const waitingTotal = counts.rows.find(row => row.status === 'waiting')?.n ?? 0
   const deadHour = dead.rows[0]?.n ?? 0
-  console.log('[tick]', JSON.stringify({ counts: counts.rows, waiting: waiting.rows, deadHour }))
+  log('[tick]', { counts: counts.rows, waiting: waiting.rows, deadHour })
   if (waitingTotal > WAITING_ALERT) await alert('queue:backlog', `job queue backlog: ${waitingTotal} waiting`, { waiting: waiting.rows })
   if (deadHour > DEAD_ALERT) await alert('queue:dead', `${deadHour} jobs died in the last hour`, { counts: counts.rows })
 }

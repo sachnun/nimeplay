@@ -1,6 +1,7 @@
 import type { JobRow } from '../../database/schema'
 import { claim, complete, fail, prune, releaseStale } from '../jobs/queue'
 import { mirrorMedia } from './mirror'
+import { ok, warn } from '../log'
 import type { MediaRef } from './index'
 
 const WALL_MS = 30 * 60 * 1000
@@ -26,12 +27,17 @@ async function drain(deadline: number): Promise<void> {
     const claimed = await claim(worker, BATCH, MEDIA_TYPES)
     if (claimed.length === 0) return
     await Promise.all(claimed.map(async (job) => {
+      const key = String((job.payload as { key?: unknown }).key ?? job.id)
+      const startedAt = Date.now()
       try {
         await handle(job)
         await complete(job.id)
+        ok(`[media] ok ${key}`, { ms: Date.now() - startedAt })
       }
       catch (error) {
-        await fail(job.id, error instanceof Error ? error.message : String(error))
+        const message = error instanceof Error ? error.message : String(error)
+        warn(`[media] fail ${key}`, { ms: Date.now() - startedAt, error: message })
+        await fail(job.id, message)
       }
     }))
   }

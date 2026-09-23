@@ -6,6 +6,7 @@ import type { AnimeSource } from '../../sources/types'
 import { parseEpisodeDate } from '../../sources/shared'
 import { syncAnimeAggregate } from './persist'
 import { getAppState, setAppState } from './state'
+import { ok, warn } from '../../log'
 import { chunkValues } from './util'
 
 const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
@@ -69,7 +70,7 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
   while (page <= totalPages) {
     const result = await attempt(
       source.completedFresh(page),
-      error => console.warn(`[catalog] ${source.id} completed page ${page} failed:`, error instanceof Error ? error.message : error),
+      error => warn(`[catalog] ${source.id} completed page ${page} failed`, { error: error instanceof Error ? error.message : String(error) }),
     )
     if (result === null) break
     pages++
@@ -83,7 +84,7 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
       }))
       const done = await attempt(
         registerOngoingCards(source, source.id, cards),
-        error => console.warn(`[catalog] ${source.id} completed register failed:`, error instanceof Error ? error.message : error),
+        error => warn(`[catalog] ${source.id} completed register failed`, { error: error instanceof Error ? error.message : String(error) }),
       )
       if (done !== null) registered += result.anime.length
     }
@@ -99,7 +100,7 @@ export async function syncOngoingCatalog(): Promise<void> {
     const cards: { slug: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
     const first = await attempt(
       source.ongoingFresh(1),
-      error => console.warn(`[catalog] ${source.id} ongoing page 1 failed:`, error instanceof Error ? error.message : error),
+      error => warn(`[catalog] ${source.id} ongoing page 1 failed`, { error: error instanceof Error ? error.message : String(error) }),
     )
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
@@ -110,7 +111,7 @@ export async function syncOngoingCatalog(): Promise<void> {
       for (let page = 2; page <= first.totalPages; page++) pages.push(page)
       const restResults = await Promise.all(pages.map(page => attempt(
         source.ongoingFresh(page),
-        error => console.warn(`[catalog] ${source.id} ongoing page ${page} failed:`, error instanceof Error ? error.message : error),
+        error => warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: error instanceof Error ? error.message : String(error) }),
       )))
       for (const result of restResults) {
         if (result === null) continue
@@ -121,6 +122,6 @@ export async function syncOngoingCatalog(): Promise<void> {
       }
     }
     await registerOngoingCards(source, source.id, cards)
-    if (cards.length > 0) console.log(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
+    if (cards.length > 0) ok(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 }

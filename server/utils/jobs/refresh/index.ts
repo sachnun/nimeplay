@@ -8,6 +8,7 @@ import { getSourceRow, loadSourceMax, refreshCanonicalMetadata, syncAnimeAggrega
 import { resolveSourceMetadata } from './resolve'
 import { acquireSync, releaseSync } from './state'
 import { episodeNumber } from './util'
+import { log, ok, warn } from '../../log'
 
 const METADATA_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -74,6 +75,12 @@ export async function refreshSourceBySlug(compositeSlug: string, refreshMetadata
     const animeId = await resolveSourceMetadata(sourceRow, source, detail)
     if (animeId) await syncAnimeAggregate(animeId)
   }
+
+  log(`[refresh] ${compositeSlug}`, {
+    status: detail ? normalizeStatus(detail.status) : 'no-detail',
+    episodes: detail?.episodes.length ?? 0,
+    new: hasNewEpisodes,
+  })
 }
 
 export async function runOngoingSync(): Promise<void> {
@@ -82,7 +89,7 @@ export async function runOngoingSync(): Promise<void> {
     await syncOngoingCatalog()
   }
   catch (error) {
-    console.warn('[ongoing] sync failed:', error instanceof Error ? error.message : error)
+    warn('[ongoing] sync failed', { error: error instanceof Error ? error.message : String(error) })
   }
   finally {
     releaseSync('catalog')
@@ -95,10 +102,10 @@ export async function runBackfill(sourceId: string): Promise<void> {
   if (!acquireSync(`backfill:${sourceId}`)) return
   try {
     const result = await backfillCompleted(source)
-    if (result.registered > 0) console.log(`[backfill] ${sourceId}: +${result.registered}`)
+    if (result.registered > 0) ok(`[backfill] ${sourceId}: +${result.registered}`)
   }
   catch (error) {
-    console.warn(`[backfill] ${sourceId} failed:`, error instanceof Error ? error.message : error)
+    warn(`[backfill] ${sourceId} failed`, { error: error instanceof Error ? error.message : String(error) })
   }
   finally {
     releaseSync(`backfill:${sourceId}`)

@@ -1,4 +1,4 @@
-import { getGenreList } from '../../utils/queries'
+import { getGenreList } from '../../utils/db/queries/genres'
 
 defineRouteMeta({
   openAPI: {

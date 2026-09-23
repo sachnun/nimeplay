@@ -1,5 +1,5 @@
-import { sealStreamToken } from '../stream'
-import { plainGet } from '../plain-fetch'
+import { sealStreamToken } from '../media/stream'
+import { plainGet } from '../net/fetch'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const ASSET_BASE = 'https://xyz-api.animein.net'

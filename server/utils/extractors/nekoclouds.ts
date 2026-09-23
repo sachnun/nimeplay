@@ -1,4 +1,4 @@
-import { getSpoofHeaders } from '../spoof'
+import { getSpoofHeaders } from '../net/spoof'
 
 const AUTHORIZE_TIMEOUT_MS = 8000
 

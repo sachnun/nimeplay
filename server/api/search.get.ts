@@ -1,4 +1,4 @@
-import { searchAnime } from '../utils/queries'
+import { searchAnime } from '../utils/db/queries/search'
 
 export default defineEventHandler(async (event) => {
   const query = String(getQuery(event).query || '').trim()

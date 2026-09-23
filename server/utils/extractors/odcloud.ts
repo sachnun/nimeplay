@@ -1,5 +1,5 @@
 import { asHttpUrl, isPlaceholderStreamUrl } from './hosts'
-import { getSpoofHeaders } from '../spoof'
+import { getSpoofHeaders } from '../net/spoof'
 
 export function isOdcloud(url: string): boolean {
   const lower = url.toLowerCase()

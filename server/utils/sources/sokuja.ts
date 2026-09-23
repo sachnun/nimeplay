@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio'
-import { getSpoofHeaders } from '../spoof'
-import { sealStreamToken } from '../stream'
-import { proxyFetch, proxyUrl } from '../proxy'
+import { getSpoofHeaders } from '../net/spoof'
+import { sealStreamToken } from '../media/stream'
+import { proxyFetch, proxyUrl } from '../media/proxy'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 

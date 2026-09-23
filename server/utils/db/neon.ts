@@ -1,8 +1,8 @@
 import { neon, neonConfig } from '@neondatabase/serverless'
 import { drizzle } from 'drizzle-orm/neon-http'
-import * as schema from '../database/schema'
-import { setDatabaseFactory } from './db'
-import { cloudflareEnv } from './env'
+import * as schema from '../../database/schema'
+import { setDatabaseFactory } from './index'
+import { cloudflareEnv } from '../env'
 
 const QUERY_TIMEOUT_MS = 15000
 

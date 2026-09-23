@@ -1,5 +1,5 @@
 import { createError, getRouterParam } from 'h3'
-import { getAnimeDetail } from '../../../utils/queries'
+import { getAnimeDetail } from '../../../utils/db/queries/detail'
 import { toAbsoluteUrl } from '../../../utils/media'
 
 defineRouteMeta({

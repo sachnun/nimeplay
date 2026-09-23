@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
-import { db } from './db'
-import { jobs, type JobRow } from '../database/schema'
+import { db } from '../db'
+import { jobs, type JobRow } from '../../database/schema'
 
 export interface JobInput {
   type: string

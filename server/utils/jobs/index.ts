@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm'
-import type { JobRow } from '../database/schema'
-import { db } from './db'
+import type { JobRow } from '../../database/schema'
+import { db } from '../db'
 import { alert } from './alert'
 import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } from './queue'
-import { getSources } from './sources'
-import { blockedSourceIds, cacheEpisodeData } from './episode-cache'
+import { getSources } from '../sources'
+import { blockedSourceIds, cacheEpisodeData } from '../db/episode-cache'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
-import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from './sources/guard'
+import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from '../sources/guard'
 
 const WALL_MS = 30 * 60 * 1000
 const BATCH = 64

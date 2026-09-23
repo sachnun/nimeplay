@@ -1,5 +1,5 @@
 import { createError, getQuery, getRouterParam } from 'h3'
-import { getGenreAnimePage } from '../../utils/queries'
+import { getGenreAnimePage } from '../../utils/db/queries/genres'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') || ''

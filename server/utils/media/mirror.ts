@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
-import { db } from './db'
-import { media } from '../database/schema'
-import { fetchRemoteMedia, storeMedia } from './media-store'
-import type { MediaRef } from './media'
+import { db } from '../db'
+import { media } from '../../database/schema'
+import { fetchRemoteMedia, storeMedia } from './store'
+import type { MediaRef } from './index'
 
 export async function mirrorMedia(ref: MediaRef): Promise<void> {
   const [existing] = await db()

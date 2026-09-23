@@ -1,7 +1,7 @@
-import type { JobRow } from '../database/schema'
-import { claim, complete, fail, prune, releaseStale } from './queue'
-import { mirrorMedia } from './media-mirror'
-import type { MediaRef } from './media'
+import type { JobRow } from '../../database/schema'
+import { claim, complete, fail, prune, releaseStale } from '../jobs/queue'
+import { mirrorMedia } from './mirror'
+import type { MediaRef } from './index'
 
 const WALL_MS = 30 * 60 * 1000
 const BATCH = 32

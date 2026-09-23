@@ -1,5 +1,5 @@
-import { getSpoofHeaders } from '../spoof'
-import { proxyFetch } from '../proxy'
+import { getSpoofHeaders } from '../net/spoof'
+import { proxyFetch } from '../media/proxy'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 

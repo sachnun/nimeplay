@@ -1,7 +1,7 @@
 import { optimizeImage } from './image'
-import { getSpoofHeaders } from './spoof'
-import { plainGetBinary } from './plain-fetch'
-import { putMedia } from './media'
+import { getSpoofHeaders } from '../net/spoof'
+import { plainGetBinary } from '../net/fetch'
+import { putMedia } from './index'
 
 const MAL_REFERER = 'https://myanimelist.net/'
 const FETCH_TIMEOUT_MS = 15000

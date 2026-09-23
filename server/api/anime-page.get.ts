@@ -1,5 +1,5 @@
 import { getQuery } from 'h3'
-import { listAnimePage } from '../utils/queries'
+import { listAnimePage } from '../utils/db/queries/catalog'
 
 export default defineEventHandler((event) => {
   const query = getQuery(event)

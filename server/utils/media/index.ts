@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch'
-import { cloudflareEnv } from './env'
+import { cloudflareEnv } from '../env'
 
 const FETCH_TIMEOUT_MS = 15000
 const KEY_BYTES = 16

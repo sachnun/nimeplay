@@ -1,5 +1,6 @@
 import { getQuery } from 'h3'
-import { listAnimePage, searchAnime } from '../../utils/queries'
+import { listAnimePage } from '../../utils/db/queries/catalog'
+import { searchAnime } from '../../utils/db/queries/search'
 import { toAbsoluteUrl } from '../../utils/media'
 
 defineRouteMeta({

@@ -1,4 +1,4 @@
-import { proxyUrl } from './proxy'
+import { proxyUrl } from '../media/proxy'
 
 interface PlainResponse {
   status: number

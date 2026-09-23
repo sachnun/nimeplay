@@ -1,8 +1,8 @@
 import { createError, getQuery, getRouterParam } from 'h3'
-import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/queries'
+import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/db/queries/episodes'
 import { toAbsoluteUrl } from '../../../../utils/media'
-import { prepareMirror, selectDefaultCandidate } from '../../../../utils/prepare'
-import { loadEpisodeData } from '../../../../utils/episode-cache'
+import { prepareMirror, selectDefaultCandidate } from '../../../../utils/media/prepare'
+import { loadEpisodeData } from '../../../../utils/db/episode-cache'
 
 defineRouteMeta({
   openAPI: {

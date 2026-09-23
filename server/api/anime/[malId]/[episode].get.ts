@@ -1,6 +1,6 @@
 import { createError, getRouterParam } from 'h3'
-import { getEpisodeNumbers, resolveEpisode } from '../../../utils/queries'
-import { loadEpisodeData } from '../../../utils/episode-cache'
+import { getEpisodeNumbers, resolveEpisode } from '../../../utils/db/queries/episodes'
+import { loadEpisodeData } from '../../../utils/db/episode-cache'
 
 export default defineEventHandler(async (event) => {
   const malId = Number(getRouterParam(event, 'malId'))

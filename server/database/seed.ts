@@ -1,7 +1,7 @@
 import { eq, inArray, sql } from 'drizzle-orm'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
 import { db } from '../utils/db'
-import { registerNeonDatabase } from '../utils/db-neon'
+import { registerNeonDatabase } from '../utils/db/neon'
 
 registerNeonDatabase()
 

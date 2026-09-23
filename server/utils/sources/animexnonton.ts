@@ -1,5 +1,5 @@
-import { sealStreamToken } from '../stream'
-import { proxyUrl } from '../proxy'
+import { sealStreamToken } from '../media/stream'
+import { proxyUrl } from '../media/proxy'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const API_BASE_FALLBACK = 'https://wincamp.web.id/animexnonton/api'

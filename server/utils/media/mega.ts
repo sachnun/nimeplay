@@ -1,5 +1,5 @@
 import { fromBase64Url } from './stream'
-import { upstreamHeadersFor } from './extractors/hosts'
+import { upstreamHeadersFor } from '../extractors/hosts'
 
 const API_HOST = 'g.api.mega.co.nz'
 const CDN_SUFFIX = 'userstorage.mega.co.nz'

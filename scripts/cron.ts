@@ -2,10 +2,10 @@ import { Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
-import { acquireLock } from '../server/utils/lock'
-import { enableProxy } from '../server/utils/proxy'
+import { acquireLock } from '../server/utils/jobs/lock'
+import { enableProxy } from '../server/utils/media/proxy'
 import { runCatalog, runTick } from '../server/utils/jobs'
-import { runMediaTick } from '../server/utils/media-jobs'
+import { runMediaTick } from '../server/utils/media/jobs'
 
 const TICK_MS = 6 * 60_000
 const CATALOG_MS = 30 * 60_000

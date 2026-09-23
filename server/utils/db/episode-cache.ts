@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
-import { db } from './db'
-import { episodes } from '../database/schema'
-import { enqueue } from './queue'
-import { getSources, scrapeEpisode, splitSource } from './sources'
-import type { EpisodeData } from './sources/types'
+import { db } from './index'
+import { episodes } from '../../database/schema'
+import { enqueue } from '../jobs/queue'
+import { getSources, scrapeEpisode, splitSource } from '../sources'
+import type { EpisodeData } from '../sources/types'
 
 export function isWorkerBlocked(slug: string): boolean {
   return splitSource(slug)?.source.workerBlocked === true

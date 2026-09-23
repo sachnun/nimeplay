@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { db } from './db'
+import { db } from '../db'
 
 const DEFAULT_TTL_MS = 45 * 60 * 1000
 

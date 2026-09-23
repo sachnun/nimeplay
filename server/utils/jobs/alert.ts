@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { db } from './db'
+import { db } from '../db'
 
 const COOLDOWN_MS = 30 * 60 * 1000
 

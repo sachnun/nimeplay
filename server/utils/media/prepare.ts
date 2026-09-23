@@ -1,5 +1,5 @@
 import { qualityRank, sourcePriority } from '#shared/mirror'
-import { isPlaceholderStreamUrl } from './extractors/hosts'
+import { isPlaceholderStreamUrl } from '../extractors/hosts'
 
 export interface PrepareResult {
   playUrl: string | null

@@ -1,4 +1,4 @@
-import { getSpoofHeaders } from '../spoof'
+import { getSpoofHeaders } from '../net/spoof'
 
 export function asHttpUrl(value: string | null | undefined, base?: string): string | null {
   if (!value) return null

@@ -4,7 +4,7 @@ import { db } from '../../db'
 import { getSources, splitSource } from '../../sources'
 import { parseEpisodeDate } from '../../sources/shared'
 import { backfillCompleted, syncOngoingCatalog } from './catalog'
-import { getSourceRow, loadSourceMax, refreshCanonicalMetadata, syncAnimeAggregate, upsertEpisodes } from './persist'
+import { getSourceRow, refreshCanonicalMetadata, syncAnimeAggregate, upsertEpisodes } from './persist'
 import { resolveSourceMetadata } from './resolve'
 import { acquireSync, releaseSync } from './state'
 import { episodeNumber } from './util'
@@ -34,19 +34,17 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
   }
 
   const detail = await source.detailFresh(vendorSlug)
-  let hasNewEpisodes = false
+  let maxInDetail = 0
   if (detail) {
     const status = normalizeStatus(detail.status)
     const latestEpisodeAt = detail.episodes
       .map(entry => parseEpisodeDate(entry.date))
       .filter((date): date is Date => date !== null)
       .reduce<Date | null>((latest, date) => (!latest || date > latest ? date : latest), null)
-    const maxBefore = await loadSourceMax(sourceRow.id)
-    const maxInDetail = detail.episodes.reduce((max, entry) => {
+    maxInDetail = detail.episodes.reduce((max, entry) => {
       const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
       return parsed != null && parsed > max ? parsed : max
     }, 0)
-    hasNewEpisodes = Math.max(maxBefore, maxInDetail) > maxBefore
     await upsertEpisodes(source, sourceRow.id, detail.episodes)
     await db().update(animeSources).set({
       status,
@@ -64,8 +62,15 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
       await refreshCanonicalMetadata(linkedAnimeId)
       await db().update(animeSources).set({ metadataSyncedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
     }
-    if (hasNewEpisodes) {
-      await db().update(anime).set({ lastNewEpisodeAt: new Date() }).where(eq(anime.id, linkedAnimeId))
+    if (maxInDetail > 0) {
+      const [current] = await db()
+        .select({ latestEpisode: anime.latestEpisode })
+        .from(anime)
+        .where(eq(anime.id, linkedAnimeId))
+        .limit(1)
+      if (maxInDetail > (current?.latestEpisode ?? 0)) {
+        await db().update(anime).set({ lastNewEpisodeAt: new Date() }).where(eq(anime.id, linkedAnimeId))
+      }
     }
     await syncAnimeAggregate(linkedAnimeId)
   }
@@ -77,7 +82,7 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
   log(`[refresh] ${compositeSlug}`, {
     status: detail ? normalizeStatus(detail.status) : 'no-detail',
     episodes: detail?.episodes.length ?? 0,
-    new: hasNewEpisodes,
+    maxEpisode: maxInDetail,
   })
 }
 

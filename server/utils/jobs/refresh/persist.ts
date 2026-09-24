@@ -20,14 +20,6 @@ export function recordMetadataFailure(slug: string, message: string): Promise<vo
   return Promise.resolve()
 }
 
-export async function loadSourceMax(sourceId: number): Promise<number> {
-  const [row] = await db()
-    .select({ max: sql<number | null>`max(${episodes.number})` })
-    .from(episodes)
-    .where(eq(episodes.sourceId, sourceId))
-  return Number(row?.max ?? 0)
-}
-
 export async function getSourceRow(sourceId: string, vendorSlug: string): Promise<AnimeSourceRow | null> {
   const [row] = await db()
     .select()

@@ -8,7 +8,7 @@ import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from '../sources/guard'
 import { log, ok, warn } from '../log'
 
-const WALL_MS = 30 * 60 * 1000
+const WALL_MS = 25 * 60 * 1000
 const BATCH = 64
 const WAITING_ALERT = 5000
 const DEAD_ALERT = 1000
@@ -40,10 +40,12 @@ async function seedRefreshJobs(): Promise<void> {
     select 'anime.refresh', jsonb_build_object('slug', s.source || ':' || s.slug), 'anime.refresh:' || s.source || ':' || s.slug,
            case when s.status = 'ONGOING' then 5 else 0 end, 5
     from anime_sources s
-    where (
-      s.anime_id is null
-      or not exists (select 1 from episodes e where e.source_id = s.id)
-      or (s.status = 'ONGOING' and s.updated_at < now() - interval '2 hours')
+    where s.updated_at < now() - (
+      case
+        when s.status = 'ONGOING' then interval '6 hours'
+        when s.anime_id is not null and exists (select 1 from episodes e where e.source_id = s.id) then interval '30 days'
+        else interval '1 day'
+      end
     )
     and not exists (
       select 1 from jobs j
@@ -120,6 +122,7 @@ export async function runTick(): Promise<void> {
 export async function runCatalog(): Promise<void> {
   const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
+  await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await enqueue({ type: 'catalog.ongoing', dedupeKey: 'catalog.ongoing' })
   for (const source of getSources()) {
     await enqueue({ type: 'catalog.backfill', payload: { sourceId: source.id }, dedupeKey: `catalog.backfill:${source.id}` })

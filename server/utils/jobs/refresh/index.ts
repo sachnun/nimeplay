@@ -54,6 +54,9 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
       updatedAt: new Date(),
     }).where(eq(animeSources.id, sourceRow.id))
   }
+  else {
+    await db().update(animeSources).set({ updatedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
+  }
 
   const linkedAnimeId = sourceRow.animeId
   if (linkedAnimeId) {

@@ -2,7 +2,7 @@ name: Cron
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '*/30 * * * *'
   push:
     branches: [main]
     paths:
@@ -24,7 +24,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
+    timeout-minutes: 30
     environment: cron
     steps:
       - uses: actions/checkout@v4

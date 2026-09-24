@@ -114,7 +114,6 @@ onMounted(() => {
         :resume-to="`/anime/${item.malId}/${item.episodeNumber}`"
         :progress-pct="progressPct(item)"
         :full-rounded="true"
-        :zoom="true"
       >
         <template #overlay>
           <button

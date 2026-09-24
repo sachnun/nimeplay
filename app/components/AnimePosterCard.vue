@@ -9,7 +9,6 @@ const props = withDefaults(defineProps<{
   resumeTo?: string
   progressPct?: number
   priority?: boolean
-  zoom?: boolean
   fullRounded?: boolean
 }>(), {
   badge: '',
@@ -18,7 +17,6 @@ const props = withDefaults(defineProps<{
   resumeTo: undefined,
   progressPct: undefined,
   priority: false,
-  zoom: false,
   fullRounded: false,
 })
 
@@ -48,7 +46,6 @@ function openResume(event: Event) {
         decoding="async"
         sizes="(min-width: 640px) 200px, 50vw"
         class="object-cover w-full h-full"
-        :class="zoom ? 'transition-transform duration-300 ease-out group-hover:scale-110' : ''"
       >
       <div
         v-if="badge"

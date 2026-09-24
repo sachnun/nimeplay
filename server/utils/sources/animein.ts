@@ -9,7 +9,6 @@ const COMPLETED_PAGE_LIMIT = 100
 const EPISODE_PAGE_SIZE = 30
 const EPISODE_LIST_MAX_PAGES = 45
 const EPISODE_FETCH_BATCH = 6
-const LATEST_EPISODE_CONCURRENCY = 8
 const DAY_BY_INDEX = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU']
 const DAY_LABEL: Record<string, string> = {
   SENIN: 'Senin',
@@ -69,19 +68,6 @@ async function apiGet<T>(path: string): Promise<T | null> {
     if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500))
   }
   return null
-}
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let cursor = 0
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++
-      results[index] = await run(items[index]!)
-    }
-  })
-  await Promise.all(workers)
-  return results
 }
 
 function wibDay(): string {
@@ -156,11 +142,7 @@ async function scrapeOngoingFresh(page: number): Promise<ListResult> {
   const day = wibDay()
   const data = await apiGet<{ movie?: AnimeinMovie[] }>(`/3/2/schedule/data?day=${day}`)
   const movies = (data?.movie ?? []).filter(movie => movie.status === 'ONGOING')
-  const latest = await mapWithConcurrency(
-    movies.map(movie => String(movie.id)),
-    LATEST_EPISODE_CONCURRENCY,
-    movieId => latestEpisode(movieId),
-  )
+  const latest = await Promise.all(movies.map(movie => latestEpisode(String(movie.id))))
   const label = DAY_LABEL[day] ?? ''
 
   const anime: ScrapedAnimeCard[] = movies.map((movie, index) => {

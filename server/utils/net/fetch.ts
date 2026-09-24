@@ -3,6 +3,7 @@ import { proxyUrl } from '../media/proxy'
 interface PlainResponse {
   status: number
   text: string
+  headers: Record<string, string>
 }
 
 interface PlainOptions {
@@ -43,6 +44,14 @@ const DEFAULT_TIMEOUT_MS = 8000
 
 const modules = new Map<string, Promise<NodeHttps | null>>()
 
+function toHeaderRecord(raw: Record<string, string | string[] | undefined>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (value !== undefined) out[key.toLowerCase()] = Array.isArray(value) ? value.join(', ') : value
+  }
+  return out
+}
+
 function loadModule(url: string): Promise<NodeHttps | null> {
   const specifier = url.startsWith('http://') ? 'node:http' : 'node:https'
   let loaded = modules.get(specifier)
@@ -72,7 +81,7 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
   if (!https) {
     try {
       const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-      return { status: res.status, text: await res.text() }
+      return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
     }
     catch {
       return null
@@ -88,7 +97,7 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
     const req = https.request(target, { method: 'GET', headers }, (res) => {
       const chunks: Buffer[] = []
       res.on('data', (chunk) => { chunks.push(chunk as Buffer) })
-      res.on('end', () => done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }))
+      res.on('end', () => done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8'), headers: toHeaderRecord(res.headers) }))
     })
     req.on('error', () => done(null))
     req.setTimeout(timeoutMs, () => { req.destroy(); done(null) })

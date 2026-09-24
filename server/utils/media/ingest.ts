@@ -5,8 +5,6 @@ import { fetchRemoteMedia, storeMedia } from './store'
 import { warn } from '../log'
 import type { MediaRef } from './index'
 
-const CONCURRENCY = 8
-
 async function ingestOne(ref: MediaRef): Promise<string | null> {
   try {
     const { contentType, bytes } = await fetchRemoteMedia(ref.sourceUrl)
@@ -32,13 +30,9 @@ export async function ingestMedia(refs: MediaRef[]): Promise<Map<string, string>
   for (const row of existing) keys.set(row.sourceUrl, row.key)
 
   const missing = unique.filter(ref => !keys.has(ref.sourceUrl))
-  let cursor = 0
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, missing.length) }, async () => {
-    while (cursor < missing.length) {
-      const ref = missing[cursor++]!
-      const key = await ingestOne(ref)
-      if (key) keys.set(ref.sourceUrl, key)
-    }
+  await Promise.all(missing.map(async (ref) => {
+    const key = await ingestOne(ref)
+    if (key) keys.set(ref.sourceUrl, key)
   }))
   return keys
 }

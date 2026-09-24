@@ -11,7 +11,7 @@ useHead({ title: 'History' })
 
 definePageMeta({ browse: true })
 
-const items = ref<HistoryItem[]>([])
+const items = useState<HistoryItem[]>('history-items', () => [])
 const loading = ref(true)
 const clearing = ref(false)
 
@@ -28,23 +28,23 @@ async function loadHistory() {
   try {
     const progressList = await getContinueWatching()
     if (progressList.length === 0) {
+      items.value = []
       await navigateTo('/', { replace: true })
       return
     }
-    items.value = []
+    const loaded = new Map<number, HistoryItem>()
     const queue = [...progressList]
-    if (queue.length === 0) return
     const workers = Array.from({ length: Math.min(6, queue.length) }, async () => {
       while (queue.length > 0) {
         const entry = queue.shift()
         if (!entry) break
         const detail = await fetchDetail(entry.malId)
         if (!detail) continue
-        items.value.push({ ...entry, title: detail.title, thumbnail: detail.thumbnail })
-        items.value.sort((a, b) => b.updatedAt - a.updatedAt)
+        loaded.set(entry.malId, { ...entry, title: detail.title, thumbnail: detail.thumbnail })
       }
     })
     await Promise.all(workers)
+    items.value = [...loaded.values()].sort((a, b) => b.updatedAt - a.updatedAt)
   } finally {
     loading.value = false
   }

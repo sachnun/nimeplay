@@ -24,7 +24,6 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     environment: cron
     steps:
       - uses: actions/checkout@v4

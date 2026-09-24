@@ -8,7 +8,6 @@ import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from '../sources/guard'
 import { log, ok, warn } from '../log'
 
-const WALL_MS = 25 * 60 * 1000
 const BATCH = 64
 const WAITING_ALERT = 5000
 const DEAD_ALERT = 1000
@@ -102,8 +101,8 @@ async function logStats(): Promise<void> {
   if (deadHour > DEAD_ALERT) await alert('queue:dead', `${deadHour} jobs died in the last hour`, { counts: counts.rows })
 }
 
-async function drain(deadline: number): Promise<void> {
-  while (Date.now() < deadline) {
+async function drain(): Promise<void> {
+  while (true) {
     const claimed = await claim(worker, BATCH, TASK_TYPES, blockedSources())
     if (claimed.length === 0) return
     await Promise.all(claimed.map(processJob))
@@ -111,16 +110,14 @@ async function drain(deadline: number): Promise<void> {
 }
 
 export async function runTick(): Promise<void> {
-  const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await seedRefreshJobs()
-  await drain(deadline)
+  await drain()
   await logStats()
 }
 
 export async function runCatalog(): Promise<void> {
-  const deadline = Date.now() + WALL_MS
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await enqueue({ type: 'catalog.ongoing', dedupeKey: 'catalog.ongoing' })
@@ -128,5 +125,5 @@ export async function runCatalog(): Promise<void> {
     await enqueue({ type: 'catalog.backfill', payload: { sourceId: source.id }, dedupeKey: `catalog.backfill:${source.id}` })
   }
   await seedRefreshJobs()
-  await drain(deadline)
+  await drain()
 }

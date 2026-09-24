@@ -8,18 +8,6 @@ const API_BASE = 'https://anime.nakanime.my.id/api'
 const REQUEST_TIMEOUT_MS = 8000
 const QUALITY_RE = /^\d{3,4}p$/i
 const DEFAULT_QUALITY = '720p'
-const MAX_ATTEMPTS = 6
-const BASE_BACKOFF_MS = 500
-const MAX_BACKOFF_MS = 10_000
-
-function retryAfterMs(headers: Record<string, string>): number | null {
-  const value = headers['retry-after']
-  if (!value) return null
-  const seconds = Number(value)
-  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
-  const at = Date.parse(value)
-  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null
-}
 
 interface ApiEnvelope<T> {
   data?: T
@@ -64,25 +52,16 @@ interface NakanimeStreamData {
 }
 
 async function apiGet<T>(path: string): Promise<{ data: T | null, lastPage: number }> {
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
-    if (res && res.status === 200 && res.text.trim()) {
-      try {
-        const body = JSON.parse(res.text) as ApiEnvelope<T>
-        if (body.data !== undefined && body.data !== null) {
-          return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
-        }
-      }
-      catch {
-        // fall through to retry on malformed body
+  const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
+  if (res && res.status === 200 && res.text.trim()) {
+    try {
+      const body = JSON.parse(res.text) as ApiEnvelope<T>
+      if (body.data !== undefined && body.data !== null) {
+        return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
       }
     }
-    if (attempt < MAX_ATTEMPTS - 1) {
-      const retryAfter = res && (res.status === 429 || res.status === 503) ? retryAfterMs(res.headers) : null
-      const wait = retryAfter === null
-        ? Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempt) + Math.floor(Math.random() * 250)
-        : Math.min(retryAfter, MAX_BACKOFF_MS)
-      await new Promise(resolve => setTimeout(resolve, wait))
+    catch {
+      // malformed body
     }
   }
   return { data: null, lastPage: 1 }

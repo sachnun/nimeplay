@@ -54,18 +54,15 @@ interface AnimeinServer {
 }
 
 async function apiGet<T>(path: string): Promise<T | null> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
-    if (res && res.status === 200) {
-      try {
-        const body = JSON.parse(res.text) as { status?: number, error?: boolean, data?: T }
-        if (!body.error && body.status === 200 && body.data) return body.data
-      }
-      catch {
-        return null
-      }
+  const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
+  if (res && res.status === 200) {
+    try {
+      const body = JSON.parse(res.text) as { status?: number, error?: boolean, data?: T }
+      if (!body.error && body.status === 200 && body.data) return body.data
     }
-    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500))
+    catch {
+      return null
+    }
   }
   return null
 }

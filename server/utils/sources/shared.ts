@@ -1,5 +1,6 @@
 import { getSpoofHeaders } from '../net/spoof'
 import { proxyFetch } from '../media/proxy'
+import { isRetryableStatus, withRetry } from '../net/retry'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
@@ -11,37 +12,44 @@ export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): s
 }
 
 const HTML_TIMEOUT_MS = 8000
-const HTML_ATTEMPTS = 2
 const POST_TIMEOUT_MS = 8000
 
 export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promise<string> {
-  let lastError: unknown
-  for (let attempt = 0; attempt < HTML_ATTEMPTS; attempt++) {
+  const res = await withRetry(async () => {
     try {
-      const res = await proxyFetch(url, {
+      const response = await proxyFetch(url, {
         headers: getSpoofHeaders(url, 'navigate'),
         signal: AbortSignal.timeout(timeoutMs),
       })
-      if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-      return await res.text()
+      return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
     }
-    catch (error) {
-      lastError = error
-      if (error instanceof Error && /Failed to fetch .*?: \d{3}/.test(error.message)) throw error
+    catch {
+      return { value: null, retry: true }
     }
-  }
-  throw lastError instanceof Error ? lastError : new Error(`Failed to fetch ${url}`)
+  })
+  if (!res) throw new Error(`Failed to fetch ${url}`)
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  return await res.text()
 }
 
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
   const headers = getSpoofHeaders(referer, 'cors')
   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const res = await proxyFetch(url, {
-    method: 'POST',
-    headers,
-    body,
-    signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+  const res = await withRetry(async () => {
+    try {
+      const response = await proxyFetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+      })
+      return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
+    }
+    catch {
+      return { value: null, retry: true }
+    }
   })
+  if (!res || !res.ok) throw new Error(`Failed to fetch ${url}: ${res?.status ?? 0}`)
   return res.json()
 }
 

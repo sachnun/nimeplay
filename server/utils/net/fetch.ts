@@ -1,4 +1,5 @@
 import { proxyUrl } from '../media/proxy'
+import { isRetryableStatus, withRetry } from './retry'
 
 interface PlainResponse {
   status: number
@@ -69,24 +70,7 @@ function loadModule(url: string): Promise<NodeHttps | null> {
   return loaded
 }
 
-export async function plainGet(url: string, options: PlainOptions = {}): Promise<PlainResponse | null> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const headers = {
-    'user-agent': DEFAULT_UA,
-    'accept': 'application/json, */*',
-    ...options.headers,
-  }
-  const target = proxyUrl(url, options.proxy)
-  const https = await loadModule(target)
-  if (!https) {
-    try {
-      const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-      return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
-    }
-    catch {
-      return null
-    }
-  }
+function nodeGet(target: string, headers: Record<string, string>, timeoutMs: number, https: NodeHttps): Promise<PlainResponse | null> {
   return new Promise((resolve) => {
     let settled = false
     const done = (value: PlainResponse | null) => {
@@ -105,24 +89,17 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
   })
 }
 
-export async function plainGetBinary(url: string, options: PlainOptions = {}): Promise<PlainBinaryResponse | null> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const headers = {
-    'user-agent': DEFAULT_UA,
-    'accept': 'image/avif,image/webp,image/*,*/*',
-    ...options.headers,
+async function fetchGet(target: string, headers: Record<string, string>, timeoutMs: number): Promise<PlainResponse | null> {
+  try {
+    const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
+    return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
   }
-  const target = proxyUrl(url, options.proxy)
-  const https = await loadModule(target)
-  if (!https) {
-    try {
-      const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-      return { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', bytes: new Uint8Array(await res.arrayBuffer()) }
-    }
-    catch {
-      return null
-    }
+  catch {
+    return null
   }
+}
+
+function nodeGetBinary(target: string, headers: Record<string, string>, timeoutMs: number, https: NodeHttps): Promise<PlainBinaryResponse | null> {
   return new Promise((resolve) => {
     let settled = false
     const done = (value: PlainBinaryResponse | null) => {
@@ -142,5 +119,47 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
     req.on('error', () => done(null))
     req.setTimeout(timeoutMs, () => { req.destroy(); done(null) })
     req.end()
+  })
+}
+
+async function fetchGetBinary(target: string, headers: Record<string, string>, timeoutMs: number): Promise<PlainBinaryResponse | null> {
+  try {
+    const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
+    return { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', bytes: new Uint8Array(await res.arrayBuffer()) }
+  }
+  catch {
+    return null
+  }
+}
+
+export async function plainGet(url: string, options: PlainOptions = {}): Promise<PlainResponse | null> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const headers = {
+    'user-agent': DEFAULT_UA,
+    'accept': 'application/json, */*',
+    ...options.headers,
+  }
+  const target = proxyUrl(url, options.proxy)
+  const https = await loadModule(target)
+  return withRetry(async () => {
+    const res = await (https ? nodeGet(target, headers, timeoutMs, https) : fetchGet(target, headers, timeoutMs))
+    if (!res) return { value: null, retry: true }
+    return { value: res, retry: isRetryableStatus(res.status), headers: res.headers }
+  })
+}
+
+export async function plainGetBinary(url: string, options: PlainOptions = {}): Promise<PlainBinaryResponse | null> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const headers = {
+    'user-agent': DEFAULT_UA,
+    'accept': 'image/avif,image/webp,image/*,*/*',
+    ...options.headers,
+  }
+  const target = proxyUrl(url, options.proxy)
+  const https = await loadModule(target)
+  return withRetry(async () => {
+    const res = await (https ? nodeGetBinary(target, headers, timeoutMs, https) : fetchGetBinary(target, headers, timeoutMs))
+    if (!res) return { value: null, retry: true }
+    return { value: res, retry: isRetryableStatus(res.status) }
   })
 }

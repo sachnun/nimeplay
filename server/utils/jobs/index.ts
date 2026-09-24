@@ -5,7 +5,7 @@ import { alert } from './alert'
 import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } from './queue'
 import { getSources } from '../sources'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
-import { blockedSources, recordFailure, recordSuccess, runGuarded, sourceOf } from '../sources/guard'
+import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
 import { log, ok, warn } from '../log'
 
 const BATCH = 64
@@ -62,25 +62,23 @@ async function processJob(job: JobRow): Promise<void> {
   const sourceId = sourceOf(job)
   const label = String(job.payload.slug ?? job.payload.sourceId ?? job.type)
   const startedAt = Date.now()
-  await runGuarded(sourceId, async () => {
-    try {
-      await handle(job)
-      await complete(job.id)
+  try {
+    await handle(job)
+    await complete(job.id)
+    recordSuccess(sourceId)
+    ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: message })
+    if (classifyError(message) === 'transient') {
+      if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
+    }
+    else {
       recordSuccess(sourceId)
-      ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
     }
-    catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: message })
-      if (classifyError(message) === 'transient') {
-        if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
-      }
-      else {
-        recordSuccess(sourceId)
-      }
-      await fail(job.id, message)
-    }
-  })
+    await fail(job.id, message)
+  }
 }
 
 async function logStats(): Promise<void> {

@@ -11,12 +11,11 @@ const props = withDefaults(defineProps<{ className?: string; message?: string; t
 const router = useRouter()
 
 function goBack() {
-  if (props.malId && !(window.history.length > 1)) {
-    router.push(`/anime/${props.malId}`)
+  if (window.history.state?.back) {
+    router.back()
     return
   }
-  if (window.history.length > 1) router.back()
-  else if (props.malId) router.push(`/anime/${props.malId}`)
+  if (props.malId) router.push(`/anime/${props.malId}`)
   else router.push('/')
 }
 

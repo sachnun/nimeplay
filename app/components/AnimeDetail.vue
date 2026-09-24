@@ -69,11 +69,8 @@ watch(() => props.episodes.length, () => void nextTick(updateEpisodesReach))
 const router = useRouter()
 
 function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
-  }
+  if (window.history.state?.back) router.back()
+  else router.push('/')
 }
 </script>
 

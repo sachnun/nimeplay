@@ -4,6 +4,7 @@ import type { EpisodeMetaData, EpisodePageData } from '~/types'
 
 const route = useRoute()
 const router = useRouter()
+const orpc = useOrpc()
 const malId = computed(() => Number(route.params.malId) || 0)
 const episodeParam = computed(() => String(route.params.episode || ''))
 
@@ -15,7 +16,7 @@ const { data: metaData } = await useAsyncData<EpisodeMetaData | null>(
   async () => {
     try {
       metaError.value = null
-      return await $fetch<EpisodeMetaData>(`/api/anime/${malId.value}/${episodeParam.value}/meta`)
+      return await orpc.anime.episodeMeta({ malId: malId.value, episode: Number(episodeParam.value) })
     } catch (err) {
       metaError.value = err
       return null
@@ -32,7 +33,7 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   async () => {
     try {
       pageError.value = null
-      return await $fetch<EpisodePageData>(`/api/anime/${malId.value}/${episodeParam.value}`)
+      return await orpc.anime.episode({ malId: malId.value, episode: Number(episodeParam.value) })
     } catch (err) {
       pageError.value = err
       return null

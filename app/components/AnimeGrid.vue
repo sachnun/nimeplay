@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<{
   nextShowDay: false,
 })
 
+const orpc = useOrpc()
 const sentinelRef = shallowRef<HTMLDivElement | null>(null)
 const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
@@ -91,7 +92,7 @@ const hasAnyCard = computed(() => displayAnime.value.length > 0)
 const showPlane = computed(() => loadError.value && loadServerError.value && !hasAnyCard.value)
 
 async function fetchPage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData> {
-  return $fetch('/api/anime-page', { params: { type, page } })
+  return orpc.catalog.list({ type, page })
 }
 
 async function loadPrimaryPage() {

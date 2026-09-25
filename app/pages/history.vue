@@ -11,13 +11,14 @@ useHead({ title: 'History' })
 
 definePageMeta({ browse: true })
 
+const orpc = useOrpc()
 const items = useState<HistoryItem[]>('history-items', () => [])
 const loading = ref(true)
 const clearing = ref(false)
 
 async function fetchDetail(malId: number): Promise<AnimeDetail | null> {
   try {
-    return await $fetch<AnimeDetail>(`/api/anime/${malId}`)
+    return await orpc.anime.detail({ malId })
   } catch {
     return null
   }

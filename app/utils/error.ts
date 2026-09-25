@@ -1,5 +1,6 @@
 export function isServerError(error: unknown): boolean {
   if (!error) return false
-  const statusCode = (error as { statusCode?: unknown }).statusCode
-  return typeof statusCode !== 'number' || statusCode >= 500
+  const { statusCode, status } = error as { statusCode?: unknown, status?: unknown }
+  const code = statusCode ?? status
+  return typeof code !== 'number' || code >= 500
 }

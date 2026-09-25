@@ -5,7 +5,7 @@ import type { AppRouter } from '~~/server/orpc/router'
 
 export default defineNuxtPlugin(() => {
   const client = createORPCClient<RouterClient<AppRouter>>(
-    new RPCLink({ url: `${useRequestURL().origin}/api/rpc` }),
+    new RPCLink({ url: '/api/rpc' }),
   )
   return { provide: { orpc: client } }
 })

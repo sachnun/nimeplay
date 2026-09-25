@@ -4,6 +4,7 @@ import { isVidhide, extractVidhide } from './vidhide'
 import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, embedPageHeadersFor, upstreamHeadersFor } from './hosts'
 import { isPuterin, extractPuterin } from './puterin'
 import { isBlogger, extractBlogger } from './blogger'
+import { isHydrax, extractHydrax } from './hydrax'
 import { isMega, extractMega } from '../media/mega'
 
 type HostExtractor = {
@@ -25,6 +26,7 @@ const HOST_EXTRACTORS: HostExtractor[] = [
   { matches: isFiledon, extract: extractFiledon },
   { matches: isPuterin, extract: extractPuterin },
   { matches: isBlogger, extract: extractBlogger },
+  { matches: isHydrax, extract: extractHydrax },
 ]
 
 async function fetchEmbedHtml(embedUrl: string): Promise<string> {

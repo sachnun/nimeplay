@@ -12,13 +12,8 @@ interface EpisodePlayerResolutionOptions {
   resolving: Ref<boolean>
 }
 
-type PrepareResult = {
-  playUrl: string | null
-  kind: 'hls' | 'file' | null
-  ok: boolean
-}
-
 export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
+  const orpc = useOrpc()
   let fallbackFn: (() => void) | null = null
   let playbackSession = 0
   let fallbackRunning = false
@@ -50,10 +45,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
 
   async function prepareCandidate(candidate: MirrorCandidate) {
     try {
-      const prepared = await $fetch<PrepareResult>('/api/mirror/prepare', {
-        method: 'POST',
-        body: { dataContent: candidate.dataContent },
-      })
+      const prepared = await orpc.mirror.prepare({ dataContent: candidate.dataContent })
       return { prepared }
     } catch {
       return null

@@ -32,6 +32,7 @@ const START_CONTROLS_IDLE_MS = 1200
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
+  const orpc = useOrpc()
 
   const episode = ref(props.episode)
   const currentEpisodeNum = ref(props.episodeNumber)
@@ -299,7 +300,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     let data: EpisodePageData | null = null
     try {
-      data = await $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${epNum}`)
+      data = await orpc.anime.episode({ malId: props.malId, episode: epNum })
     }
     catch {
       resolving.value = false
@@ -500,7 +501,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const target = nextEpisode.value
     if (!target || !import.meta.client) return
     const run = () => {
-      $fetch<EpisodePageData | null>(`/api/anime/${props.malId}/${target.num}`).catch(() => {})
+      orpc.anime.episode({ malId: props.malId, episode: target.num }).catch(() => {})
     }
     if ('requestIdleCallback' in window) (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback(run, { timeout: 2000 })
     else setTimeout(run, 1500)

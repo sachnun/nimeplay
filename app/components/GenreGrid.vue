@@ -10,6 +10,7 @@ const props = defineProps<{
   genreSlug: string
 }>()
 
+const orpc = useOrpc()
 const sentinelRef = shallowRef<HTMLDivElement | null>(null)
 const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
@@ -49,7 +50,7 @@ const animeCards = computed(() => allAnime.value.map((anime) => {
   }
 }))
 async function loadPage(page: number) {
-  return $fetch<PageData>(`/api/genre/${props.genreSlug}`, { params: { page } })
+  return orpc.catalog.genre({ slug: props.genreSlug, page })
 }
 
 async function appendNextPage() {

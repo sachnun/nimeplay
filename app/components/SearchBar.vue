@@ -3,6 +3,7 @@ import type { SearchResult } from '~/types'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: []; open: [] }>()
+const orpc = useOrpc()
 
 const query = ref('')
 const results = ref<SearchResult[]>([])
@@ -38,7 +39,7 @@ watch(query, (value) => {
     }
     loading.value = true
     try {
-      const result = await $fetch<SearchResult[]>('/api/search', { params: { query: trimmed } })
+      const result = await orpc.catalog.search({ query: trimmed })
       if (token !== searchToken) return
       results.value = result
     } catch {

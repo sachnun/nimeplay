@@ -15,8 +15,10 @@ definePageMeta({
   scrollToTop: (_to, from) => !from.meta.browse,
 })
 
+const orpc = useOrpc()
+
 const { data, error, status } = await useAsyncData<HomeData>('home', async () => {
-  return $fetch('/api/home')
+  return orpc.catalog.home()
 }, {
   default: () => ({
     ongoingData: { anime: [], totalPages: 1 },

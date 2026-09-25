@@ -1,7 +1,8 @@
 import { RPCHandler } from '@orpc/server/fetch'
+import { obfuscatedSerializer } from '#shared/rpc'
 import { router } from '../../orpc/router'
 
-const rpcHandler = new RPCHandler(router)
+const rpcHandler = new RPCHandler(router, { serializer: obfuscatedSerializer })
 
 export default defineEventHandler(async (event) => {
   const { matched, response } = await rpcHandler.handle(toWebRequest(event), {

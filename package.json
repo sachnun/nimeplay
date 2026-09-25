@@ -21,6 +21,8 @@
     "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
     "@nuxtjs/device": "^4.0.0",
+    "@orpc/client": "^1.15.4",
+    "@orpc/server": "^1.15.4",
     "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",

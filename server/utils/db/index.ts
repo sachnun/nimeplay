@@ -3,22 +3,27 @@ import * as schema from '../../database/schema'
 
 export type Database = NeonHttpDatabase<typeof schema>
 
-let factory: (() => Database) | undefined
-let node: Database | undefined
-let http: Database | undefined
+interface DbState {
+  factory?: () => Database
+  node?: Database
+  http?: Database
+}
+
+const holder = globalThis as unknown as { __db_state__?: DbState }
+const state = (holder.__db_state__ ??= {})
 
 export function setNodeDatabase(database: unknown): void {
-  node = database as Database
+  state.node = database as Database
 }
 
 export function setDatabaseFactory(create: () => Database): void {
-  factory = create
+  state.factory = create
 }
 
 export function db(): Database {
-  if (node) return node
-  if (http) return http
-  if (!factory) throw new Error('database driver is not configured')
-  http = factory()
-  return http
+  if (state.node) return state.node
+  if (state.http) return state.http
+  if (!state.factory) throw new Error('database driver is not configured')
+  state.http = state.factory()
+  return state.http
 }

@@ -18,13 +18,11 @@ export async function putEpisodeData(slug: string, data: EpisodeData): Promise<v
 }
 
 export async function loadEpisodeData(candidates: string[]): Promise<EpisodeData | null> {
+  let fallback: EpisodeData | null = null
   for (const slug of candidates) {
     const cached = await getEpisodeData(slug)
     if (cached && cached.mirrors.length > 0) return cached
-  }
 
-  let fallback: EpisodeData | null = null
-  for (const slug of candidates) {
     const scraped = await scrapeEpisode(slug).catch(() => null)
     if (!scraped) continue
     fallback ??= scraped

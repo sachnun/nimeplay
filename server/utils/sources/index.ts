@@ -1,5 +1,6 @@
 import { animein } from './animein'
 import { animexnonton } from './animexnonton'
+import { astronime } from './astronime'
 import { nakanime } from './nakanime'
 import { otakudesu } from './otakudesu'
 import { sokuja } from './sokuja'
@@ -9,13 +10,14 @@ import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 export const sources: Record<string, AnimeSource> = {
   animein,
   animexnonton,
+  astronime,
   nakanime,
   otakudesu,
   sokuja,
   ylnime,
 }
 
-const SOURCE_ORDER = ['otakudesu', 'ylnime', 'sokuja', 'animein', 'animexnonton', 'nakanime']
+const SOURCE_ORDER = ['otakudesu', 'ylnime', 'sokuja', 'animein', 'animexnonton', 'nakanime', 'astronime']
 
 export function sourcePriority(id: string): number {
   const index = SOURCE_ORDER.indexOf(id)

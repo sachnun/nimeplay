@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SkipTime } from '~/types'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   autoSkip?: boolean
   bufferedPct?: number
   controlsVisible?: boolean
@@ -43,7 +43,7 @@ withDefaults(defineProps<{
 
 const isDesktopLayout = useMediaQuery('(min-width: 768px)')
 
-defineEmits<{
+const emit = defineEmits<{
   changeVolume: [value: number]
   hideVolume: []
   navigate: [episodeNumber: number]
@@ -57,12 +57,82 @@ defineEmits<{
   toggleMute: []
   togglePlay: []
 }>()
+
+const trackRef = ref<HTMLElement | null>(null)
+const dragging = ref(false)
+let activePointer: number | null = null
+
+function timeAtX(clientX: number) {
+  const el = trackRef.value
+  const dur = props.duration
+  if (!el || !dur) return null
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0) return null
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  return ratio * dur
+}
+
+function onSeekPointerDown(event: PointerEvent) {
+  if (event.button !== 0 || !props.duration) return
+  const el = trackRef.value
+  if (!el) return
+  event.preventDefault()
+  activePointer = event.pointerId
+  dragging.value = true
+  try { el.setPointerCapture(event.pointerId) } catch (error) { console.warn('setPointerCapture failed', error) }
+  emit('seekStart')
+  const time = timeAtX(event.clientX)
+  if (time !== null) emit('seekPreview', time)
+}
+
+function onSeekPointerMove(event: PointerEvent) {
+  if (!dragging.value || event.pointerId !== activePointer) return
+  const time = timeAtX(event.clientX)
+  if (time !== null) emit('seekPreview', time)
+}
+
+function onSeekPointerUp(event: PointerEvent) {
+  if (!dragging.value || event.pointerId !== activePointer) return
+  const time = timeAtX(event.clientX)
+  dragging.value = false
+  activePointer = null
+  if (time !== null) emit('seekCommit', time)
+}
+
+function onSeekPointerCancel() {
+  if (!dragging.value) return
+  dragging.value = false
+  activePointer = null
+  emit('seekCommit', props.currentTime)
+}
+
+function onSeekKeydown(event: KeyboardEvent) {
+  const step = event.key === 'ArrowLeft' ? -5 : event.key === 'ArrowRight' ? 5 : 0
+  if (!step) return
+  event.preventDefault()
+  event.stopPropagation()
+  emit('seekCommit', Math.max(0, Math.min(props.currentTime + step, props.duration || 0)))
+}
 </script>
 
 <template>
   <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pointer-events-none" :class="controlsVisible ? 'opacity-100' : 'opacity-0'">
     <div class="px-4 md:px-8 pb-4 [@media_(hover:none)_and_(pointer:coarse)]:pb-[max(1rem,env(safe-area-inset-bottom))] pt-20 transition-opacity" :class="controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'">
-      <div class="group/prog relative w-full cursor-pointer mb-2 py-2 -my-1">
+      <div
+        ref="trackRef"
+        class="group/prog relative w-full cursor-pointer py-3 touch-none"
+        role="slider"
+        tabindex="0"
+        aria-label="Seek"
+        :aria-valuemin="0"
+        :aria-valuemax="duration || 0"
+        :aria-valuenow="currentTime"
+        @pointerdown="onSeekPointerDown"
+        @pointermove="onSeekPointerMove"
+        @pointerup="onSeekPointerUp"
+        @pointercancel="onSeekPointerCancel"
+        @keydown="onSeekKeydown"
+      >
         <div class="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full bg-white/20 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" />
         <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white/30 transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${bufferedPct}%` }" />
         <div
@@ -74,7 +144,7 @@ defineEmits<{
         />
         <div class="absolute top-1/2 left-0 -translate-y-1/2 rounded-full bg-white transition-[height]" :class="isSeeking ? 'h-2' : 'h-1 group-hover/prog:h-2'" :style="{ width: `${progress}%` }" />
         <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md transition-opacity" :class="isSeeking ? 'opacity-100 scale-110' : 'opacity-0 group-hover/prog:opacity-100'" :style="{ left: `${progress}%` }" />
-        <input type="range" :min="0" :max="duration || 0" step="0.1" :value="currentTime" :disabled="!duration" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-none" aria-label="Seek" @pointerdown="$emit('seekStart')" @input="$emit('seekPreview', Number(($event.target as HTMLInputElement).value))" @change="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointerup="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))" @pointercancel="$emit('seekCommit', Number(($event.target as HTMLInputElement).value))">
+        <div v-if="dragging" class="absolute bottom-full -translate-x-1/2 mb-1 px-2 py-0.5 rounded bg-black/80 text-white text-xs font-mono tabular-nums pointer-events-none" :style="{ left: `${Math.min(96, Math.max(4, progress))}%` }">{{ formatTime(currentTime) }}</div>
       </div>
 
       <div class="flex items-center gap-1 md:gap-2">

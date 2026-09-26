@@ -2,19 +2,16 @@ import type { Ref } from 'vue'
 
 type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
-type ScrubPreview = { current: number; delta: number } | null
 
 interface EpisodePlayerTapOptions {
   showControls: Ref<boolean>
   controlsVisible: Ref<boolean>
   seekIndicator: Ref<SeekIndicator>
   seekIndicatorKey: Ref<number>
-  scrubPreview: Ref<ScrubPreview>
   toggleControlsVisibility: () => void
   togglePlay: () => void
   toggleFullscreen: () => void | Promise<void>
   seekRelative: (delta: number) => void
-  cancelPreviewSeek: () => void
 }
 
 export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
@@ -40,7 +37,6 @@ export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
   function showSeekFeedback(side: 'left' | 'right', seconds: number) {
     if (seekIndicatorTimer) clearTimeout(seekIndicatorTimer)
     seekAccumulator += seconds
-    options.scrubPreview.value = null
     options.seekIndicator.value = { side, seconds: seekAccumulator }
     options.seekIndicatorKey.value++
     seekIndicatorTimer = setTimeout(() => {
@@ -52,7 +48,6 @@ export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
   function handleSeekTap(side: 'left' | 'right', isDoubleTap: boolean) {
     if (!isDoubleTap) return scheduleSingleToggle()
     clearPendingTap()
-    options.cancelPreviewSeek()
     const delta = side === 'left' ? -10 : 10
     options.seekRelative(delta)
     showSeekFeedback(side, Math.abs(delta))

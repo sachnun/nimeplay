@@ -5,7 +5,6 @@ import { useEpisodePlayerTap } from './tap'
 
 type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
-type ScrubPreview = { current: number; delta: number } | null
 
 interface EpisodePlayerGestureOptions {
   videoRef: Ref<HTMLVideoElement | null>
@@ -19,7 +18,6 @@ interface EpisodePlayerGestureOptions {
   wasLongPress: Ref<boolean>
   seekIndicator: Ref<SeekIndicator>
   seekIndicatorKey: Ref<number>
-  scrubPreview: Ref<ScrubPreview>
   clearIdleTimer: () => void
   resetIdle: () => void
   seekRelative: (delta: number) => void
@@ -36,12 +34,10 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     controlsVisible: options.controlsVisible,
     seekIndicator: options.seekIndicator,
     seekIndicatorKey: options.seekIndicatorKey,
-    scrubPreview: options.scrubPreview,
     toggleControlsVisibility: options.toggleControlsVisibility,
     togglePlay: options.togglePlay,
     toggleFullscreen: options.toggleFullscreen,
     seekRelative: options.seekRelative,
-    cancelPreviewSeek: () => drag.cancelPreview(),
   })
 
   const speed = useEpisodePlayerSpeedHold({
@@ -55,34 +51,26 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     clearPendingTap: tap.clearPendingTap,
   })
 
-  const drag = useEpisodePlayerDragSeek({
+  const seekBar = useEpisodePlayerDragSeek({
     videoRef: options.videoRef,
     currentTime: options.currentTime,
     duration: options.duration,
     isSeeking: options.isSeeking,
-    scrubPreview: options.scrubPreview,
     showControls: options.showControls,
-    showEpisodes: options.showEpisodes,
     clearIdleTimer: options.clearIdleTimer,
     resetIdle: options.resetIdle,
     seekTo: options.seekTo,
-    isBlocked: () => speed.isActive() || options.speedBoost.value,
-    clearPendingTap: tap.clearPendingTap,
-    cancelLongPressTimer: speed.cancelTimer,
-    resetSeekFeedback: tap.resetFeedback,
   })
 
   let touchTracking = false
   let touchDownZone: TapZone = 'center'
   let touchStartX = 0
   let touchStartY = 0
-  let touchWidth = 1
   let touchMoved = false
   let mouseDown = false
   let mouseDownZone: TapZone = 'center'
   let mouseDownX = 0
   let mouseDownY = 0
-  let mouseWidth = 1
   let mousePointerId: number | null = null
 
   function handleVideoTouchStart(event: TouchEvent) {
@@ -97,7 +85,6 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     touchDownZone = el ? tap.getZone(touch.clientX, el) : 'center'
     touchStartX = touch.clientX
     touchStartY = touch.clientY
-    touchWidth = el ? Math.max(1, el.getBoundingClientRect().width) : (window.innerWidth || 1)
     touchMoved = false
     touchTracking = true
     if (touchDownZone === 'right' && speed.canStart()) speed.startTimer()
@@ -108,32 +95,15 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (event.touches.length !== 1) return
     const touch = event.touches[0]
     if (!touch) return
-    const dx = touch.clientX - touchStartX
-    const dy = touch.clientY - touchStartY
-    if (!drag.isActive()) {
-      if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        if (drag.begin(touchStartX, touchWidth)) {
-          speed.cancelTimer()
-          touchMoved = true
-        }
-      } else if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
-        speed.cancelTimer()
-        touchMoved = true
-      }
-    } else {
-      drag.update(touch.clientX)
+    if (Math.hypot(touch.clientX - touchStartX, touch.clientY - touchStartY) > 12) {
+      speed.cancelTimer()
+      touchMoved = true
     }
   }
 
   function handleVideoTouchEnd(event: TouchEvent) {
-    if (!touchTracking && !drag.isActive()) return
+    if (!touchTracking) return
     touchTracking = false
-    if (drag.isActive()) {
-      if (event.cancelable) event.preventDefault()
-      speed.cancelTimer()
-      drag.end(true)
-      return
-    }
     if (speed.isActive()) {
       if (event.cancelable) event.preventDefault()
       speed.cancelTimer()
@@ -150,7 +120,6 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
   function handleVideoTouchCancel() {
     touchTracking = false
     speed.cancelTimer()
-    if (drag.isActive()) drag.end(true)
     if (speed.isActive()) speed.stop()
   }
 
@@ -161,7 +130,6 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     mouseDownZone = el ? tap.getZone(event.clientX, el) : 'center'
     mouseDownX = event.clientX
     mouseDownY = event.clientY
-    mouseWidth = el ? Math.max(1, el.getBoundingClientRect().width) : (window.innerWidth || 1)
     mouseDown = true
     mousePointerId = event.pointerId
     if (el) {
@@ -174,29 +142,15 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (event.pointerType === 'touch') return
     if (!mouseDown) return
     if (mousePointerId !== null && event.pointerId !== mousePointerId) return
-    const dx = event.clientX - mouseDownX
-    const dy = event.clientY - mouseDownY
-    if (!drag.isActive()) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        if (drag.begin(mouseDownX, mouseWidth)) speed.cancelTimer()
-      }
-    } else {
-      drag.update(event.clientX)
-    }
+    if (Math.hypot(event.clientX - mouseDownX, event.clientY - mouseDownY) > 8) speed.cancelTimer()
   }
 
   function handleVideoPointerUp(event: PointerEvent) {
     if (event.pointerType === 'touch') return
-    if (!mouseDown && !drag.isActive()) return
+    if (!mouseDown) return
     if (mousePointerId !== null && event.pointerId !== mousePointerId) return
     mouseDown = false
     mousePointerId = null
-    if (drag.isActive()) {
-      event.preventDefault()
-      speed.cancelTimer()
-      drag.end(true)
-      return
-    }
     if (speed.isActive()) {
       speed.cancelTimer()
       speed.stop()
@@ -204,9 +158,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
       return
     }
     speed.cancelTimer()
-    const dx = event.clientX - mouseDownX
-    const dy = event.clientY - mouseDownY
-    if (Math.hypot(dx, dy) > 10) return
+    if (Math.hypot(event.clientX - mouseDownX, event.clientY - mouseDownY) > 10) return
     event.preventDefault()
     tap.handleZoneTap(mouseDownZone)
   }
@@ -216,20 +168,18 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     mouseDown = false
     mousePointerId = null
     speed.cancelTimer()
-    if (drag.isActive()) drag.end(true)
     if (speed.isActive()) speed.stop()
   }
 
   function clearGestureState() {
     speed.cancelTimer()
-    drag.cancelPreview()
+    seekBar.cancelPreview()
     tap.resetFeedback()
     tap.clearPendingTap()
     touchTracking = false
     touchMoved = false
     mouseDown = false
     mousePointerId = null
-    drag.clear()
     speed.clear()
     options.isSeeking.value = false
     options.wasLongPress.value = false
@@ -245,8 +195,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     handleVideoTouchEnd,
     handleVideoTouchMove,
     handleVideoTouchStart,
-    onSeekCommit: drag.commit,
-    onSeekPreview: drag.preview,
-    onSeekStart: drag.start,
+    onSeekCommit: seekBar.commit,
+    onSeekPreview: seekBar.preview,
+    onSeekStart: seekBar.start,
   }
 }

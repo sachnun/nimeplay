@@ -16,7 +16,7 @@ export function useEpisodePlayerKeyboard(options: EpisodePlayerKeyboardOptions) 
   const { videoRef, togglePlay, seekRelative, showSeekFeedback, changeVolume, toggleMute, toggleFullscreen } = options
 
   function isInteractiveTarget(target: HTMLElement | null) {
-    return Boolean(target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"]')))
+    return Boolean(target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"], [role="slider"]')))
   }
 
   function keyboardShortcutKey(event: KeyboardEvent) {

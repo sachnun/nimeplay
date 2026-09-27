@@ -33,12 +33,6 @@ export function titlesOf(title: TitleNames): string[] {
   return [...new Set(values)]
 }
 
-export function sourceLabel(value: string | null | undefined): string | null {
-  if (!value) return null
-  const lower = value.toLowerCase().replace(/_/g, ' ')
-  return lower.charAt(0).toUpperCase() + lower.slice(1)
-}
-
 const TITLE_STOPWORDS = new Set(['the', 'and', 'for', 'episode', 'movie', 'special', 'ova', 'end'])
 
 function titleWords(value: string): Set<string> {

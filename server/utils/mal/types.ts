@@ -33,7 +33,6 @@ export interface MalAnime {
   year: number | null
   trailerId: string | null
   studio: string | null
-  source: string | null
   episodeTotal: number | null
   genres: string[]
   characters: MalCharacter[]

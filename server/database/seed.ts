@@ -26,7 +26,6 @@ interface SeedAnime {
   type: string
   day?: string
   studio: string
-  source: string
   start: string
   episodes: number
   genres: string[]
@@ -70,7 +69,6 @@ const subtitles = ['Requiem', 'Rebirth', 'Zero', 'Aftermath', 'Legacy', 'Protoco
 const suffixes = ['Academy', 'Chronicles', 'Project', 'Saga', 'Frontier', 'Society', 'Experiment', 'Crusade']
 const genrePool = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Sci-Fi', 'Supernatural', 'Horror', 'Mystery', 'Psychological', 'Thriller', 'Romance', 'Slice of Life', 'Sports', 'Music', 'Mecha', 'Isekai', 'Shounen']
 const studios = ['Madhouse', 'MAPPA', 'ufotable', 'Bones', 'Wit Studio', 'A-1 Pictures', 'White Fox', 'Production I.G', 'Kyoto Animation', 'CloverWorks', 'Trigger', 'Shaft', 'J.C.Staff', 'Studio Pierrot']
-const sources = ['Manga', 'Light Novel', 'Web Novel', 'Original', 'Visual Novel', 'Web Comic', 'Manhwa']
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const givenNames = ['Haru', 'Akira', 'Yuki', 'Rin', 'Sora', 'Kaito', 'Mei', 'Ren', 'Hina', 'Sota', 'Aoi', 'Itsuki', 'Nao', 'Takumi', 'Emi', 'Kohaku', 'Shion', 'Ayaka', 'Daichi', 'Mio']
 const familyNames = ['Tanaka', 'Suzuki', 'Sato', 'Yamada', 'Kobayashi', 'Ishikawa', 'Fujimoto', 'Nakamura', 'Hayashi', 'Mori', 'Okada', 'Shimizu', 'Kuroda', 'Sakamoto', 'Nishimura', 'Hasegawa', 'Aoyama', 'Yoshida', 'Kawasaki', 'Matsuda']
@@ -158,7 +156,6 @@ function buildCatalog(count: number): SeedAnime[] {
       type: 'TV',
       day: status === 'ONGOING' ? pick(days) : undefined,
       studio: pick(studios),
-      source: pick(sources),
       start: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       episodes: status === 'ONGOING' ? int(6, 24) : int(12, 64),
       genres,
@@ -184,7 +181,6 @@ function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert
     type: entry.type,
     day: entry.status === 'ONGOING' ? entry.day ?? null : null,
     studio: entry.studio,
-    source: entry.source,
     episodeCount: entry.episodes,
     latestEpisode: entry.episodes,
     latestEpisodeAt: new Date(`${last}T00:00:00Z`),

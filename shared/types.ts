@@ -45,7 +45,6 @@ export interface AnimeDetail {
   duration: string
   releaseDate: string
   studio: string
-  source: string
   genres: Genre[]
   thumbnail: string
   synopsis: string

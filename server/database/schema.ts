@@ -38,7 +38,6 @@ export const anime = pgTable('anime', {
   day: text('day'),
   type: text('type'),
   studio: text('studio'),
-  source: text('source'),
   trailerId: text('trailer_id'),
   episodeCount: integer('episode_count').notNull().default(0),
   latestEpisode: integer('latest_episode'),

@@ -43,7 +43,6 @@ export interface AniListMedia {
   trailer?: { id?: string | null, site?: string | null } | null
   studios?: { nodes?: { name: string }[] } | null
   genres?: string[] | null
-  source?: string | null
   episodes?: number | null
   characters?: {
     edges?: {
@@ -91,7 +90,6 @@ const MEDIA_QUERY = `query ($idMal: Int) {
     trailer { id site }
     studios(isMain: true) { nodes { name } }
     genres
-    source
     episodes
     characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
       edges {

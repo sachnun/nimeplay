@@ -44,7 +44,7 @@ async function searchByFullText(match: string): Promise<SearchResult[]> {
           select string_agg(title_value, ' ')
           from jsonb_array_elements_text(anime.extra -> 'titles') as titles(title_value)
         ), '')), 'A') ||
-        setweight(to_tsvector('simple', concat_ws(' ', anime.studio, anime.type, anime.source)), 'B') ||
+        setweight(to_tsvector('simple', concat_ws(' ', anime.studio, anime.type)), 'B') ||
         setweight(to_tsvector('simple', coalesce((
           select string_agg(g.name, ' ')
           from anime_genres ag

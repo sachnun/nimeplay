@@ -130,7 +130,6 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     year: mal.year,
     trailerId: mal.trailerId,
     studio: mal.studio,
-    source: mal.source,
     extra: { episodeTotal: mal.episodeTotal, titles: mal.titles },
     metadataSyncedAt: new Date(),
     updatedAt: new Date(),

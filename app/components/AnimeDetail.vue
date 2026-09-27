@@ -17,7 +17,6 @@ const props = defineProps<{
 const infoItems = computed(() => [
   { label: 'Status', value: props.otakudesu.status },
   { label: 'Studio', value: props.otakudesu.studio },
-  { label: 'Source', value: props.otakudesu.source },
 ].filter((item) => item.value))
 
 const headerRef = shallowRef<HTMLElement | null>(null)

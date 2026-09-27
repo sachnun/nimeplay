@@ -18,7 +18,6 @@ defineProps<{ anime: AnimeDetail; hideBack?: boolean }>()
       type: anime.type,
       duration: anime.duration,
       studio: anime.studio,
-      source: anime.source,
       releaseDate: anime.releaseDate,
     }"
     :episodes="anime.episodes.map(entry => entry.number)"

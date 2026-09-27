@@ -1,6 +1,6 @@
 import { cleanSynopsis } from './synopsis'
 import { fetchAniListMedia, fetchAniListSearch, type AniListMedia } from './anilist'
-import { decodeEntities, matchTitleOf, sourceLabel, stripHtml, titleOf, titlesOf } from './matching'
+import { decodeEntities, matchTitleOf, stripHtml, titleOf, titlesOf } from './matching'
 import type { MalAnime, MalCharacter, MalSearchEntry } from './types'
 
 export function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
@@ -80,7 +80,6 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     year: seasonYear(media),
     trailerId: trailer,
     studio: media.studios?.nodes?.map(studio => studio.name).join(', ') || null,
-    source: sourceLabel(media.source),
     episodeTotal: media.episodes ?? null,
     genres: media.genres ?? [],
     characters: parseCharacters(media),

@@ -51,6 +51,5 @@ export interface OtakudesuInfo {
   type: string
   duration: string
   studio: string
-  source: string
   releaseDate: string
 }

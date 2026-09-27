@@ -3,11 +3,15 @@ import { alias } from 'drizzle-orm/pg-core'
 import { anime, animeGenres, genres } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'
-import { CATALOG_READY, PAGE_SIZE, formatSeason } from './shared'
+import { BLOCKED_GENRE_SLUGS_SQL, CATALOG_READY, PAGE_SIZE, formatSeason } from './shared'
 import type { Genre, GenreAnimeCard } from '#shared/types'
 
 export async function getGenreList(): Promise<Genre[]> {
-  const rows = await db().select({ name: genres.name, slug: genres.slug }).from(genres).orderBy(asc(genres.name))
+  const rows = await db()
+    .select({ name: genres.name, slug: genres.slug })
+    .from(genres)
+    .where(sql`${genres.slug} not in (${BLOCKED_GENRE_SLUGS_SQL})`)
+    .orderBy(asc(genres.name))
   return rows
 }
 
@@ -24,7 +28,9 @@ export async function getGenreAnimePage(
   slug: string,
   page: number,
 ): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
-  const [genre] = await db().select({ id: genres.id }).from(genres).where(eq(genres.slug, slug)).limit(1)
+  const [genre] = await db().select({ id: genres.id }).from(genres)
+    .where(and(eq(genres.slug, slug), sql`${genres.slug} not in (${BLOCKED_GENRE_SLUGS_SQL})`))
+    .limit(1)
   if (!genre) return null
 
   const filter = and(eq(animeGenres.genreId, genre.id), CATALOG_READY)

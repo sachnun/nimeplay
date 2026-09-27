@@ -3,11 +3,19 @@ import { anime } from '../../../database/schema'
 
 export const PAGE_SIZE = 24
 
+export const BLOCKED_GENRE_SLUGS = ['hentai']
+
+export const BLOCKED_GENRE_SLUGS_SQL = sql.raw(BLOCKED_GENRE_SLUGS.map(slug => `'${slug}'`).join(', '))
+
 export function playableEpisodeExists(id: SQL): SQL {
   return sql`exists (select 1 from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${id})`
 }
 
-export const CATALOG_READY = sql`${anime.malId} is not null and ${playableEpisodeExists(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
+export function notBlockedGenre(id: SQL): SQL {
+  return sql`not exists (select 1 from anime_genres ag join genres g on g.id = ag.genre_id where ag.anime_id = ${id} and g.slug in (${BLOCKED_GENRE_SLUGS_SQL}))`
+}
+
+export const CATALOG_READY = sql`${anime.malId} is not null and ${playableEpisodeExists(sql`${anime.id}`)} and ${notBlockedGenre(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
 const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
 

@@ -3,7 +3,7 @@ import { anime } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'
 import { toFtsQuery } from '../fts'
-import { playableEpisodeExists } from './shared'
+import { notBlockedGenre, playableEpisodeExists } from './shared'
 import type { SearchResult } from '#shared/types'
 
 function toSearchResult(row: Record<string, unknown>): SearchResult {
@@ -60,6 +60,7 @@ async function searchByFullText(match: string): Promise<SearchResult[]> {
       from anime
       where anime.mal_id is not null
         and ${playableEpisodeExists(sql`${anime.id}`)}
+        and ${notBlockedGenre(sql`${anime.id}`)}
         and (anime.status is distinct from 'COMPLETED' or (anime.extra ->> 'episodeTotal') is null or anime.episode_count >= (anime.extra ->> 'episodeTotal')::int)
     ) a
     where a.doc @@ to_tsquery('simple', ${match})
@@ -91,6 +92,7 @@ async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
     ) alt on true
     where a.mal_id is not null
       and ${playableEpisodeExists(sql.raw('a.id'))}
+      and ${notBlockedGenre(sql.raw('a.id'))}
       and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
       and (a.title % ${raw} or coalesce(alt.sim, 0) >= 0.3)
     order by sim desc, a.rating desc nulls last

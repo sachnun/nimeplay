@@ -3,6 +3,7 @@ import { anime, animeSources, episodes } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { sourcePriority } from '../../sources'
 import { db } from '../index'
+import { notBlockedGenre } from './shared'
 
 export interface EpisodeCandidate {
   episodeSlug: string
@@ -24,7 +25,7 @@ export async function resolveEpisode(
     .from(episodes)
     .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
     .innerJoin(anime, eq(anime.id, animeSources.animeId))
-    .where(and(eq(anime.malId, malId), eq(episodes.number, number)))
+    .where(and(eq(anime.malId, malId), eq(episodes.number, number), notBlockedGenre(sql`${anime.id}`)))
 
   if (rows.length === 0) return null
   rows.sort((a, b) => sourcePriority(a.source) - sourcePriority(b.source))

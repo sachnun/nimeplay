@@ -3,9 +3,8 @@ import type { Genre } from '~/types'
 export function useGenres() {
   const nuxtApp = useNuxtApp()
   const route = useRoute()
-  const orpc = useOrpc()
 
-  const list = useAsyncData<Genre[]>('genres', () => orpc.catalog.genres(), {
+  const list = useAsyncData<Genre[]>('genres', () => fetchGenres(), {
     default: () => [],
   })
 

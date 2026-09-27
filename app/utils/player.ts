@@ -1,10 +1,9 @@
-import type { EpisodeData } from '~/types'
+import type { EpisodeData, EpisodeSource } from '~/types'
 import { qualityRank, sourcePriority } from '#shared/mirror'
 
 export type MirrorCandidate = {
-  dataContent: string
+  server: string
   quality: string
-  name: string
 }
 
 const QUALITY_BITRATE: Record<string, number> = {
@@ -25,46 +24,47 @@ export function hasFiniteDuration(video: HTMLVideoElement | null | undefined) {
   return Boolean(video?.duration && Number.isFinite(video.duration))
 }
 
-function sortedSources(mirror: EpisodeData['mirrors'][number]) {
-  return [...mirror.sources].sort((a, b) => sourcePriority(a.name) - sourcePriority(b.name))
+function sortSources(sources: EpisodeSource[]): EpisodeSource[] {
+  return [...sources].sort((a, b) =>
+    qualityRank(a.quality) - qualityRank(b.quality)
+    || sourcePriority(a.server) - sourcePriority(b.server),
+  )
 }
 
-function toCandidate(quality: string, source: { dataContent: string; name: string }): MirrorCandidate {
-  return { dataContent: source.dataContent, quality, name: source.name }
-}
-
-function reorderMirrors(mirrors: EpisodeData['mirrors'], startQuality: string) {
-  const sorted = [...mirrors].sort((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
-  const startIdx = sorted.findIndex((m) => m.quality === startQuality)
-  return startIdx > 0 ? [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)] : sorted
-}
-
-export function buildFallbackOrder(mirrors: EpisodeData['mirrors'], startQuality: string, excludeDataContent?: string): MirrorCandidate[] {
+function toCandidates(sources: EpisodeSource[]): MirrorCandidate[] {
+  const seen = new Set<string>()
   const candidates: MirrorCandidate[] = []
-  for (const mirror of reorderMirrors(mirrors, startQuality)) {
-    for (const source of sortedSources(mirror)) {
-      if (excludeDataContent && source.dataContent === excludeDataContent) continue
-      candidates.push(toCandidate(mirror.quality, source))
-    }
+  for (const source of sources) {
+    const key = `${source.quality}\u0000${source.server}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    candidates.push({ server: source.server, quality: source.quality })
   }
   return candidates
 }
 
-export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {
-  const order = buildFallbackOrder(episode.mirrors, '720p')
-  return order[0] ?? null
+function reorderSources(sources: EpisodeSource[], startQuality: string) {
+  const sorted = sortSources(sources)
+  const startIdx = sorted.findIndex((source) => source.quality === startQuality)
+  return startIdx > 0 ? [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)] : sorted
 }
 
-export function listQualityLevels(mirrors: EpisodeData['mirrors']): MirrorCandidate[] {
-  const sorted = [...mirrors].sort((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
+export function buildFallbackOrder(sources: EpisodeSource[], startQuality: string, exclude?: MirrorCandidate): MirrorCandidate[] {
+  return toCandidates(reorderSources(sources, startQuality))
+    .filter((candidate) => !exclude || candidate.server !== exclude.server || candidate.quality !== exclude.quality)
+}
+
+export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {
+  return buildFallbackOrder(episode.sources, '720p')[0] ?? null
+}
+
+export function listQualityLevels(sources: EpisodeSource[]): MirrorCandidate[] {
   const seen = new Set<string>()
   const levels: MirrorCandidate[] = []
-  for (const mirror of sorted) {
-    if (seen.has(mirror.quality)) continue
-    const best = sortedSources(mirror)[0]
-    if (!best) continue
-    seen.add(mirror.quality)
-    levels.push(toCandidate(mirror.quality, best))
+  for (const candidate of toCandidates(sortSources(sources))) {
+    if (seen.has(candidate.quality)) continue
+    seen.add(candidate.quality)
+    levels.push(candidate)
   }
   return levels
 }

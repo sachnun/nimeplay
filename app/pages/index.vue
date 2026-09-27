@@ -1,12 +1,4 @@
 <script setup lang="ts">
-import type { AnimeCard, Genre } from '~/types'
-
-interface HomeData {
-  ongoingData: { anime: AnimeCard[]; totalPages: number }
-  completedData: { anime: AnimeCard[]; totalPages: number }
-  genres: Genre[]
-}
-
 useHead({ title: 'Nimeplay', titleTemplate: '%s' })
 
 definePageMeta({
@@ -15,10 +7,8 @@ definePageMeta({
   scrollToTop: (_to, from) => !from.meta.browse,
 })
 
-const orpc = useOrpc()
-
 const { data, error, status } = await useAsyncData<HomeData>('home', async () => {
-  return orpc.catalog.home()
+  return fetchHome()
 }, {
   default: () => ({
     ongoingData: { anime: [], totalPages: 1 },

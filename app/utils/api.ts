@@ -10,6 +10,12 @@ import type {
 
 const BASE = '/api/v1'
 
+type ApiFetch = (url: string, options?: Record<string, unknown>) => Promise<unknown>
+
+function api<T>(url: string, options?: Record<string, unknown>): Promise<T> {
+  return (useRequestFetch() as unknown as ApiFetch)(url, options) as Promise<T>
+}
+
 interface ListResponse<T> {
   data: T[]
   page: number
@@ -43,9 +49,9 @@ function asPage<T>(response: ListResponse<T>): PageData<T> {
 
 export function fetchHome(): Promise<HomeData> {
   return Promise.all([
-    $fetch<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type: 'ongoing' } }),
-    $fetch<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type: 'completed' } }),
-    $fetch<{ data: Genre[] }>(`${BASE}/genres`),
+    api<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type: 'ongoing' } }),
+    api<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type: 'completed' } }),
+    api<{ data: Genre[] }>(`${BASE}/genres`),
   ]).then(([ongoing, completed, genres]) => ({
     ongoingData: asPage(ongoing),
     completedData: asPage(completed),
@@ -54,23 +60,23 @@ export function fetchHome(): Promise<HomeData> {
 }
 
 export function fetchAnimePage(type: 'ONGOING' | 'COMPLETED', page: number): Promise<PageData<AnimeCard>> {
-  return $fetch<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type, page } }).then(asPage)
+  return api<ListResponse<AnimeCard>>(`${BASE}/anime`, { query: { type, page } }).then(asPage)
 }
 
 export function fetchGenrePage(slug: string, page: number): Promise<PageData<GenreAnimeCard>> {
-  return $fetch<ListResponse<GenreAnimeCard>>(`${BASE}/genre/${slug}`, { query: { page } }).then(asPage)
+  return api<ListResponse<GenreAnimeCard>>(`${BASE}/genre/${slug}`, { query: { page } }).then(asPage)
 }
 
 export function fetchGenres(): Promise<Genre[]> {
-  return $fetch<{ data: Genre[] }>(`${BASE}/genres`).then((response) => response.data)
+  return api<{ data: Genre[] }>(`${BASE}/genres`).then((response) => response.data)
 }
 
 export function fetchSearch(query: string): Promise<SearchResult[]> {
-  return $fetch<ListResponse<SearchResult>>(`${BASE}/anime`, { query: { q: query } }).then((response) => response.data)
+  return api<ListResponse<SearchResult>>(`${BASE}/anime`, { query: { q: query } }).then((response) => response.data)
 }
 
 export function fetchAnimeDetail(malId: number): Promise<AnimeDetail> {
-  return $fetch<AnimeDetail>(`${BASE}/anime/${malId}`)
+  return api<AnimeDetail>(`${BASE}/anime/${malId}`)
 }
 
 export interface EpisodePick {
@@ -85,7 +91,7 @@ export function fetchEpisode(malId: number, episode: number, pick: EpisodePick =
   if (pick.quality) query.quality = pick.quality
   if (pick.stream === false) query.stream = 0
   const hasQuery = Object.keys(query).length > 0
-  return $fetch<EpisodeResponse>(`${BASE}/anime/${malId}/${episode}`, { query: hasQuery ? query : undefined })
+  return api<EpisodeResponse>(`${BASE}/anime/${malId}/${episode}`, { query: hasQuery ? query : undefined })
 }
 
 export function toEpisodePageData(response: EpisodeResponse): EpisodePageData {

@@ -1,5 +1,6 @@
 import { preloadHls } from '~/utils/hls'
 import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
+import { fetchEpisode, toEpisodePageData } from '~/utils/api'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerKeyboard } from './player/keyboard'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
@@ -32,7 +33,6 @@ const START_CONTROLS_IDLE_MS = 1200
 
 export function useEpisodePlayer(props: EpisodePlayerProps) {
   const router = useRouter()
-  const orpc = useOrpc()
 
   const episode = ref(props.episode)
   const currentEpisodeNum = ref(props.episodeNumber)
@@ -90,7 +90,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     return episodeAtOffset(-1)
   })
 
-  const qualityLevels = computed(() => listQualityLevels(episode.value.mirrors))
+  const qualityLevels = computed(() => listQualityLevels(episode.value.sources))
 
   function bufferAhead() {
     const video = videoRef.value
@@ -240,6 +240,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     playWithFallback,
     triggerFallback,
   } = useEpisodePlayerResolution({
+    malId: props.malId,
+    currentEpisodeNum,
     activeQuality,
     directUrl,
     directKind,
@@ -298,7 +300,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     let data: EpisodePageData | null = null
     try {
-      data = await orpc.anime.episode({ malId: props.malId, episode: epNum })
+      data = toEpisodePageData(await fetchEpisode(props.malId, epNum))
     }
     catch {
       resolving.value = false
@@ -449,7 +451,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function loadEpisodeSource(value: EpisodeData) {
     if (!import.meta.client) return
-    const def = pickInitialQuality(qualityLevels.value) ?? findDefaultMirror(value)
+    const stream = value.stream
+    const def = (stream && { server: stream.server, quality: stream.quality })
+      ?? pickInitialQuality(qualityLevels.value)
+      ?? findDefaultMirror(value)
     if (!def) {
       resolving.value = false
       return
@@ -498,7 +503,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const target = nextEpisode.value
     if (!target || !import.meta.client) return
     const run = () => {
-      orpc.anime.episode({ malId: props.malId, episode: target.num }).catch(() => {})
+      fetchEpisode(props.malId, target.num, { stream: false }).catch(() => {})
     }
     if ('requestIdleCallback' in window) (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback(run, { timeout: 2000 })
     else setTimeout(run, 1500)

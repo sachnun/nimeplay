@@ -2,13 +2,12 @@
 import type { AnimeDetail } from '~/types'
 
 const route = useRoute()
-const orpc = useOrpc()
 const malId = computed(() => Number(route.params.malId) || 0)
 const isEpisodeRoute = computed(() => Boolean(route.params.episode))
 
 const { data: anime, pending, error } = await useAsyncData<AnimeDetail | null>(
   () => `anime-detail-${malId.value}`,
-  () => orpc.anime.detail({ malId: malId.value }),
+  () => fetchAnimeDetail(malId.value),
   { watch: [malId, isEpisodeRoute] },
 )
 

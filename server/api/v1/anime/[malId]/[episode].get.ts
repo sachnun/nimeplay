@@ -38,6 +38,13 @@ defineRouteMeta({
         schema: { type: 'string' },
         description: 'Preferred quality, for example 720p',
       },
+      {
+        name: 'stream',
+        in: 'query',
+        required: false,
+        schema: { type: 'string', enum: ['1', '0'], default: '1' },
+        description: 'Set to 0 to skip resolving a playable stream URL',
+      },
     ],
     responses: {
       '200': { description: 'Episode with direct stream URL' },
@@ -56,6 +63,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const preferredServer = String(query.server || '').toLowerCase().trim()
   const preferredQuality = String(query.quality || '').trim()
+  const resolveStream = !['0', 'false'].includes(String(query.stream ?? '').toLowerCase())
 
   const resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
@@ -86,7 +94,7 @@ export default defineEventHandler(async (event) => {
       )
     : null
   if (requested) {
-    ordered = [requested, ...candidates.filter(candidate => candidate.dataContent !== requested.dataContent)]
+    ordered = [requested]
   }
   else {
     const best = selectDefaultCandidate(scraped.mirrors)
@@ -98,7 +106,7 @@ export default defineEventHandler(async (event) => {
 
   const origin = getRequestURL(event).origin
   let stream: { playUrl: string, kind: 'hls' | 'file', quality: string, server: string } | null = null
-  for (const candidate of ordered.slice(0, 3)) {
+  for (const candidate of resolveStream ? ordered.slice(0, 3) : []) {
     try {
       const result = await prepareMirror(candidate.dataContent, origin)
       if (result.ok && result.playUrl && result.kind) {

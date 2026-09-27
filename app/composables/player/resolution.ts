@@ -1,9 +1,12 @@
 import type { Ref } from 'vue'
 import { preloadHls } from '~/utils/hls'
+import { fetchEpisode } from '~/utils/api'
 import type { EpisodeData } from '~/types'
 import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
+  malId: number
+  currentEpisodeNum: Ref<number>
   activeQuality: Ref<string>
   directUrl: Ref<string | null>
   directKind: Ref<'hls' | 'file' | null>
@@ -13,7 +16,6 @@ interface EpisodePlayerResolutionOptions {
 }
 
 export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptions) {
-  const orpc = useOrpc()
   let fallbackFn: (() => void) | null = null
   let playbackSession = 0
   let fallbackRunning = false
@@ -44,9 +46,13 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {
+    const cached = options.episode.value.stream
+    if (cached && cached.server === candidate.server && cached.quality === candidate.quality) {
+      return { prepared: cached }
+    }
     try {
-      const prepared = await orpc.mirror.prepare({ dataContent: candidate.dataContent })
-      return { prepared }
+      const response = await fetchEpisode(options.malId, options.currentEpisodeNum.value, { server: candidate.server, quality: candidate.quality })
+      return { prepared: response.stream }
     } catch {
       return null
     }
@@ -90,7 +96,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     if (manual) return [startCandidate]
     return [
       startCandidate,
-      ...buildFallbackOrder(options.episode.value.mirrors, startCandidate.quality, startCandidate.dataContent),
+      ...buildFallbackOrder(options.episode.value.sources, startCandidate.quality, startCandidate),
     ]
   }
 

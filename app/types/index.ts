@@ -1,12 +1,22 @@
 export type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#shared/types'
 
+export interface EpisodeSource {
+  server: string
+  quality: string
+}
+
+export interface EpisodeStream {
+  playUrl: string
+  kind: 'hls' | 'file'
+  quality: string
+  server: string
+}
+
 export interface EpisodeData {
   title: string
-  mirrors: {
-    quality: string
-    sources: { name: string; dataContent: string }[]
-  }[]
   thumbnail: string
+  sources: EpisodeSource[]
+  stream: EpisodeStream | null
 }
 
 export interface EpisodeMetaData {

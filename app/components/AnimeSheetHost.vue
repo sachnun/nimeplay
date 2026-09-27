@@ -2,7 +2,6 @@
 import type { AnimeDetail } from '~/types'
 
 const sheet = useAnimeSheet()
-const orpc = useOrpc()
 const open = computed(() => sheet.state.value.open)
 const anime = ref<AnimeDetail | null>(null)
 const sheetRef = ref<{ requestClose: () => void } | null>(null)
@@ -12,7 +11,7 @@ watch(() => sheet.state.value.malId, async (malId) => {
   anime.value = null
   if (!malId) return
   try {
-    anime.value = await orpc.anime.detail({ malId })
+    anime.value = await fetchAnimeDetail(malId)
   } catch {
     anime.value = null
     sheet.markClosed()

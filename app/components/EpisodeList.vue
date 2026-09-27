@@ -7,7 +7,6 @@ const props = defineProps<{
   malId: number
 }>()
 
-const orpc = useOrpc()
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
 const reversedEpisodes = computed(() => [...props.episodes].reverse())
 const prefetched = new Set<number>()
@@ -20,7 +19,7 @@ async function refreshEpisodeStatuses() {
 function prefetchEpisode(number: number) {
   if (!import.meta.client || prefetched.has(number)) return
   prefetched.add(number)
-  orpc.anime.episode({ malId: props.malId, episode: number }).catch(() => {
+  fetchEpisode(props.malId, number, { stream: false }).catch(() => {
     prefetched.delete(number)
   })
   if (!hlsPreloaded) {

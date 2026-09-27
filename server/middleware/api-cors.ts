@@ -5,7 +5,7 @@ const EXTRA_ROUTES = ['/openapi.json', '/docs']
 const API_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, TRPC-Accept, X-TRPC-Source',
+  'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Max-Age': '86400',
 }
 

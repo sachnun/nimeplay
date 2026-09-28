@@ -3,7 +3,7 @@ import { fetchAniListMedia, fetchAniListSearch, type AniListMedia } from './anil
 import { decodeEntities, matchTitleOf, stripHtml, titleOf, titlesOf } from './matching'
 import type { MalAnime, MalCharacter, MalSearchEntry } from './types'
 
-export function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
+function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
   if (!raw) return null
   if (raw === 'FINISHED' || raw === 'CANCELLED') return 'COMPLETED'
   if (raw === 'RELEASING' || raw === 'NOT_YET_RELEASED' || raw === 'HIATUS') return 'ONGOING'

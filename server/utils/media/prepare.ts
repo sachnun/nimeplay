@@ -1,29 +1,29 @@
 import { qualityRank, sourcePriority } from '#shared/mirror'
 import { isPlaceholderStreamUrl } from '../extractors/hosts'
 
-export interface PrepareResult {
+interface PrepareResult {
   playUrl: string | null
   kind: 'hls' | 'file' | null
   ok: boolean
 }
 
-export interface MirrorSource {
+interface MirrorSource {
   name: string
   dataContent: string
 }
 
-export interface MirrorGroup {
+interface MirrorGroup {
   quality: string
   sources: MirrorSource[]
 }
 
-export interface DefaultMirrorCandidate {
+interface DefaultMirrorCandidate {
   dataContent: string
   quality: string
   name: string
 }
 
-export function emptyPrepareResult(): PrepareResult {
+function emptyPrepareResult(): PrepareResult {
   return { playUrl: null, kind: null, ok: false }
 }
 

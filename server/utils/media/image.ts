@@ -3,7 +3,7 @@ import sharp from 'sharp'
 
 const WEBP_QUALITY = 78
 
-export interface OptimizedImage {
+interface OptimizedImage {
   bytes: ArrayBuffer
   contentType: string
 }

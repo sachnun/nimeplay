@@ -5,7 +5,7 @@ import { sourcePriority } from '../../sources'
 import { db } from '../index'
 import { notBlockedGenre } from './shared'
 
-export interface EpisodeCandidate {
+interface EpisodeCandidate {
   episodeSlug: string
   source: string
 }

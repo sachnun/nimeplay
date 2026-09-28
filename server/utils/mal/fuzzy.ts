@@ -2,7 +2,7 @@ function tokens(value: string): string[] {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean)
 }
 
-export function jaro(a: string, b: string): number {
+function jaro(a: string, b: string): number {
   if (a === b) return 1
   if (!a.length || !b.length) return 0
   const window = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1)
@@ -42,7 +42,7 @@ export function jaroWinkler(a: string, b: string, prefixScale = 0.1, maxPrefix =
   return base + prefix * prefixScale * (1 - base)
 }
 
-export function damerauLevenshtein(a: string, b: string): number {
+function damerauLevenshtein(a: string, b: string): number {
   const rows = a.length + 1
   const cols = b.length + 1
   const d: number[][] = Array.from({ length: rows }, () => new Array<number>(cols).fill(0))
@@ -60,7 +60,7 @@ export function damerauLevenshtein(a: string, b: string): number {
   return d[a.length]![b.length]!
 }
 
-export function normalizedDamerau(a: string, b: string): number {
+function normalizedDamerau(a: string, b: string): number {
   const longest = Math.max(a.length, b.length)
   if (longest === 0) return 1
   return 1 - damerauLevenshtein(a, b) / longest

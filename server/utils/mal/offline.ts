@@ -19,7 +19,7 @@ interface OfflineIndex {
   entries: OfflineEntry[]
 }
 
-export interface OfflineMatch {
+interface OfflineMatch {
   malId: number
   title: string
   score: number

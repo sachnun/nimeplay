@@ -1,4 +1,4 @@
-import { relations, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import type { EpisodeData } from '../utils/sources/types'
 import {
   bigint,
@@ -166,34 +166,5 @@ export const jobs = pgTable('jobs', {
   uniqueIndex('jobs_dedupe_key').on(table.dedupeKey).where(sql`status in ('waiting', 'active')`),
 ])
 
-export const animeRelations = relations(anime, ({ many }) => ({
-  sources: many(animeSources),
-  genres: many(animeGenres),
-  characters: many(characters),
-}))
-
-export const animeSourcesRelations = relations(animeSources, ({ one, many }) => ({
-  anime: one(anime, { fields: [animeSources.animeId], references: [anime.id] }),
-  episodes: many(episodes),
-}))
-
-export const genresRelations = relations(genres, ({ many }) => ({
-  anime: many(animeGenres),
-}))
-
-export const animeGenresRelations = relations(animeGenres, ({ one }) => ({
-  anime: one(anime, { fields: [animeGenres.animeId], references: [anime.id] }),
-  genre: one(genres, { fields: [animeGenres.genreId], references: [genres.id] }),
-}))
-
-export const charactersRelations = relations(characters, ({ one }) => ({
-  anime: one(anime, { fields: [characters.animeId], references: [anime.id] }),
-}))
-
-export type AnimeRow = typeof anime.$inferSelect
 export type AnimeSourceRow = typeof animeSources.$inferSelect
-export type EpisodeRow = typeof episodes.$inferSelect
-export type GenreRow = typeof genres.$inferSelect
-export type CharacterRow = typeof characters.$inferSelect
-export type MediaRow = typeof media.$inferSelect
 export type JobRow = typeof jobs.$inferSelect

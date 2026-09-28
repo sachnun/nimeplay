@@ -6,7 +6,7 @@ const COMPLETED_PROGRESS_THRESHOLD = 0.87
 
 let dbPromise: Promise<IDBPDatabase> | null = null
 
-export function getDb(): Promise<IDBPDatabase> {
+function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
@@ -86,7 +86,7 @@ export async function getProgress(key: string): Promise<WatchProgress | null> {
   }
 }
 
-export async function getAllProgress(): Promise<WatchProgress[]> {
+async function getAllProgress(): Promise<WatchProgress[]> {
   if (!import.meta.client) return []
   try {
     const db = await getDb()
@@ -97,12 +97,12 @@ export async function getAllProgress(): Promise<WatchProgress[]> {
   }
 }
 
-export function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | null): number {
+function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | null): number {
   if (!progress || !progress.duration || progress.duration <= 0) return 0
   return Math.min(progress.currentTime / progress.duration, 1)
 }
 
-export async function getProgressStatus(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null): Promise<WatchProgressStatus> {
+async function getProgressStatus(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null): Promise<WatchProgressStatus> {
   const actual = typeof progress === 'string' ? await getProgress(progress) : progress
   const ratio = getProgressRatio(actual)
   if (ratio >= COMPLETED_PROGRESS_THRESHOLD) return 'completed'

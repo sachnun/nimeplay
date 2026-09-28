@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { jobs, type JobRow } from '../../database/schema'
 
-export interface JobInput {
+interface JobInput {
   type: string
   payload?: Record<string, unknown>
   dedupeKey?: string
@@ -10,7 +10,7 @@ export interface JobInput {
   maxAttempts?: number
 }
 
-export async function enqueueMany(items: JobInput[]): Promise<void> {
+async function enqueueMany(items: JobInput[]): Promise<void> {
   for (let i = 0; i < items.length; i += 200) {
     const chunk = items.slice(i, i + 200).map(item => ({
       type: item.type,
@@ -69,7 +69,7 @@ const RETRY_JITTER_S = 15
 const RETRY_COOLDOWN_S = 6 * 60 * 60
 const PERMANENT_COOLDOWN_S = 7 * 24 * 60 * 60
 
-export type FailureKind = 'transient' | 'permanent'
+type FailureKind = 'transient' | 'permanent'
 
 export function classifyError(message: string): FailureKind {
   const status = Number(message.match(/Failed to fetch .*?: (\d{3})\b/)?.[1])

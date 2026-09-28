@@ -6,7 +6,7 @@ const CDN_SUFFIX = 'userstorage.mega.co.nz'
 const BLOCK = 16
 const FETCH_TIMEOUT_MS = 20_000
 
-export interface MegaStream {
+interface MegaStream {
   body: ReadableStream<Uint8Array>
   status: number
   contentType: string
@@ -32,7 +32,7 @@ export function megaKeyFromUrl(url: string): string | null {
   return parsed.hash.slice(1) || null
 }
 
-export async function resolveMegaDownload(handle: string): Promise<string | null> {
+async function resolveMegaDownload(handle: string): Promise<string | null> {
   try {
     const res = await fetch(`https://${API_HOST}/cs?id=0&n=${encodeURIComponent(handle)}`, {
       method: 'POST',

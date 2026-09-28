@@ -6,11 +6,9 @@ import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } fr
 import { getSources } from '../sources'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
-import { log, ok, warn } from '../log'
+import { ok, warn } from '../log'
 
 const BATCH = 64
-const WAITING_ALERT = 5000
-const DEAD_ALERT = 1000
 const STALE_MS = 15 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
@@ -81,38 +79,12 @@ async function processJob(job: JobRow): Promise<void> {
   }
 }
 
-async function logStats(): Promise<void> {
-  const counts = await db().execute(sql`
-    select status, count(*)::int as n from jobs where status in ('waiting', 'active', 'dead') group by status
-  `) as unknown as { rows: { status: string, n: number }[] }
-  const waiting = await db().execute(sql`
-    select coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), 'none') as vendor, count(*)::int as n
-    from jobs where status = 'waiting' group by 1 order by n desc limit 5
-  `) as unknown as { rows: { vendor: string, n: number }[] }
-  const dead = await db().execute(sql`
-    select count(*)::int as n from jobs where status = 'dead' and updated_at > now() - interval '1 hour'
-  `) as unknown as { rows: { n: number }[] }
-  const waitingTotal = counts.rows.find(row => row.status === 'waiting')?.n ?? 0
-  const deadHour = dead.rows[0]?.n ?? 0
-  log('[tick]', { counts: counts.rows, waiting: waiting.rows, deadHour })
-  if (waitingTotal > WAITING_ALERT) await alert('queue:backlog', `job queue backlog: ${waitingTotal} waiting`, { waiting: waiting.rows })
-  if (deadHour > DEAD_ALERT) await alert('queue:dead', `${deadHour} jobs died in the last hour`, { counts: counts.rows })
-}
-
 async function drain(): Promise<void> {
   while (true) {
     const claimed = await claim(worker, BATCH, TASK_TYPES, blockedSources())
     if (claimed.length === 0) return
     await Promise.all(claimed.map(processJob))
   }
-}
-
-export async function runTick(): Promise<void> {
-  await releaseStale(STALE_MS)
-  await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
-  await seedRefreshJobs()
-  await drain()
-  await logStats()
 }
 
 export async function runCatalog(): Promise<void> {

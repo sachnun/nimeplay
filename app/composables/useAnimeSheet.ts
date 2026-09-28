@@ -1,4 +1,4 @@
-export interface AnimeSheetState {
+interface AnimeSheetState {
   malId: number
   basePath: string
   open: boolean

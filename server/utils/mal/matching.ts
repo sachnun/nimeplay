@@ -116,7 +116,7 @@ function isAbbrevOnBase(siteBase: string, malBase: string): boolean {
   return walk(0, 0)
 }
 
-export function stripSeasonMarker(title: string): string {
+function stripSeasonMarker(title: string): string {
   return title
     .replace(/\s*:\s*sono\s+\w+\s*$/i, '')
     .replace(/\s*:\s*\w+\s+no\s+(shou|hen|ki|maku)\b.*$/i, '')
@@ -163,7 +163,7 @@ function hasSpinoffPenalty(siteTitle: string, malTitle: string): boolean {
   return [...SPINOFF_STRONG, ...SPINOFF_SOFT].some(hint => mal.includes(hint) && !site.includes(hint))
 }
 
-export function titlesMatch(siteTitle: string, malTitle: string): boolean {
+function titlesMatch(siteTitle: string, malTitle: string): boolean {
   if (movieSeasonClash(siteTitle, malTitle)) return false
   if (hasSpinoffMark(siteTitle, malTitle)) return false
   const siteNorm = normalizeTitle(siteTitle)

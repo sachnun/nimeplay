@@ -79,7 +79,7 @@ export function fetchAnimeDetail(malId: number): Promise<AnimeDetail> {
   return api<AnimeDetail>(`${BASE}/anime/${malId}`)
 }
 
-export interface EpisodePick {
+interface EpisodePick {
   server?: string
   quality?: string
   stream?: boolean

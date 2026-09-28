@@ -11,7 +11,7 @@ export interface TitleNames {
   native?: string | null
 }
 
-export interface AniListSearchMedia {
+interface AniListSearchMedia {
   id: number
   idMal: number | null
   format?: string | null
@@ -104,7 +104,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
 let lastRequestAt = 0
 let blockedUntil = 0
 
-export async function acquireAniListSlot(): Promise<void> {
+async function acquireAniListSlot(): Promise<void> {
   for (;;) {
     const now = Date.now()
     const wait = Math.max(blockedUntil - now, MIN_INTERVAL_MS - (now - lastRequestAt))

@@ -4,7 +4,7 @@ import { episodes } from '../../database/schema'
 import { scrapeEpisode } from '../sources'
 import type { EpisodeData } from '../sources/types'
 
-export async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
+async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
   const [row] = await db()
     .select({ cache: episodes.cache })
     .from(episodes)
@@ -13,7 +13,7 @@ export async function getEpisodeData(slug: string): Promise<EpisodeData | null> 
   return row?.cache ?? null
 }
 
-export async function putEpisodeData(slug: string, data: EpisodeData): Promise<void> {
+async function putEpisodeData(slug: string, data: EpisodeData): Promise<void> {
   await db().update(episodes).set({ cache: data, cachedAt: new Date() }).where(eq(episodes.slug, slug))
 }
 

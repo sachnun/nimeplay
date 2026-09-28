@@ -48,7 +48,7 @@ export function mediaKey(value: string): string | null {
   return null
 }
 
-export function mediaUrl(url: string | null | undefined): string {
+function mediaUrl(url: string | null | undefined): string {
   if (!url) return ''
   const key = mediaKey(url)
   return key ? `/media/${key}` : url
@@ -84,7 +84,7 @@ export function mediaRef(url: string | null | undefined, type: MediaType): Media
   return { key: randomKey(type), sourceUrl: url }
 }
 
-export interface MediaObject {
+interface MediaObject {
   body: ReadableStream | null
   contentType: string
   etag?: string

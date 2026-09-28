@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, sql } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'

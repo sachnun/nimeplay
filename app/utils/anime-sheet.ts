@@ -1,4 +1,4 @@
-export const ANIME_SHEET_QUERY = '(max-width: 1023px)'
+const ANIME_SHEET_QUERY = '(max-width: 1023px)'
 
 export const ANIME_SHEET_DETAIL_RE = /^\/anime\/[^/]+\/?$/
 

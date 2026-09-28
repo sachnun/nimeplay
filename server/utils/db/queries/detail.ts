@@ -7,7 +7,7 @@ import { db } from '../index'
 import { CATALOG_READY, formatSeason } from './shared'
 import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 
-export async function getGenresForAnime(animeId: number): Promise<Genre[]> {
+async function getGenresForAnime(animeId: number): Promise<Genre[]> {
   return db()
     .select({ name: genres.name, slug: genres.slug })
     .from(animeGenres)
@@ -15,7 +15,7 @@ export async function getGenresForAnime(animeId: number): Promise<Genre[]> {
     .where(eq(animeGenres.animeId, animeId))
 }
 
-export async function getCharactersForAnime(animeId: number): Promise<AnimeCharacter[]> {
+async function getCharactersForAnime(animeId: number): Promise<AnimeCharacter[]> {
   const rows = await db()
     .select({
       name: characters.name,

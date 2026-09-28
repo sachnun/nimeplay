@@ -3,7 +3,7 @@ import { anime } from '../../../database/schema'
 
 export const PAGE_SIZE = 24
 
-export const BLOCKED_GENRE_SLUGS = ['hentai']
+const BLOCKED_GENRE_SLUGS = ['hentai']
 
 export const BLOCKED_GENRE_SLUGS_SQL = sql.raw(BLOCKED_GENRE_SLUGS.map(slug => `'${slug}'`).join(', '))
 

@@ -33,8 +33,8 @@ export default defineNuxtConfig({
       route: '/openapi.json',
       production: 'runtime',
       ui: {
-        scalar: { route: '/docs', theme: 'none' },
-        swagger: false,
+        scalar: false,
+        swagger: { route: '/docs' },
       },
     },
   },

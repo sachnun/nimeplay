@@ -3,20 +3,7 @@ name: Cron
 on:
   schedule:
     - cron: '*/30 * * * *'
-  push:
-    branches: [main]
-    paths:
-      - scripts/**
-      - server/**
-      - shared/**
-      - package.json
-      - pnpm-lock.yaml
-      - .github/workflows/cron.yml
   workflow_dispatch:
-
-concurrency:
-  group: cron
-  cancel-in-progress: true
 
 permissions:
   contents: read

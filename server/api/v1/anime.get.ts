@@ -39,6 +39,7 @@ defineRouteMeta({
         content: {
           'application/json': {
             schema: {
+              type: 'object',
               oneOf: [
                 { $ref: '#/components/schemas/AnimeList' },
                 { $ref: '#/components/schemas/SearchList' },
@@ -233,6 +234,7 @@ defineRouteMeta({
               episodes: { type: 'array', items: { type: 'integer' }, example: [1, 2, 3] },
               servers: { type: 'array', items: { $ref: '#/components/schemas/EpisodeServer' } },
               stream: {
+                type: ['object', 'null'],
                 description: 'Null when stream=0 or no mirror resolved',
                 oneOf: [{ $ref: '#/components/schemas/Stream' }, { type: 'null' }],
               },

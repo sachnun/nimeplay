@@ -4,7 +4,7 @@ const searchOpen = ref(false)
 </script>
 
 <template>
-  <div class="px-6 py-8">
+  <div class="px-6 pb-8">
     <GenreFilter :genres="genres" :selected-genre="selectedGenre" @search="searchOpen = true" @sign-in="searchOpen = false" />
 
     <slot />

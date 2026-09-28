@@ -11,76 +11,137 @@ const emit = defineEmits<{
   signIn: []
 }>()
 
-const detailsRef = shallowRef<HTMLDetailsElement | null>(null)
-const detailsOpen = ref(false)
+const scrollRef = shallowRef<HTMLDivElement | null>(null)
+const menuButtonRef = shallowRef<HTMLButtonElement | null>(null)
+const menuRef = shallowRef<HTMLDivElement | null>(null)
+const menuOpen = ref(false)
+const menuStyle = ref<Record<string, string>>({})
 
-function onToggle(e: Event) {
-  detailsOpen.value = (e.target as HTMLDetailsElement).open
+function positionMenu() {
+  const el = menuButtonRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  menuStyle.value = { top: `${rect.bottom + 8}px`, left: `${rect.left}px` }
+}
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+  if (menuOpen.value) positionMenu()
+}
+
+function closeMenu() {
+  menuOpen.value = false
+}
+
+function onScroll() {
+  if (menuOpen.value) positionMenu()
+  updateOverflow()
+}
+
+const hasMoreLeft = ref(false)
+const hasMoreRight = ref(false)
+
+function updateOverflow() {
+  const el = scrollRef.value
+  if (!el) return
+  hasMoreLeft.value = el.scrollLeft > 1
+  hasMoreRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
 }
 
 function onClickOutside(event: MouseEvent) {
-  if (detailsRef.value?.open && !detailsRef.value.contains(event.target as Node)) {
-    detailsRef.value.open = false
-  }
+  if (!menuOpen.value) return
+  const target = event.target as Node
+  if (menuRef.value?.contains(target) || menuButtonRef.value?.contains(target)) return
+  menuOpen.value = false
 }
 
 onMounted(() => document.addEventListener('click', onClickOutside))
 onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
 
-const showAll = ref(false)
-const visibleCount = ref(20)
-const measureRef = shallowRef<HTMLDivElement | null>(null)
+let dragging = false
+let moved = false
+let startX = 0
+let startScroll = 0
 
-function countFirstRowItems(children: HTMLElement[], firstTop: number, limit: number) {
-  let count = 0
-  for (let i = 1; i < limit; i++) {
-    const child = children[i]
-    if (!child || child.offsetTop > firstTop) break
-    count++
-  }
-  return count
-}
-
-function fitMoreSlot(el: HTMLElement, children: HTMLElement[], count: number, moreEl: HTMLElement) {
-  const containerWidth = el.offsetWidth
-  const moreWidth = moreEl.offsetWidth
-  const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 8
-  let fitted = count
-  while (fitted >= 1) {
-    const child = children[fitted]
-    if (!child) break
-    if (child.offsetLeft + child.offsetWidth + gap + moreWidth <= containerWidth) break
-    fitted--
-  }
-  return Math.max(1, fitted)
-}
-
-function calculate() {
-  const el = measureRef.value
+function onPointerDown(e: PointerEvent) {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return
+  const el = scrollRef.value
   if (!el) return
-  const children = Array.from(el.children) as HTMLElement[]
-  const moreEl = el.querySelector<HTMLElement>('[data-more-slot]')
-  if (children.length < 2) return
-  const first = children[0]
-  if (!first) return
-  const limit = moreEl ? children.length - 1 : children.length
-  let count = countFirstRowItems(children, first.offsetTop, limit)
-  if (count < props.genres.length) {
-    count = moreEl ? fitMoreSlot(el, children, count, moreEl) : Math.max(1, count - 1)
-  }
-  visibleCount.value = count
+  dragging = true
+  moved = false
+  startX = e.clientX
+  startScroll = el.scrollLeft
 }
+
+function onPointerMove(e: PointerEvent) {
+  if (!dragging) return
+  const el = scrollRef.value
+  if (!el) return
+  const dx = e.clientX - startX
+  if (!moved && Math.abs(dx) > 4) {
+    moved = true
+    el.setPointerCapture(e.pointerId)
+  }
+  if (moved) el.scrollLeft = startScroll - dx
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!dragging) return
+  dragging = false
+  const el = scrollRef.value
+  if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId)
+}
+
+function onClickCapture(e: MouseEvent) {
+  if (!moved) return
+  moved = false
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function onWheel(e: WheelEvent) {
+  const el = scrollRef.value
+  if (!el) return
+  const max = el.scrollWidth - el.clientWidth
+  if (max <= 0) return
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (delta === 0) return
+  e.preventDefault()
+  el.scrollLeft = Math.min(max, Math.max(0, el.scrollLeft + delta))
+  if (menuOpen.value) positionMenu()
+}
+
+function centerSelected() {
+  const el = scrollRef.value
+  if (!el) return
+  const active = el.querySelector<HTMLElement>('[data-active="true"]')
+  if (!active) return
+  const elRect = el.getBoundingClientRect()
+  const activeRect = active.getBoundingClientRect()
+  const left = el.scrollLeft + (activeRect.left - elRect.left) - (el.clientWidth - activeRect.width) / 2
+  el.scrollTo({ left, behavior: 'smooth' })
+}
+
+watch(() => props.selectedGenre?.slug, () => nextTick(centerSelected))
+watch(() => props.genres.length, () => nextTick(updateOverflow))
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
-  requestAnimationFrame(calculate)
-  if (measureRef.value) {
-    observer = new ResizeObserver(calculate)
-    observer.observe(measureRef.value)
+  const el = scrollRef.value
+  if (el) {
+    el.addEventListener('wheel', onWheel, { passive: false })
+    observer = new ResizeObserver(updateOverflow)
+    observer.observe(el)
   }
+  requestAnimationFrame(() => {
+    centerSelected()
+    updateOverflow()
+  })
 })
-onBeforeUnmount(() => observer?.disconnect())
-watch(() => props.genres.length, () => nextTick(calculate))
+onBeforeUnmount(() => {
+  scrollRef.value?.removeEventListener('wheel', onWheel)
+  observer?.disconnect()
+})
 
 const hasHistory = ref(false)
 
@@ -96,60 +157,46 @@ onMounted(() => {
   void syncHistoryVisibility()
   const onVisibility = () => {
     if (document.visibilityState === 'visible') void syncHistoryVisibility()
+    if (menuOpen.value) positionMenu()
+    updateOverflow()
   }
   document.addEventListener('visibilitychange', onVisibility)
-  onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
+  window.addEventListener('resize', onVisibility)
+  onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', onVisibility)
+    window.removeEventListener('resize', onVisibility)
+  })
 })
-
-const selectedIsHidden = computed(() => {
-  if (!props.selectedGenre) return false
-  return props.genres.findIndex((g) => g.slug === props.selectedGenre?.slug) >= visibleCount.value
-})
-const effectiveShowAll = computed(() => showAll.value || selectedIsHidden.value)
-const displayed = computed(() => effectiveShowAll.value ? props.genres : props.genres.slice(0, visibleCount.value))
-const hiddenCount = computed(() => props.genres.length - visibleCount.value)
 </script>
 
 <template>
-  <div v-if="genres.length > 0" class="mb-6 relative">
-    <div ref="measureRef" class="flex flex-wrap gap-2 invisible absolute inset-x-0 pointer-events-none" aria-hidden="true">
-      <span class="px-3 py-1.5 rounded-full text-xs font-medium"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" /></span>
-      <span v-for="genre in genres" :key="genre.slug" class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">{{ genre.name }}</span>
-      <span data-more-slot class="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap">+{{ genres.length }} more</span>
-    </div>
+  <div v-if="genres.length > 0" class="mb-6 select-none relative">
+    <div
+      ref="scrollRef"
+      class="flex gap-2 overflow-x-auto pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+      @scroll="onScroll"
+      @dragstart.prevent
+      @click.capture="onClickCapture"
+    >
+      <button
+        ref="menuButtonRef"
+        type="button"
+        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 cursor-pointer"
+        :class="menuOpen ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
+        title="Menu"
+        aria-label="Menu"
+        @click="toggleMenu"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
 
-    <div class="flex flex-wrap gap-2 flex-1 min-w-0 select-none" :class="effectiveShowAll || detailsOpen ? '' : 'overflow-hidden max-h-7'">
-      <details ref="detailsRef" class="group relative shrink-0" @toggle="onToggle">
-        <summary class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 group-open:bg-white group-open:text-black group-open:hover:bg-white group-open:hover:text-black transition-colors cursor-pointer list-none" title="Menu">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2.5" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </summary>
-        <div class="absolute top-full left-0 mt-2 w-40 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-2 z-50">
-          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('search')">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            Search
-          </button>
-          <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('signIn')">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            Sign In
-          </button>
-          <a href="/docs" target="_blank" rel="noopener" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            API Docs
-            <svg class="w-3 h-3 ml-auto opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
-        </div>
-      </details>
-      <NuxtLink v-if="hasHistory" to="/history" title="History" aria-label="History" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center">
+      <NuxtLink v-if="hasHistory" to="/history" title="History" aria-label="History" draggable="false" class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center [-webkit-user-drag:none]">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
           <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M3 3v5h5" />
@@ -157,23 +204,61 @@ const hiddenCount = computed(() => props.genres.length - visibleCount.value)
         </svg>
       </NuxtLink>
       <NuxtLink
-        v-for="genre in displayed"
+        v-for="genre in genres"
         :key="genre.slug"
         :to="selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`"
         replace
+        draggable="false"
+        :data-active="selectedGenre?.slug === genre.slug ? 'true' : undefined"
         :aria-current="selectedGenre?.slug === genre.slug ? 'true' : undefined"
-        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap cursor-pointer"
+        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer [-webkit-user-drag:none]"
         :class="selectedGenre?.slug === genre.slug ? 'bg-white text-black hover:bg-white hover:text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'"
       >
         {{ genre.name }}
       </NuxtLink>
-      <button
-        v-if="hiddenCount > 0"
-        class="px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-800/50 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 transition-colors cursor-pointer"
-        @click="showAll = !showAll"
-      >
-        {{ effectiveShowAll ? 'Show less' : `+${hiddenCount} more` }}
-      </button>
     </div>
+
+    <div
+      v-if="hasMoreLeft"
+      class="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-background to-transparent"
+      aria-hidden="true"
+    />
+    <div
+      v-if="hasMoreRight"
+      class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+      aria-hidden="true"
+    />
+
+    <Teleport to="body">
+      <div
+        v-if="menuOpen"
+        ref="menuRef"
+        class="fixed w-40 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-2 z-50"
+        :style="menuStyle"
+        @click="closeMenu"
+      >
+        <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('search')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Search
+        </button>
+        <button class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer" @click="emit('signIn')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          Sign In
+        </button>
+        <a href="/docs" target="_blank" rel="noopener" class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          API Docs
+          <svg class="w-3 h-3 ml-auto opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" :stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -16,6 +16,7 @@ defineRouteMeta({
         required: true,
         schema: { type: 'integer' },
         description: 'MyAnimeList ID',
+        example: 52991,
       },
       {
         name: 'episode',
@@ -23,6 +24,7 @@ defineRouteMeta({
         required: true,
         schema: { type: 'integer', minimum: 1 },
         description: 'Episode number',
+        example: 1,
       },
       {
         name: 'server',
@@ -30,6 +32,7 @@ defineRouteMeta({
         required: false,
         schema: { type: 'string' },
         description: 'Preferred server name, see servers in the response',
+        example: 'blogger',
       },
       {
         name: 'quality',
@@ -37,6 +40,7 @@ defineRouteMeta({
         required: false,
         schema: { type: 'string' },
         description: 'Preferred quality, for example 720p',
+        example: '720p',
       },
       {
         name: 'stream',
@@ -44,10 +48,40 @@ defineRouteMeta({
         required: false,
         schema: { type: 'string', enum: ['1', '0'], default: '1' },
         description: 'Set to 0 to skip resolving a playable stream URL',
+        example: '1',
       },
     ],
     responses: {
-      '200': { description: 'Episode with direct stream URL' },
+      '200': {
+        description: 'Episode with direct stream URL',
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/EpisodeResponse' },
+            example: {
+              anime: {
+                malId: 52991,
+                title: 'Sousou no Frieren',
+                thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+              },
+              episodeNumber: 1,
+              title: 'Sousou no Frieren Episode 1',
+              thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+              episodes: [1, 2, 3],
+              servers: [
+                { server: 'blogger', quality: '720p' },
+                { server: 'odcloud', quality: '480p' },
+              ],
+              stream: {
+                playUrl: 'https://nimeplay.example/api/stream?key=abc123',
+                kind: 'hls',
+                quality: '720p',
+                server: 'blogger',
+              },
+            },
+          },
+        },
+      },
+      '400': { description: 'Invalid MAL id or episode number' },
       '404': { description: 'Episode not found' },
     },
   },

@@ -21,10 +21,40 @@ defineRouteMeta({
         required: false,
         schema: { type: 'integer', minimum: 1, default: 1 },
         description: 'Page number',
+        example: 1,
       },
     ],
     responses: {
-      '200': { description: 'Anime listing for the genre' },
+      '200': {
+        description: 'Anime listing for the genre',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['data', 'page', 'totalPages'],
+              properties: {
+                data: { type: 'array', items: { $ref: '#/components/schemas/GenreAnimeCard' } },
+                page: { type: 'integer', example: 1 },
+                totalPages: { type: 'integer', example: 12 },
+              },
+            },
+            example: {
+              data: [{
+                malId: 52991,
+                title: 'Sousou no Frieren',
+                thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                studio: '',
+                episodes: '28 Eps',
+                rating: '9.3',
+                genres: 'Adventure, Drama, Fantasy',
+                date: 'Fall 2023',
+              }],
+              page: 1,
+              totalPages: 12,
+            },
+          },
+        },
+      },
       '404': { description: 'Genre not found' },
     },
   },

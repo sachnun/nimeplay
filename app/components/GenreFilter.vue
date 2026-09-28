@@ -111,7 +111,7 @@ function onWheel(e: WheelEvent) {
   if (menuOpen.value) positionMenu()
 }
 
-function centerSelected() {
+function centerSelected(behavior: ScrollBehavior = 'smooth') {
   const el = scrollRef.value
   if (!el) return
   const active = el.querySelector<HTMLElement>('[data-active="true"]')
@@ -119,11 +119,22 @@ function centerSelected() {
   const elRect = el.getBoundingClientRect()
   const activeRect = active.getBoundingClientRect()
   const left = el.scrollLeft + (activeRect.left - elRect.left) - (el.clientWidth - activeRect.width) / 2
-  el.scrollTo({ left, behavior: 'smooth' })
+  const max = el.scrollWidth - el.clientWidth
+  el.scrollTo({ left: Math.max(0, Math.min(max, left)), behavior })
 }
 
-watch(() => props.selectedGenre?.slug, () => nextTick(centerSelected))
+watch(() => props.selectedGenre?.slug, () => nextTick(() => centerSelected()))
 watch(() => props.genres.length, () => nextTick(updateOverflow))
+
+if (import.meta.server && props.selectedGenre) {
+  useHead({
+    script: [{
+      key: 'genre-scroll-init',
+      tagPosition: 'bodyClose',
+      innerHTML: "(function(){var s=document.querySelector('[data-genre-scroll]');if(!s)return;var a=s.querySelector('[data-active=\"true\"]');if(!a)return;var r=s.getBoundingClientRect(),b=a.getBoundingClientRect(),m=s.scrollWidth-s.clientWidth;s.scrollLeft=Math.max(0,Math.min(m,s.scrollLeft+(b.left-r.left)-(s.clientWidth-b.width)/2));})();",
+    }],
+  })
+}
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
@@ -134,7 +145,7 @@ onMounted(() => {
     observer.observe(el)
   }
   requestAnimationFrame(() => {
-    centerSelected()
+    centerSelected('auto')
     updateOverflow()
   })
 })
@@ -173,7 +184,8 @@ onMounted(() => {
   <div v-if="genres.length > 0" class="mb-6 select-none relative">
     <div
       ref="scrollRef"
-      class="flex gap-2 overflow-x-auto pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
+      data-genre-scroll
+      class="flex gap-2 overflow-x-auto pt-8 pr-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"

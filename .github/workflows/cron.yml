@@ -2,7 +2,7 @@ name: Cron
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -28,13 +28,3 @@ jobs:
           AWS_ENDPOINT_URL_S3: ${{ secrets.AWS_ENDPOINT_URL_S3 }}
           AWS_REGION: ap-southeast-1
           MEDIA_BUCKET: nimeplay
-
-  keepalive:
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - run: gh api --method PUT "repos/$GITHUB_REPOSITORY/actions/workflows/cron.yml/enable"
-        env:
-          GH_TOKEN: ${{ github.token }}

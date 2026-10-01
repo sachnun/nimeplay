@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
 import { alert } from './alert'
-import { claim, classifyError, complete, enqueue, fail, prune, releaseStale } from './queue'
+import { claim, classifyError, complete, fail, prune, releaseStale } from './queue'
 import { getSources } from '../sources'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
@@ -31,19 +31,20 @@ async function handle(job: JobRow): Promise<void> {
   throw new Error(`unknown job type: ${job.type}`)
 }
 
-async function seedRefreshJobs(): Promise<void> {
+async function seedRefreshJobs(createdSince: Date): Promise<void> {
   await db().execute(sql`
     insert into jobs (type, payload, dedupe_key, priority, max_attempts)
     select 'anime.refresh', jsonb_build_object('slug', s.source || ':' || s.slug), 'anime.refresh:' || s.source || ':' || s.slug,
            case when s.status = 'ONGOING' then 5 else 0 end, 5
     from anime_sources s
-    where s.updated_at < now() - (
-      case
-        when s.status = 'ONGOING' then interval '6 hours'
-        when s.anime_id is not null and exists (select 1 from episodes e where e.source_id = s.id) then interval '30 days'
-        else interval '1 day'
-      end
-    )
+    where (s.status = 'ONGOING' and s.created_at >= ${createdSince}
+      or s.updated_at < now() - (
+        case
+          when s.status = 'ONGOING' then interval '6 hours'
+          when s.anime_id is not null and exists (select 1 from episodes e where e.source_id = s.id) then interval '30 days'
+          else interval '1 day'
+        end
+      ))
     and not exists (
       select 1 from jobs j
       where j.dedupe_key = 'anime.refresh:' || s.source || ':' || s.slug
@@ -79,21 +80,20 @@ async function processJob(job: JobRow): Promise<void> {
   }
 }
 
-async function drain(): Promise<void> {
+async function drain(types: string[] = TASK_TYPES): Promise<void> {
   while (true) {
-    const claimed = await claim(worker, BATCH, TASK_TYPES, blockedSources())
+    const claimed = await claim(worker, BATCH, types, blockedSources())
     if (claimed.length === 0) return
     await Promise.all(claimed.map(processJob))
   }
 }
 
 export async function runCatalog(): Promise<void> {
+  const startedAt = new Date()
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
-  await enqueue({ type: 'catalog.ongoing', dedupeKey: 'catalog.ongoing' })
-  for (const source of getSources()) {
-    await enqueue({ type: 'catalog.backfill', payload: { sourceId: source.id }, dedupeKey: `catalog.backfill:${source.id}` })
-  }
-  await seedRefreshJobs()
+  await runOngoingSync()
+  await Promise.all(getSources().map(source => runBackfill(source.id)))
+  await seedRefreshJobs(startedAt)
   await drain()
 }

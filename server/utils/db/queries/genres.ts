@@ -3,7 +3,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { anime, animeGenres, genres } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'
-import { BLOCKED_GENRE_SLUGS_SQL, CATALOG_READY, PAGE_SIZE, formatSeason } from './shared'
+import { BLOCKED_GENRE_SLUGS_SQL, CATALOG_READY, PAGE_SIZE, SEASON_RANK, formatSeason } from './shared'
 import type { Genre, GenreAnimeCard } from '#shared/types'
 
 export async function getGenreList(): Promise<Genre[]> {
@@ -56,7 +56,14 @@ export async function getGenreAnimePage(
     .leftJoin(allGenres, eq(allGenres.id, allAnimeGenres.genreId))
     .where(filter)
     .groupBy(anime.id)
-    .orderBy(sql`${anime.rating} desc nulls last`, desc(anime.updatedAt))
+    .orderBy(
+      sql`case when ${anime.status} = 'ONGOING' then 0 else 1 end`,
+      sql`case when ${anime.status} = 'ONGOING' then coalesce(${anime.lastNewEpisodeAt}, ${anime.createdAt}) end desc`,
+      sql`${anime.year} desc nulls last`,
+      desc(SEASON_RANK),
+      sql`${anime.rating} desc nulls last`,
+      asc(anime.title),
+    )
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 

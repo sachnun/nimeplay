@@ -40,24 +40,14 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
     const $el = $(el)
     const href = $el.find('.animposx > a[href*="/anime/"]').first().attr('href') || ''
     const slug = seriesSlugFromHref(href)
-    const title = cleanTitle($el.find('.data .title h2').first().text())
-    if (!slug || !title) return
+    if (!slug) return
     const statusText = $el.find('.data .type').first().text().trim().toLowerCase()
     const status = statusText.includes('ongoing')
       ? 'ONGOING' as const
       : statusText.includes('completed') ? 'COMPLETED' as const : undefined
-    const rating = $el.find('.content-thumb .score').text().replace(/[^0-9.]/g, '').trim()
-    const thumbnail = $el.find('.content-thumb img').attr('data-lazy-src')
-      || $el.find('.content-thumb img').attr('src')
-      || ''
     cards.push({
-      title,
       slug,
-      thumbnail,
-      episode: '',
-      day: '',
       date: '',
-      ...(rating ? { rating } : {}),
       ...(status ? { status } : {}),
     })
   })
@@ -87,10 +77,6 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   if (!title) return null
 
   const info = $('.alternati > span').not('.type').map((_, el) => $(el).text().trim()).get().filter(Boolean)
-  const genres = $('.genre-info a[href*="/genre/"]').map((_, el) => ({
-    name: $(el).text().trim(),
-    slug: ($(el).attr('href') || '').match(/\/genre\/([^/]+)/)?.[1] ?? '',
-  })).get()
   const episodes = $('.epsleft').map((_, el) => {
     const $el = $(el)
     const href = $el.find('.lchx a').attr('href') || ''
@@ -103,17 +89,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   return {
     title,
     japanese: '',
-    score: $('.scorenum').first().text().trim(),
-    producer: '',
-    type: $('.alternati .type').first().text().trim(),
     status: info[0] ?? '',
-    totalEpisode: String(episodes.length),
-    duration: info[1] ?? '',
     releaseDate: info[2] ?? '',
-    studio: '',
-    genres,
-    thumbnail: $('.infoanime .thumb img').first().attr('src') || '',
-    synopsis: $('.desc .entry-content').first().text().trim(),
     episodes,
   }
 }

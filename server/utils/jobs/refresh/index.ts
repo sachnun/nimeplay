@@ -26,7 +26,7 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
   if (!sourceRow) {
     const [row] = await db()
       .insert(animeSources)
-      .values({ source: source.id, slug: vendorSlug, url: `${source.baseUrl}/anime/${vendorSlug}/` })
+      .values({ source: source.id, slug: vendorSlug })
       .onConflictDoNothing()
       .returning()
     sourceRow = row ?? await getSourceRow(source.id, vendorSlug)

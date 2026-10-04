@@ -36,11 +36,7 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
     const $el = $(el)
     const link = $el.find('a[href*="?series="]').attr('href') || ''
     return {
-      title: $el.find('.card-title').text().trim(),
       slug: extractSeriesSlug(link),
-      thumbnail: $el.find('img.card-img-top').attr('src') || '',
-      episode: '',
-      day: $el.find('.badge-corner').text().trim(),
       date: '',
     }
   }).get()
@@ -58,13 +54,6 @@ async function scrapeCompletedFresh(page: number): Promise<ListResult> {
   const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   return { anime: parseCards($), totalPages: getTotalPages($, 'completed.php') }
-}
-
-function parseDetailGenres($: cheerio.CheerioAPI): { name: string; slug: string }[] {
-  return $('.col-md-9 a[href*="?search="]').map((_, el) => {
-    const name = $(el).text().replace(/,$/, '').trim()
-    return { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }
-  }).get()
 }
 
 function parseDetailEpisodes($: cheerio.CheerioAPI, series: string): { title: string; slug: string; date: string }[] {
@@ -86,24 +75,14 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   const title = $('.col-md-9 h1').first().text().trim()
   if (!title) return null
 
-  const type = $('.col-md-9 span.border').first().text().trim()
   const year = $('.col-md-9 .fa-calendar-alt').parent().text().trim()
   const status = $('.col-md-9 span.fw-bold.fs-6').first().text().trim()
 
   return {
     title,
     japanese: '',
-    score: '',
-    producer: '',
-    type,
     status,
-    totalEpisode: '',
-    duration: '',
     releaseDate: year,
-    studio: '',
-    genres: parseDetailGenres($),
-    thumbnail: $('.col-md-3 img.img-fluid').attr('src') || '',
-    synopsis: $('.col-md-9 p.text-light.opacity-75').first().text().trim(),
     episodes: parseDetailEpisodes($, slug),
   }
 }

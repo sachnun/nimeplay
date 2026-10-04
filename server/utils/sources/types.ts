@@ -1,28 +1,14 @@
 export interface ScrapedAnimeCard {
-  title: string
   slug: string
-  thumbnail: string
-  episode: string
-  day: string
   date: string
-  rating?: string
   status?: 'ONGOING' | 'COMPLETED'
 }
 
 export interface ScrapedAnimeDetail {
   title: string
   japanese: string
-  score: string
-  producer: string
-  type: string
   status: string
-  totalEpisode: string
-  duration: string
   releaseDate: string
-  studio: string
-  genres: { name: string; slug: string }[]
-  thumbnail: string
-  synopsis: string
   episodes: { title: string; slug: string; date: string }[]
 }
 

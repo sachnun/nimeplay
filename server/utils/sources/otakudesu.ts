@@ -20,23 +20,12 @@ function cleanTitle(title: string): string {
   return cleanTitleWithRules(title, SCRAPER_TITLE_CLEANUP)
 }
 
-function extractSlug(href: string): string {
-  const parts = href.replace(BASE_URL, '').split('/').filter(Boolean)
-  return parts[parts.length - 1] || ''
-}
-
 function extractAnimeSlug(href: string): string {
   return href.match(/\/anime\/([^/]+)/)?.[1] ?? ''
 }
 
 function extractEpisodeSlug(href: string): string {
   return href.match(/\/episode\/([^/]+)/)?.[1] ?? ''
-}
-
-function parseEpsType(raw: string): { day: string; rating?: string } {
-  const text = raw.replace(/[^\w\s.]/g, '').trim()
-  if (/^\d+(\.\d+)?$/.test(text)) return { day: '', rating: text }
-  return { day: text }
 }
 
 function getTotalPages($: cheerio.CheerioAPI): number {
@@ -48,15 +37,11 @@ function parseAnimeCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
   const anime: ScrapedAnimeCard[] = []
   $('.detpost').each((_, el) => {
     const $el = $(el)
-    const epztipe = parseEpsType($el.find('.epztipe').text())
+    const slug = extractAnimeSlug($el.find('.thumb a').attr('href') || '')
+    if (!slug) return
     anime.push({
-      title: $el.find('.jdlflm').text().trim(),
-      slug: extractAnimeSlug($el.find('.thumb a').attr('href') || ''),
-      thumbnail: $el.find('.thumbz img').attr('src') || '',
-      episode: $el.find('.epz').text().trim(),
-      day: epztipe.day,
+      slug,
       date: $el.find('.newnime').text().trim(),
-      rating: epztipe.rating,
     })
   })
   return anime
@@ -72,13 +57,6 @@ function parseInfo($: cheerio.CheerioAPI): Record<string, string> {
     info[key] = text.slice(colonIndex + 1).trim()
   })
   return info
-}
-
-function parseGenres($: cheerio.CheerioAPI): { name: string; slug: string }[] {
-  return $('.infozingle a[rel="tag"]').map((_, el) => ({
-    name: $(el).text().trim(),
-    slug: extractSlug($(el).attr('href') || ''),
-  })).get()
 }
 
 function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: string; date: string }[] {
@@ -120,17 +98,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   return {
     title: titleFromInfo(info, h1Title),
     japanese: infoValue(info, 'Japanese'),
-    score: infoValue(info, 'Skor'),
-    producer: infoValue(info, 'Produser'),
-    type: infoValue(info, 'Tipe'),
     status: infoValue(info, 'Status'),
-    totalEpisode: infoValue(info, 'Total Episode'),
-    duration: infoValue(info, 'Durasi'),
     releaseDate: infoValue(info, 'Tanggal Rilis'),
-    studio: infoValue(info, 'Studio'),
-    genres: parseGenres($),
-    thumbnail: $('.fotoanime img').attr('src') || '',
-    synopsis: $('.sinopc p').text().trim(),
     episodes: parseDetailEpisodes($),
   }
 }

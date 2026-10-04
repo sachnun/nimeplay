@@ -9,8 +9,6 @@ import { getAppState, setAppState } from './state'
 import { ok, warn } from '../../log'
 import { chunkValues } from './util'
 
-const VALID_DAYS = new Set(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'])
-
 function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promise<T | null> {
   return task.then(
     value => value,
@@ -21,14 +19,12 @@ function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promis
   )
 }
 
-async function registerOngoingCards(source: AnimeSource, sourceId: string, cards: { slug: string, day?: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
+async function registerOngoingCards(sourceId: string, cards: { slug: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     source: sourceId,
     slug: card.slug,
-    url: `${source.baseUrl}/anime/${card.slug}/`,
     status: card.status ?? 'ONGOING',
-    day: card.day && VALID_DAYS.has(card.day) ? card.day : null,
     latestEpisodeAt: card.date ? parseEpisodeDate(card.date) : null,
     ongoingRank: card.ongoingRank ?? null,
   }))
@@ -38,7 +34,6 @@ async function registerOngoingCards(source: AnimeSource, sourceId: string, cards
       target: [animeSources.source, animeSources.slug],
       set: {
         status: sql`excluded.status`,
-        day: sql`coalesce(excluded.day, ${animeSources.day})`,
         latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${animeSources.latestEpisodeAt})`,
         ongoingRank: sql`coalesce(excluded.ongoing_rank, ${animeSources.ongoingRank})`,
       },
@@ -78,12 +73,11 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
     if (result.anime.length > 0) {
       const cards = result.anime.map(card => ({
         slug: card.slug,
-        day: card.day,
         date: card.date,
         status: 'COMPLETED' as const,
       }))
       const done = await attempt(
-        registerOngoingCards(source, source.id, cards),
+        registerOngoingCards(source.id, cards),
         error => warn(`[catalog] ${source.id} completed register failed`, { error: error instanceof Error ? error.message : String(error) }),
       )
       if (done !== null) registered += result.anime.length
@@ -97,7 +91,7 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
 export async function syncOngoingCatalog(): Promise<void> {
   let ongoingRank = 0
   for (const source of getSources()) {
-    const cards: { slug: string, day: string, date: string, episode: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
+    const cards: { slug: string, date: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
     const first = await attempt(
       source.ongoingFresh(1),
       error => warn(`[catalog] ${source.id} ongoing page 1 failed`, { error: error instanceof Error ? error.message : String(error) }),
@@ -105,7 +99,7 @@ export async function syncOngoingCatalog(): Promise<void> {
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
         ongoingRank++
-        cards.push({ slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+        cards.push({ slug: card.slug, date: card.date, status: card.status, ongoingRank })
       }
       const pages: number[] = []
       for (let page = 2; page <= first.totalPages; page++) pages.push(page)
@@ -117,11 +111,11 @@ export async function syncOngoingCatalog(): Promise<void> {
         if (result === null) continue
         for (const card of result.anime) {
           ongoingRank++
-          cards.push({ slug: card.slug, day: card.day, date: card.date, episode: card.episode, status: card.status, ongoingRank })
+          cards.push({ slug: card.slug, date: card.date, status: card.status, ongoingRank })
         }
       }
     }
-    await registerOngoingCards(source, source.id, cards)
+    await registerOngoingCards(source.id, cards)
     if (cards.length > 0) ok(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
   }
 }

@@ -24,7 +24,7 @@ interface SeedAnime {
   year: number
   status: 'ONGOING' | 'COMPLETED'
   type: string
-  day?: string
+  day?: number
   studio: string
   start: string
   episodes: number
@@ -69,7 +69,7 @@ const subtitles = ['Requiem', 'Rebirth', 'Zero', 'Aftermath', 'Legacy', 'Protoco
 const suffixes = ['Academy', 'Chronicles', 'Project', 'Saga', 'Frontier', 'Society', 'Experiment', 'Crusade']
 const genrePool = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Sci-Fi', 'Supernatural', 'Horror', 'Mystery', 'Psychological', 'Thriller', 'Romance', 'Slice of Life', 'Sports', 'Music', 'Mecha', 'Isekai', 'Shounen']
 const studios = ['Madhouse', 'MAPPA', 'ufotable', 'Bones', 'Wit Studio', 'A-1 Pictures', 'White Fox', 'Production I.G', 'Kyoto Animation', 'CloverWorks', 'Trigger', 'Shaft', 'J.C.Staff', 'Studio Pierrot']
-const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+const days = [0, 1, 2, 3, 4, 5, 6]
 const givenNames = ['Haru', 'Akira', 'Yuki', 'Rin', 'Sora', 'Kaito', 'Mei', 'Ren', 'Hina', 'Sota', 'Aoi', 'Itsuki', 'Nao', 'Takumi', 'Emi', 'Kohaku', 'Shion', 'Ayaka', 'Daichi', 'Mio']
 const familyNames = ['Tanaka', 'Suzuki', 'Sato', 'Yamada', 'Kobayashi', 'Ishikawa', 'Fujimoto', 'Nakamura', 'Hayashi', 'Mori', 'Okada', 'Shimizu', 'Kuroda', 'Sakamoto', 'Nishimura', 'Hasegawa', 'Aoyama', 'Yoshida', 'Kawasaki', 'Matsuda']
 
@@ -185,7 +185,6 @@ function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert
     latestEpisode: entry.episodes,
     latestEpisodeAt: new Date(`${last}T00:00:00Z`),
     lastNewEpisodeAt: entry.status === 'ONGOING' ? new Date(`${last}T00:00:00Z`) : null,
-    ongoingRank: entry.status === 'ONGOING' ? malId - MAL_BASE : null,
     metadataSyncedAt: new Date(),
     extra: { episodeTotal: entry.episodes },
     updatedAt: new Date(),
@@ -253,7 +252,6 @@ async function seed(): Promise<void> {
         source: 'seed',
         slug: entry.slug,
         status: entry.status,
-        day: entry.status === 'ONGOING' ? entry.day ?? null : null,
         ongoingRank: entry.status === 'ONGOING' ? malId - MAL_BASE : null,
         latestEpisodeAt: values.latestEpisodeAt ?? null,
       })

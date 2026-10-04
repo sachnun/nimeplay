@@ -151,14 +151,6 @@ async function postEndpoint<T>(name: string, fields: Record<string, string | num
   }
 }
 
-function parseGenres(raw: string | undefined): { name: string, slug: string }[] {
-  if (!raw) return []
-  return raw.split(',').map(name => name.replace(/\u00a0/g, ' ').trim()).filter(Boolean).map(name => ({
-    name,
-    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-  }))
-}
-
 function parseEpisodeNumber(name: string): number | null {
   const episode = name.match(/episode\s*(\d+)/i)
   if (episode) return Number(episode[1])
@@ -170,15 +162,9 @@ function parseEpisodeNumber(name: string): number | null {
 }
 
 function toCard(item: CategoryItem, status: 'ONGOING' | 'COMPLETED'): ScrapedAnimeCard {
-  const thumbnail = item.img_url && item.img_url !== '#' ? item.img_url : ''
   return {
-    title: (item.category_name ?? '').trim(),
     slug: String(item.category_id ?? item.cid ?? ''),
-    thumbnail,
-    episode: item.count_anime ? `Episode ${item.count_anime}` : '',
-    day: '',
     date: '',
-    ...(item.rating ? { rating: item.rating } : {}),
     status,
   }
 }
@@ -187,7 +173,7 @@ async function scrapeCategory(status: 'ONGOING' | 'COMPLETED', page: number): Pr
   const name = status === 'ONGOING' ? 'get_category_ongoing' : 'get_category_not_ongoing'
   const data = await postEndpoint<ListResponse>(name, { page, count: PAGE_SIZE, lang: 'id', isAPKvalid: 'true' })
   if (!data) return { anime: [], totalPages: 1 }
-  const anime = (data.categories ?? []).map(item => toCard(item, status)).filter(card => card.slug && card.title)
+  const anime = (data.categories ?? []).map(item => toCard(item, status)).filter(card => card.slug)
   const total = data.count_total ?? anime.length
   return { anime, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
 }
@@ -220,17 +206,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   return {
     title,
     japanese: '',
-    score: category?.rating ? String(category.rating) : '',
-    producer: '',
-    type: '',
     status: category?.ongoing ? 'Ongoing' : 'Completed',
-    totalEpisode: String(posts.length),
-    duration: '',
     releaseDate: category?.years ? String(category.years) : '',
-    studio: '',
-    genres: parseGenres(category?.genre),
-    thumbnail: category?.img_url && category.img_url !== '#' ? category.img_url : '',
-    synopsis: '',
     episodes,
   }
 }

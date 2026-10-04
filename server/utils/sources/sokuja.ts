@@ -53,10 +53,6 @@ function cleanTitle(title: string): string {
   return cleanTitleWithRules(title, SCRAPER_TITLE_CLEANUP)
 }
 
-function slugify(value: string): string {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-}
-
 function slugFromPath(href: string): string {
   return href.replace(/^\//, '').replace(/\/$/, '')
 }
@@ -82,19 +78,11 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
     const $el = $(el)
     const href = $el.attr('href') || ''
     if (!href.startsWith('/anime/')) return
-    const title = cleanTitle($el.find('h3').text().trim())
     const slug = animeSlugFromHref(href)
-    if (!title || !slug) return
-    const rating = $el.find('span').map((_, span) => $(span).text()).get()
-      .find(text => text.includes('★'))?.replace(/[^0-9.]/g, '') ?? ''
+    if (!slug) return
     anime.push({
-      title,
       slug,
-      thumbnail: $el.find('img').attr('src') || '',
-      episode: '',
-      day: '',
       date: '',
-      ...(rating ? { rating } : {}),
     })
   })
   return anime
@@ -109,38 +97,11 @@ function parseTotalPages($: cheerio.CheerioAPI, page: number): number {
   return total
 }
 
-async function latestEpisodeMap(): Promise<Map<string, number>> {
-  const base = await baseUrl()
-  const html = await fetchHTML(`${base}/`, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const section = $('h2').filter((_, el) => $(el).text().trim() === 'Update Terbaru').first().closest('section')
-  const map = new Map<string, number>()
-  section.find('a[href]').each((_, el) => {
-    const match = ($(el).attr('href') || '').match(/^\/(.+)-episode-(\d+)-subtitle-indonesia\/?$/)
-    if (!match) return
-    const slug = `${match[1]}-subtitle-indonesia`
-    const number = Number(match[2])
-    const previous = map.get(slug)
-    if (previous === undefined || number > previous) map.set(slug, number)
-  })
-  return map
-}
-
-async function mergeLatestEpisodes(cards: ScrapedAnimeCard[]): Promise<void> {
-  if (cards.length === 0) return
-  const latest = await latestEpisodeMap().catch(() => new Map<string, number>())
-  for (const card of cards) {
-    const number = latest.get(card.slug)
-    if (number !== undefined) card.episode = `episode-${number}`
-  }
-}
-
 async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
   const url = `${await baseUrl()}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
   const html = await fetchHTML(url, TIMEOUT_MS)
   const $ = cheerio.load(html)
   const anime = parseCards($)
-  if (status === 'ongoing' && page === 1) await mergeLatestEpisodes(anime)
   return { anime, totalPages: parseTotalPages($, page) }
 }
 
@@ -178,22 +139,12 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
 
   const info = parseInfo($)
   const episodes = parseDetailEpisodes($)
-  const genres = Array.isArray(series?.genre) ? series.genre : []
 
   return {
     title,
     japanese: '',
-    score: series?.aggregateRating?.ratingValue != null ? String(series.aggregateRating.ratingValue) : '',
-    producer: '',
-    type: info.Tipe ?? '',
     status: info.Status ?? '',
-    totalEpisode: String(episodes.length),
-    duration: '',
     releaseDate: String(series?.datePublished ?? info.Tahun ?? ''),
-    studio: info.Studio ?? '',
-    genres: genres.map(name => ({ name, slug: slugify(name) })),
-    thumbnail: String(series?.image ?? ''),
-    synopsis: String(series?.description ?? ''),
     episodes,
   }
 }

@@ -65,15 +65,10 @@ export async function syncAnimeAggregate(animeId: number): Promise<void> {
   `)
   await client.execute(sql`
     update anime a set
-      day = coalesce(s.day, a.day),
-      ongoing_rank = coalesce(s.rank, a.ongoing_rank),
       latest_episode_at = greatest(a.latest_episode_at, s.latest_at),
       updated_at = now()
     from (
-      select
-        min(ongoing_rank) as rank,
-        max(latest_episode_at) as latest_at,
-        (array_agg(day order by ongoing_rank asc nulls last, updated_at desc) filter (where day is not null))[1] as day
+      select max(latest_episode_at) as latest_at
       from anime_sources
       where anime_id = ${animeId}
     ) s
@@ -128,6 +123,7 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     ...(mal.status ? { status: mal.status } : {}),
     season: mal.season,
     year: mal.year,
+    day: mal.day,
     trailerId: mal.trailerId,
     studio: mal.studio,
     extra: { episodeTotal: mal.episodeTotal, titles: mal.titles },

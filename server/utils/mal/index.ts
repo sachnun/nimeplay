@@ -14,6 +14,12 @@ function seasonYear(media: Pick<AniListMedia, 'seasonYear' | 'startDate'>): numb
   return media.seasonYear ?? media.startDate?.year ?? null
 }
 
+function airDay(airingAt: number | null | undefined): number | null {
+  if (!airingAt) return null
+  const weekday = new Date((airingAt + 9 * 3600) * 1000).getUTCDay()
+  return (weekday + 6) % 7
+}
+
 export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
   const cleaned = query
     .replace(/[!?:,.'"“”‘’]/g, ' ')
@@ -81,6 +87,7 @@ export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
     trailerId: trailer,
     studio: media.studios?.nodes?.map(studio => studio.name).join(', ') || null,
     episodeTotal: media.episodes ?? null,
+    day: airDay(media.nextAiringEpisode?.airingAt),
     genres: media.genres ?? [],
     characters: parseCharacters(media),
   }

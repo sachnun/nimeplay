@@ -76,11 +76,7 @@ function normalizeStatus(value: string | undefined): 'ONGOING' | 'COMPLETED' | u
 
 function toCard(card: NakanimeCard, fallback: 'ONGOING' | 'COMPLETED'): ScrapedAnimeCard {
   return {
-    title: card.title,
     slug: card.slug,
-    thumbnail: card.thumbnail ?? '',
-    episode: card.episode ?? '',
-    day: '',
     date: card.date ?? '',
     status: normalizeStatus(card.status) ?? fallback,
   }
@@ -118,17 +114,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   return {
     title: data.title,
     japanese: '',
-    score: data.rating ?? '',
-    producer: '',
-    type: info.get('type') ?? '',
     status: info.get('status') ?? '',
-    totalEpisode: String(episodes.length),
-    duration: '',
     releaseDate: info.get('released') ?? '',
-    studio: info.get('studio') ?? '',
-    genres: (data.genre ?? []).map(genre => ({ name: genre.name, slug: genre.slug })),
-    thumbnail: data.imgUrl ?? '',
-    synopsis: data.description ?? '',
     episodes: episodes.map(episode => ({ title: episode.title, slug: episode.slug, date: episode.date ?? '' })),
   }
 }

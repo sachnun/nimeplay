@@ -10,15 +10,6 @@ const EPISODE_PAGE_SIZE = 30
 const EPISODE_LIST_MAX_PAGES = 45
 const EPISODE_FETCH_BATCH = 6
 const DAY_BY_INDEX = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU']
-const DAY_LABEL: Record<string, string> = {
-  SENIN: 'Senin',
-  SELASA: 'Selasa',
-  RABU: 'Rabu',
-  KAMIS: 'Kamis',
-  JUMAT: 'Jumat',
-  SABTU: 'Sabtu',
-  MINGGU: 'Minggu',
-}
 
 interface AnimeinMovie {
   id: string
@@ -29,7 +20,6 @@ interface AnimeinMovie {
   image_cover?: string
   type?: string
   year?: string
-  day?: string
   status?: string
   studio?: string
   aired_start?: string
@@ -76,14 +66,6 @@ function absoluteAsset(value: string | undefined): string {
   if (!value) return ''
   if (value.startsWith('http')) return value
   return `${ASSET_BASE}${value.startsWith('/') ? value : `/${value}`}`
-}
-
-function parseGenres(raw: string | undefined): { name: string, slug: string }[] {
-  if (!raw) return []
-  return raw.split(',').map(name => name.trim()).filter(Boolean).map(name => ({
-    name,
-    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-  }))
 }
 
 function episodeSlug(movieId: string, index: string, episodeId: string): string {
@@ -140,16 +122,11 @@ async function scrapeOngoingFresh(page: number): Promise<ListResult> {
   const data = await apiGet<{ movie?: AnimeinMovie[] }>(`/3/2/schedule/data?day=${day}`)
   const movies = (data?.movie ?? []).filter(movie => movie.status === 'ONGOING')
   const latest = await Promise.all(movies.map(movie => latestEpisode(String(movie.id))))
-  const label = DAY_LABEL[day] ?? ''
 
   const anime: ScrapedAnimeCard[] = movies.map((movie, index) => {
     const episode = latest[index]
     return {
-      title: movie.title,
       slug: String(movie.id),
-      thumbnail: absoluteAsset(movie.image_cover || movie.image_poster),
-      episode: episode ? `Episode ${episode.index}` : '',
-      day: label,
       date: episode?.date ?? '',
     }
   })
@@ -163,11 +140,7 @@ async function scrapeCompletedFresh(page: number): Promise<ListResult> {
   const anime: ScrapedAnimeCard[] = (data?.movie ?? [])
     .filter(movie => movie.status === 'FINISHED')
     .map(movie => ({
-      title: movie.title,
       slug: String(movie.id),
-      thumbnail: absoluteAsset(movie.image_cover || movie.image_poster),
-      episode: '',
-      day: '',
       date: movie.aired_start || '',
     }))
   return { anime, totalPages: COMPLETED_PAGE_LIMIT }
@@ -184,17 +157,8 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   return {
     title: movie.title,
     japanese: movie.synonyms || '',
-    score: '',
-    producer: '',
-    type: movie.type || '',
     status: movie.status === 'FINISHED' ? 'Completed' : 'Ongoing',
-    totalEpisode: String(ordered.length),
-    duration: '',
     releaseDate: movie.aired_start || movie.year || '',
-    studio: movie.studio || '',
-    genres: parseGenres(movie.genre),
-    thumbnail: absoluteAsset(movie.image_cover || movie.image_poster),
-    synopsis: movie.synopsis || '',
     episodes: ordered.map(entry => ({
       title: entry.title || `Episode ${entry.index}`,
       slug: episodeSlug(String(movie.id), entry.index, entry.id),

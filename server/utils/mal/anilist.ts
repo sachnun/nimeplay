@@ -44,6 +44,7 @@ export interface AniListMedia {
   studios?: { nodes?: { name: string }[] } | null
   genres?: string[] | null
   episodes?: number | null
+  nextAiringEpisode?: { airingAt?: number | null, episode?: number | null } | null
   characters?: {
     edges?: {
       role?: string | null
@@ -91,6 +92,7 @@ const MEDIA_QUERY = `query ($idMal: Int) {
     studios(isMain: true) { nodes { name } }
     genres
     episodes
+    nextAiringEpisode { airingAt episode }
     characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
       edges {
         role

@@ -5,6 +5,8 @@ import { db } from '../index'
 import { CATALOG_READY, PAGE_SIZE, SEASON_RANK, formatSeason, statusCondition } from './shared'
 import type { AnimeCard } from '#shared/types'
 
+const WEEK_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
 async function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> {
   const [row] = await db()
     .select({ count: sql<number>`cast(count(*) as integer)` })
@@ -20,7 +22,7 @@ export async function listAnimePage(
   const filter = and(statusCondition(status), CATALOG_READY)
 
   const orderBy = status === 'ONGOING'
-    ? [sql`${anime.lastNewEpisodeAt} desc nulls last`, sql`${anime.ongoingRank} asc nulls last`, sql`${anime.latestEpisodeAt} desc nulls last`, desc(anime.updatedAt)]
+    ? [sql`coalesce(${anime.lastNewEpisodeAt}, ${anime.createdAt}) desc`, sql`${anime.malId} desc`]
     : [sql`${anime.year} desc nulls last`, desc(SEASON_RANK), asc(anime.title), asc(anime.id)]
 
   const rows = await db()
@@ -52,7 +54,7 @@ export async function listAnimePage(
       title: row.title,
       thumbnail: posterSrc(row.posterKey),
       episode: row.maxEpisode ? `Episode ${row.maxEpisode}` : '',
-      day: row.day ?? '',
+      day: row.day != null ? (WEEK_DAYS[row.day] ?? '') : '',
       date: formatSeason(row.season, row.year),
       rating: row.rating != null ? String(row.rating) : undefined,
     })),

@@ -1,0 +1,1 @@
+ALTER TABLE "anime_sources" DROP COLUMN "url";

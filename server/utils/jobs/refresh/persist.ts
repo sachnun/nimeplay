@@ -134,7 +134,12 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   const [row] = await db()
     .insert(anime)
     .values(values)
-    .onConflictDoUpdate({ target: anime.malId, set: values })
+    .onConflictDoUpdate({
+      target: anime.malId,
+      set: mal.status === 'COMPLETED' && mal.episodeTotal != null
+        ? { ...values, status: sql`case when ${anime.episodeCount} >= ${mal.episodeTotal} then 'COMPLETED' else 'ONGOING' end` }
+        : values,
+    })
     .returning({ id: anime.id })
   const animeId = row!.id
 

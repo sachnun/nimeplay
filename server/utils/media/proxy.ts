@@ -1,5 +1,5 @@
 const PROXY = 'http://unroxy.koyeb.app'
-const DEFAULT_POOL = 'id'
+const DEFAULT_POOL = 'sg'
 const POOL_OVERRIDES: [string, string][] = [
   ['sokuja.net', 'pl'],
   ['sokuja.uk', 'pl'],

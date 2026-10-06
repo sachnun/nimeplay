@@ -58,14 +58,6 @@ export function posterSrc(value: string | null | undefined): string {
   return mediaUrl(value)
 }
 
-export function toAbsoluteUrl(path: string | null | undefined, origin?: string): string {
-  if (!path) return ''
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  if (!path.startsWith('/media/')) return path
-  if (!origin) return path
-  return `${origin}${path}`
-}
-
 export interface MediaRef {
   key: string
   sourceUrl: string

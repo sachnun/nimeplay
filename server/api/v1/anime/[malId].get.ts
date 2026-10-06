@@ -1,5 +1,5 @@
 import { defineRouteMeta } from 'nitro'
-import { createError, defineEventHandler, getRequestURL, getRouterParam } from 'nuxt/server'
+import { createError, defineEventHandler, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -39,7 +39,7 @@ defineRouteMeta({
                 { name: 'Drama', slug: 'drama' },
                 { name: 'Fantasy', slug: 'fantasy' },
               ],
-              thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+              thumbnail: '/media/poster/52991.webp',
               synopsis:
                 'During their journey, the elf mage Frieren reflects on the time she spent with her human companions.',
               season: 'Fall 2023',
@@ -50,11 +50,11 @@ defineRouteMeta({
               characters: [
                 {
                   name: 'Frieren',
-                  imageUrl: 'https://nimeplay.example/media/character/frieren.webp',
+                  imageUrl: '/media/character/frieren.webp',
                   role: 'Main',
                   voiceActor: {
                     name: 'Atsumi Tanezaki',
-                    imageUrl: 'https://nimeplay.example/media/character/tanezaki.webp',
+                    imageUrl: '/media/character/tanezaki.webp',
                   },
                 },
               ],
@@ -77,5 +77,5 @@ export default defineEventHandler(async event => {
   const detail = await getAnimeDetail(malId)
   if (!detail) throw createError({ status: 404, statusText: 'Anime not found' })
   event.res.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
-  return { ...detail, thumbnail: toAbsoluteUrl(detail.thumbnail, getRequestURL(event).origin) }
+  return detail
 })

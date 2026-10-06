@@ -1,5 +1,5 @@
 import { defineRouteMeta } from 'nitro'
-import { createError, defineEventHandler, getQuery, getRequestURL, getRouterParam } from 'nuxt/server'
+import { createError, defineEventHandler, getQuery, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -59,18 +59,18 @@ defineRouteMeta({
               anime: {
                 malId: 52991,
                 title: 'Sousou no Frieren',
-                thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                thumbnail: '/media/poster/52991.webp',
               },
               episodeNumber: 1,
               title: 'Sousou no Frieren Episode 1',
-              thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+              thumbnail: '/media/poster/52991.webp',
               episodes: [1, 2, 3],
               servers: [
                 { server: 'blogger', quality: '720p' },
                 { server: 'odcloud', quality: '480p' },
               ],
               stream: {
-                playUrl: 'https://nimeplay.example/api/stream?key=abc123',
+                playUrl: '/api/stream?t=abc123',
                 kind: 'hls',
                 quality: '720p',
                 server: 'blogger',
@@ -139,11 +139,10 @@ export default defineEventHandler(async event => {
     }
   }
 
-  const origin = getRequestURL(event).origin
   let stream: { playUrl: string; kind: 'hls' | 'file'; quality: string; server: string } | null = null
   for (const candidate of resolveStream ? ordered.slice(0, 3) : []) {
     try {
-      const result = await prepareMirror(candidate.dataContent, origin)
+      const result = await prepareMirror(candidate.dataContent)
       if (result.ok && result.playUrl && result.kind) {
         stream = { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
         break
@@ -152,10 +151,10 @@ export default defineEventHandler(async event => {
   }
 
   return {
-    anime: { malId, title: resolved.anime.title, thumbnail: toAbsoluteUrl(resolved.anime.thumbnail, origin) },
+    anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
     episodeNumber,
     title: `${resolved.anime.title} Episode ${episodeNumber}`,
-    thumbnail: toAbsoluteUrl(scraped.thumbnail || resolved.anime.thumbnail, origin),
+    thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
     episodes: episodeNumbers,
     servers,
     stream,

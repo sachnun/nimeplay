@@ -1,5 +1,5 @@
 import { defineRouteMeta } from 'nitro'
-import { createError, defineEventHandler, getQuery, getRequestURL, getRouterParam } from 'nuxt/server'
+import { createError, defineEventHandler, getQuery, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -42,7 +42,7 @@ defineRouteMeta({
                 {
                   malId: 52991,
                   title: 'Sousou no Frieren',
-                  thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                  thumbnail: '/media/poster/52991.webp',
                   studio: '',
                   episodes: '28 Eps',
                   rating: '9.3',
@@ -68,10 +68,7 @@ export default defineEventHandler(async event => {
   const result = await getGenreAnimePage(slug, page)
   if (!result) throw createError({ status: 404, statusText: 'Genre not found' })
   return {
-    data: result.anime.map(item => ({
-      ...item,
-      thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin),
-    })),
+    data: result.anime,
     page,
     totalPages: result.totalPages,
   }

@@ -103,11 +103,11 @@ export async function openStreamRequest(
   return { url: payload.u, headers: payload.h ?? {}, megaKey: payload.k }
 }
 
-export function proxiedStreamPath(origin: string, token: string): string {
-  return `${origin}/api/stream?t=${token}`
+export function proxiedStreamPath(token: string): string {
+  return `/api/stream?t=${token}`
 }
 
-export async function sealedStreamUrl(origin: string, rawUrl: string, baseUrl?: string): Promise<string> {
+export async function sealedStreamUrl(rawUrl: string, baseUrl?: string): Promise<string> {
   const absolute = new URL(rawUrl, baseUrl).toString()
-  return proxiedStreamPath(origin, await sealStreamToken(absolute, TOKEN_TTL_MS))
+  return proxiedStreamPath(await sealStreamToken(absolute, TOKEN_TTL_MS))
 }

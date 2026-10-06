@@ -1,5 +1,5 @@
 import { defineRouteMeta } from 'nitro'
-import { defineEventHandler, getQuery, getRequestURL } from 'nuxt/server'
+import { defineEventHandler, getQuery } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -48,7 +48,7 @@ defineRouteMeta({
                     {
                       malId: 52991,
                       title: 'Sousou no Frieren',
-                      thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                      thumbnail: '/media/poster/52991.webp',
                       episode: 'Episode 28',
                       day: 'Minggu',
                       date: 'Fall 2023',
@@ -65,7 +65,7 @@ defineRouteMeta({
                     {
                       malId: 52991,
                       title: 'Sousou no Frieren',
-                      thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                      thumbnail: '/media/poster/52991.webp',
                       genres: 'Adventure, Drama, Fantasy',
                       status: 'ONGOING',
                       rating: '9.3',
@@ -89,7 +89,7 @@ defineRouteMeta({
             properties: {
               malId: { type: 'integer', example: 52991 },
               title: { type: 'string', example: 'Sousou no Frieren' },
-              thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+              thumbnail: { type: 'string', format: 'uri-reference', example: '/media/poster/52991.webp' },
               episode: {
                 type: 'string',
                 description: 'Latest episode label, empty when unknown',
@@ -110,7 +110,7 @@ defineRouteMeta({
             properties: {
               malId: { type: 'integer', example: 52991 },
               title: { type: 'string', example: 'Sousou no Frieren' },
-              thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+              thumbnail: { type: 'string', format: 'uri-reference', example: '/media/poster/52991.webp' },
               genres: {
                 type: 'string',
                 description: 'Comma-separated genre names',
@@ -152,7 +152,7 @@ defineRouteMeta({
             properties: {
               malId: { type: 'integer', example: 52991 },
               title: { type: 'string', example: 'Sousou no Frieren' },
-              thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+              thumbnail: { type: 'string', format: 'uri-reference', example: '/media/poster/52991.webp' },
               studio: { type: 'string', example: '' },
               episodes: { type: 'string', example: '28 Eps' },
               rating: { type: 'string', example: '9.3' },
@@ -167,8 +167,8 @@ defineRouteMeta({
               name: { type: 'string', example: 'Frieren' },
               imageUrl: {
                 type: 'string',
-                format: 'uri',
-                example: 'https://nimeplay.example/media/character/frieren.webp',
+                format: 'uri-reference',
+                example: '/media/character/frieren.webp',
               },
               role: { type: 'string', enum: ['Main', 'Supporting'], example: 'Main' },
               voiceActor: {
@@ -177,8 +177,8 @@ defineRouteMeta({
                   name: { type: 'string', example: 'Atsumi Tanezaki' },
                   imageUrl: {
                     type: 'string',
-                    format: 'uri',
-                    example: 'https://nimeplay.example/media/character/tanezaki.webp',
+                    format: 'uri-reference',
+                    example: '/media/character/tanezaki.webp',
                   },
                 },
               },
@@ -201,7 +201,7 @@ defineRouteMeta({
               studio: { type: 'string', example: 'Madhouse' },
               season: { type: 'string', example: 'Fall 2023' },
               genres: { type: 'array', items: { $ref: '#/components/schemas/Genre' } },
-              thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+              thumbnail: { type: 'string', format: 'uri-reference', example: '/media/poster/52991.webp' },
               synopsis: {
                 type: 'string',
                 example:
@@ -233,7 +233,7 @@ defineRouteMeta({
             type: 'object',
             required: ['playUrl', 'kind', 'quality', 'server'],
             properties: {
-              playUrl: { type: 'string', format: 'uri', example: 'https://nimeplay.example/api/stream?key=abc123' },
+              playUrl: { type: 'string', format: 'uri-reference', example: '/api/stream?t=abc123' },
               kind: { type: 'string', enum: ['hls', 'file'], example: 'hls' },
               quality: { type: 'string', example: '720p' },
               server: { type: 'string', example: 'blogger' },
@@ -251,14 +251,14 @@ defineRouteMeta({
                   title: { type: 'string', example: 'Sousou no Frieren' },
                   thumbnail: {
                     type: 'string',
-                    format: 'uri',
-                    example: 'https://nimeplay.example/media/poster/52991.webp',
+                    format: 'uri-reference',
+                    example: '/media/poster/52991.webp',
                   },
                 },
               },
               episodeNumber: { type: 'integer', example: 1 },
               title: { type: 'string', example: 'Sousou no Frieren Episode 1' },
-              thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+              thumbnail: { type: 'string', format: 'uri-reference', example: '/media/poster/52991.webp' },
               episodes: { type: 'array', items: { type: 'integer' }, example: [1, 2, 3] },
               servers: { type: 'array', items: { $ref: '#/components/schemas/EpisodeServer' } },
               stream: {
@@ -279,10 +279,9 @@ export default defineEventHandler(async event => {
   const q = String(query.q ?? '').trim()
   if (q) {
     event.res.headers.set('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
-    const origin = getRequestURL(event).origin
     const rows = await searchAnime(q)
     return {
-      data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, origin) })),
+      data: rows,
       page: 1,
       totalPages: 1,
     }
@@ -295,10 +294,7 @@ export default defineEventHandler(async event => {
   event.res.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   const result = await listAnimePage(status, page)
   return {
-    data: result.anime.map(item => ({
-      ...item,
-      thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin),
-    })),
+    data: result.anime,
     page,
     totalPages: result.totalPages,
   }

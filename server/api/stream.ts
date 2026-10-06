@@ -65,7 +65,9 @@ export default defineEventHandler(async event => {
   const res = await fetch(target, {
     headers,
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-  })
+  }).catch(() => null)
+
+  if (!res) throw createError({ status: 502, statusText: 'Failed to fetch stream' })
 
   if (!res.ok && res.status !== 206) {
     throw createError({ status: res.status, statusText: 'Failed to fetch stream' })
@@ -75,7 +77,7 @@ export default defineEventHandler(async event => {
 
   if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) {
     const body = await res.text()
-    const rewritten = await rewriteHlsPlaylist(body, target.toString())
+    const rewritten = await rewriteHlsPlaylist(body, target.toString()).catch(() => body)
     event.res.headers.set('Content-Type', contentType || 'application/vnd.apple.mpegurl')
     event.res.headers.set('Cache-Control', 'no-store')
     return rewritten

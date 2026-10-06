@@ -71,7 +71,6 @@ export default defineNuxtConfig({
   },
   experimental: {
     buildCache: true,
-    extractAsyncDataHandlers: true,
     prefetchPreloadTags: true,
   },
   modules: ['@nuxtjs/device'],

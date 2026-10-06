@@ -108,7 +108,7 @@ const {
       class="absolute inset-0 z-[11] flex items-center justify-center pointer-events-none transition-opacity duration-300"
       :class="controlsVisible ? 'opacity-100' : 'opacity-0'"
     >
-      <button class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/15 flex items-center justify-center pointer-events-auto hover:bg-white/25 transition-colors cursor-pointer" @click="togglePlay">
+      <button class="relative w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/15 flex items-center justify-center pointer-events-auto hover:bg-white/25 transition-colors cursor-pointer before:absolute before:-inset-4 before:content-['']" @click="togglePlay">
         <svg class="w-8 h-8 md:w-10 md:h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
       </button>
     </div>

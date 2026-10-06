@@ -3,13 +3,19 @@ import type { Ref } from 'vue'
 type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
 
-function getZone(clientX: number, el: HTMLElement): TapZone {
-  const rect = el.getBoundingClientRect()
-  if (!rect || rect.width <= 0) return 'center'
-  const ratio = (clientX - rect.left) / rect.width
-  if (ratio < 0.3) return 'left'
-  if (ratio < 0.7) return 'center'
-  return 'right'
+const CENTER_ICON_PX = 64
+const CENTER_MARGIN_PX = 16
+const CENTER_HIT_PX = CENTER_ICON_PX + CENTER_MARGIN_PX * 2
+
+function getZone(clientX: number, clientY: number, el: HTMLElement): TapZone {
+  const box = el.getBoundingClientRect()
+  if (!box || box.width <= 0 || box.height <= 0) return 'center'
+  const dx = clientX - (box.left + box.width / 2)
+  const dy = clientY - (box.top + box.height / 2)
+  if (Math.abs(dx) <= CENTER_HIT_PX / 2 && Math.abs(dy) <= CENTER_HIT_PX / 2) return 'center'
+  if (dx < 0) return 'left'
+  if (dx > 0) return 'right'
+  return 'center'
 }
 
 interface EpisodePlayerTapOptions {

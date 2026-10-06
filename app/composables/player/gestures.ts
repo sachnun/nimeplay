@@ -79,7 +79,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     const touch = event.touches[0]
     if (!touch) return
     const el = event.currentTarget as HTMLElement | null
-    touchDownZone = el ? tap.getZone(touch.clientX, el) : 'center'
+    touchDownZone = el ? tap.getZone(touch.clientX, touch.clientY, el) : 'center'
     touchStartX = touch.clientX
     touchStartY = touch.clientY
     touchMoved = false
@@ -126,7 +126,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (event.pointerType === 'touch') return
     if (event.button !== 0) return
     const el = event.currentTarget as HTMLElement | null
-    mouseDownZone = el ? tap.getZone(event.clientX, el) : 'center'
+    mouseDownZone = el ? tap.getZone(event.clientX, event.clientY, el) : 'center'
     mouseDownX = event.clientX
     mouseDownY = event.clientY
     mouseDown = true

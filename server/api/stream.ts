@@ -79,6 +79,7 @@ export default defineEventHandler(async event => {
   if (!res || (!res.ok && res.status !== 206)) {
     await res?.body?.cancel().catch(() => {})
     event.res.headers.set('Cache-Control', 'no-store')
+    event.res.headers.set('Referrer-Policy', 'no-referrer')
     event.res.headers.set('Location', target.toString())
     setResponseStatus(event, 302)
     return

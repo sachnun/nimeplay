@@ -9,7 +9,6 @@ on:
       - shared/**
       - public/**
       - nuxt.config.ts
-      - wrangler.jsonc
       - tsconfig.json
       - package.json
       - bun.lock

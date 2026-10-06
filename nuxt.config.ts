@@ -25,6 +25,13 @@ export default defineNuxtConfig({
       wrangler: {
         name: 'nimeplay',
         compatibility_date: '2026-09-11',
+        placement: {
+          mode: 'targeted',
+          region: 'gcp:asia-southeast2',
+        },
+        vars: {
+          MEDIA_BUCKET: 'nimeplay',
+        },
       },
     },
     openAPI: {

@@ -8,6 +8,7 @@ interface EpisodePlayerSourceOptions {
   videoLoading: Ref<boolean>
   loadingMessage: Ref<string>
   triggerFallback: () => void
+  onAutoPlayBlocked: () => void
 }
 
 function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
@@ -59,7 +60,13 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
     }
     if (!autoPlayOnLoad) return
     autoPlayOnLoad = false
-    if (video.paused) void video.play().catch(() => {})
+    if (video.paused) {
+      void video.play().catch((error: unknown) => {
+        if (video.paused && error instanceof DOMException && error.name === 'NotAllowedError') {
+          options.onAutoPlayBlocked()
+        }
+      })
+    }
   }
 
   async function attachVideoSource(

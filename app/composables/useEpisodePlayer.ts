@@ -238,6 +238,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     videoLoading,
     loadingMessage,
     triggerFallback,
+    onAutoPlayBlocked: () => {
+      isPlaying.value = false
+    },
   })
 
   const {
@@ -330,7 +333,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   function togglePlay() {
     const video = videoRef.value
-    if (isPlaying.value) {
+    const playing = video ? !video.paused : isPlaying.value
+    if (playing) {
       isPlaying.value = false
       source.setAutoPlay(false)
       videoLoading.value = false
@@ -339,8 +343,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     }
     isPlaying.value = true
     source.setAutoPlay(true)
-    if (video && video.readyState >= 2) void video.play().catch(() => {})
-    else videoLoading.value = true
+    if (video && video.readyState >= 2) {
+      void video.play().catch(() => {
+        isPlaying.value = false
+      })
+    } else {
+      videoLoading.value = true
+    }
   }
 
   function seekTo(time: number) {

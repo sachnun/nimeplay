@@ -1,15 +1,14 @@
-import { createError, getRouterParam } from 'h3'
-import { getCachedMedia, isValidMediaKey } from '../../utils/media'
+import { createError, defineEventHandler, getRouterParam } from 'nuxt/server'
 
 const MEDIA_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=31536000, immutable'
 
 export default defineEventHandler(async event => {
-  const key = getRouterParam(event, 'key')
-  if (!key) throw createError({ statusCode: 400, statusMessage: 'Missing media key' })
-  if (!isValidMediaKey(key)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  const key = getRouterParam(event, 'key', { decode: true })
+  if (!key) throw createError({ status: 400, statusText: 'Missing media key' })
+  if (!isValidMediaKey(key)) throw createError({ status: 404, statusText: 'Not found' })
 
   const cached = await getCachedMedia(key)
-  if (!cached) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!cached) throw createError({ status: 404, statusText: 'Not found' })
 
   const headers: Record<string, string> = {
     'Cache-Control': MEDIA_CACHE_CONTROL,

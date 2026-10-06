@@ -1,6 +1,5 @@
-import { createError, getRouterParam } from 'h3'
-import { getAnimeDetail } from '../../../utils/db/queries/detail'
-import { toAbsoluteUrl } from '../../../utils/media'
+import { defineRouteMeta } from 'nitro'
+import { createError, defineEventHandler, getRequestURL, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -70,13 +69,13 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async event => {
-  const malId = Number(getRouterParam(event, 'malId'))
+  const malId = Number(getRouterParam(event, 'malId', { decode: true }))
   if (!Number.isInteger(malId) || malId <= 0) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id' })
+    throw createError({ status: 400, statusText: 'Invalid MAL id' })
   }
 
   const detail = await getAnimeDetail(malId)
-  if (!detail) throw createError({ statusCode: 404, statusMessage: 'Anime not found' })
-  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
+  if (!detail) throw createError({ status: 404, statusText: 'Anime not found' })
+  event.res.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   return { ...detail, thumbnail: toAbsoluteUrl(detail.thumbnail, getRequestURL(event).origin) }
 })

@@ -6,11 +6,11 @@ const { genres, selectedGenre, ready } = useGenres()
 await ready
 
 if (genres.value.length > 0 && !selectedGenre.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  throw createError({ status: 404, statusText: 'Genre not found' })
 }
 
 watch(selectedGenre, genre => {
-  if (genres.value.length > 0 && !genre) showError(createError({ statusCode: 404, statusMessage: 'Genre not found' }))
+  if (genres.value.length > 0 && !genre) showError(createError({ status: 404, statusText: 'Genre not found' }))
 })
 
 watchEffect(() => {

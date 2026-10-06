@@ -1,6 +1,5 @@
-import { createError, getQuery, getRouterParam } from 'h3'
-import { getGenreAnimePage } from '../../../utils/db/queries/genres'
-import { toAbsoluteUrl } from '../../../utils/media'
+import { defineRouteMeta } from 'nitro'
+import { createError, defineEventHandler, getQuery, getRequestURL, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -63,11 +62,11 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async event => {
-  const slug = getRouterParam(event, 'slug') || ''
+  const slug = getRouterParam(event, 'slug', { decode: true }) || ''
   const page = Math.max(1, Number(getQuery(event).page) || 1)
 
   const result = await getGenreAnimePage(slug, page)
-  if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
+  if (!result) throw createError({ status: 404, statusText: 'Genre not found' })
   return {
     data: result.anime.map(item => ({
       ...item,

@@ -1,4 +1,5 @@
-import { getGenreList } from '../../utils/db/queries/genres'
+import { defineRouteMeta } from 'nitro'
+import { defineEventHandler } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {

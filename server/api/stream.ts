@@ -1,3 +1,12 @@
+import {
+  createError,
+  defineEventHandler,
+  getQuery,
+  getRequestHeader,
+  getRequestURL,
+  setResponseStatus,
+} from 'nuxt/server'
+
 const UPSTREAM_TIMEOUT_MS = 10_000
 
 const MEDIA_TYPES: Record<string, string> = {
@@ -26,33 +35,33 @@ export default defineEventHandler(async event => {
   const query = getQuery(event)
   const token = String(query.t || '')
 
-  if (!token) throw createError({ statusCode: 400, statusMessage: 'Missing stream token' })
+  if (!token) throw createError({ status: 400, statusText: 'Missing stream token' })
 
   const request = await openStreamRequest(token)
-  if (!request) throw createError({ statusCode: 403, statusMessage: 'Invalid or expired stream token' })
+  if (!request) throw createError({ status: 403, statusText: 'Invalid or expired stream token' })
 
   let target: URL
   try {
     target = new URL(request.url)
   } catch {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid stream URL' })
+    throw createError({ status: 400, statusText: 'Invalid stream URL' })
   }
 
   if (!['http:', 'https:'].includes(target.protocol)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid stream protocol' })
+    throw createError({ status: 400, statusText: 'Invalid stream protocol' })
   }
 
   const range = getRequestHeader(event, 'range') || undefined
 
   if (request.megaKey) {
     const mega = await streamMega(target.toString(), request.megaKey, range).catch(() => null)
-    if (!mega) throw createError({ statusCode: 502, statusMessage: 'Failed to fetch stream' })
+    if (!mega) throw createError({ status: 502, statusText: 'Failed to fetch stream' })
     setResponseStatus(event, mega.status)
-    setHeader(event, 'Content-Type', mega.contentType)
-    setHeader(event, 'Accept-Ranges', 'bytes')
-    if (mega.status === 206) setHeader(event, 'Content-Range', `bytes ${mega.start}-${mega.end}/${mega.total}`)
-    setHeader(event, 'Content-Length', mega.end - mega.start + 1)
-    setHeader(event, 'Cache-Control', 'no-store')
+    event.res.headers.set('Content-Type', mega.contentType)
+    event.res.headers.set('Accept-Ranges', 'bytes')
+    if (mega.status === 206) event.res.headers.set('Content-Range', `bytes ${mega.start}-${mega.end}/${mega.total}`)
+    event.res.headers.set('Content-Length', String(mega.end - mega.start + 1))
+    event.res.headers.set('Cache-Control', 'no-store')
     return mega.body
   }
 
@@ -66,7 +75,7 @@ export default defineEventHandler(async event => {
   })
 
   if (!res.ok && res.status !== 206) {
-    throw createError({ statusCode: res.status, statusMessage: 'Failed to fetch stream' })
+    throw createError({ status: res.status, statusText: 'Failed to fetch stream' })
   }
 
   const contentType = mediaContentType(res.headers.get('content-type'), target)
@@ -75,22 +84,23 @@ export default defineEventHandler(async event => {
     const body = await res.text()
     const origin = getRequestURL(event).origin
     const rewritten = await rewriteHlsPlaylist(body, target.toString(), origin)
-    setHeader(event, 'Content-Type', contentType || 'application/vnd.apple.mpegurl')
-    setHeader(event, 'Cache-Control', 'no-store')
+    event.res.headers.set('Content-Type', contentType || 'application/vnd.apple.mpegurl')
+    event.res.headers.set('Cache-Control', 'no-store')
     return rewritten
   }
 
   setResponseStatus(event, res.status)
-  setHeader(event, 'Content-Type', contentType || 'application/octet-stream')
-  setHeader(event, 'Cache-Control', 'no-store')
+  event.res.headers.set('Content-Type', contentType || 'application/octet-stream')
+  event.res.headers.set('Cache-Control', 'no-store')
   const acceptRanges = res.headers.get('accept-ranges')
-  setHeader(event, 'Accept-Ranges', acceptRanges === 'none' ? 'none' : 'bytes')
+  event.res.headers.set('Accept-Ranges', acceptRanges === 'none' ? 'none' : 'bytes')
   const contentLength = Number(res.headers.get('content-length'))
-  if (Number.isFinite(contentLength) && contentLength > 0) setHeader(event, 'Content-Length', contentLength)
+  if (Number.isFinite(contentLength) && contentLength > 0)
+    event.res.headers.set('Content-Length', String(contentLength))
   const contentRange = res.headers.get('content-range')
-  if (contentRange) setHeader(event, 'Content-Range', contentRange)
+  if (contentRange) event.res.headers.set('Content-Range', contentRange)
   if (res.body) return res.body
-  throw createError({ statusCode: 502, statusMessage: 'Empty upstream response' })
+  throw createError({ status: 502, statusText: 'Empty upstream response' })
 })
 
 async function rewriteHlsPlaylist(text: string, baseUrl: string, origin: string): Promise<string> {

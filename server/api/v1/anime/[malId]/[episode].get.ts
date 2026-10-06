@@ -1,8 +1,5 @@
-import { createError, getQuery, getRouterParam } from 'h3'
-import { loadEpisodeData } from '../../../../utils/db/episode-cache'
-import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/db/queries/episodes'
-import { toAbsoluteUrl } from '../../../../utils/media'
-import { prepareMirror, selectDefaultCandidate } from '../../../../utils/media/prepare'
+import { defineRouteMeta } from 'nitro'
+import { createError, defineEventHandler, getQuery, getRequestURL, getRouterParam } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -89,10 +86,10 @@ defineRouteMeta({
 })
 
 export default defineEventHandler(async event => {
-  const malId = Number(getRouterParam(event, 'malId'))
-  const episodeNumber = Number(getRouterParam(event, 'episode'))
+  const malId = Number(getRouterParam(event, 'malId', { decode: true }))
+  const episodeNumber = Number(getRouterParam(event, 'episode', { decode: true }))
   if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id or episode number' })
+    throw createError({ status: 400, statusText: 'Invalid MAL id or episode number' })
   }
 
   const query = getQuery(event)
@@ -103,13 +100,13 @@ export default defineEventHandler(async event => {
   const resolveStream = !['0', 'false'].includes(String(query.stream ?? '').toLowerCase())
 
   const resolved = await resolveEpisode(malId, episodeNumber)
-  if (!resolved) throw createError({ statusCode: 404, statusMessage: 'Episode not found' })
+  if (!resolved) throw createError({ status: 404, statusText: 'Episode not found' })
 
   const [scraped, episodeNumbers] = await Promise.all([
     loadEpisodeData(resolved.candidates.map(candidate => candidate.episodeSlug)),
     getEpisodeNumbers(resolved.animeId),
   ])
-  if (!scraped) throw createError({ statusCode: 404, statusMessage: 'Episode unavailable' })
+  if (!scraped) throw createError({ status: 404, statusText: 'Episode unavailable' })
 
   const servers = scraped.mirrors.flatMap(mirror =>
     mirror.sources.map(source => ({ server: source.name, quality: mirror.quality })),

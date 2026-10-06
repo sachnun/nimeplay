@@ -1,15 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
 import type { NuxtConfig } from 'nuxt/schema'
-import type { RollupLog } from 'rollup'
-
-function handleRollupWarning(warning: RollupLog, warn: (warning: RollupLog) => void) {
-  if (
-    warning.code === 'SOURCEMAP_BROKEN' &&
-    ['nuxt:module-preload-polyfill', '@tailwindcss/vite:generate:build'].includes(warning.plugin || '')
-  )
-    return
-  warn(warning)
-}
 
 export default defineNuxtConfig({
   ssr: true,
@@ -19,6 +9,9 @@ export default defineNuxtConfig({
     preset: 'cloudflare_module',
     experimental: {
       openAPI: true,
+    },
+    imports: {
+      dirs: ['server/utils/**', 'server/types/**', 'shared/utils/**', 'shared/types/**'],
     },
     cloudflare: {
       deployConfig: true,
@@ -39,11 +32,11 @@ export default defineNuxtConfig({
         title: 'Nimeplay API',
         version: '1.0.0',
       },
-      route: '/openapi.json',
+      route: '/_openapi.json',
       production: 'runtime',
       ui: {
         scalar: false,
-        swagger: { route: '/docs' },
+        swagger: { route: '/_swagger' },
       },
     },
   },
@@ -99,22 +92,6 @@ export default defineNuxtConfig({
     },
   },
   vite: {
-    build: {
-      sourcemap: false,
-      rollupOptions: {
-        onwarn: handleRollupWarning,
-      },
-    },
-    $server: {
-      build: {
-        rollupOptions: {
-          onwarn(warning, warn) {
-            if (warning.code === 'UNUSED_EXTERNAL_IMPORT') return
-            handleRollupWarning(warning, warn)
-          },
-        },
-      },
-    },
     plugins: [tailwindcss()] as NonNullable<NuxtConfig['vite']>['plugins'],
   },
 })

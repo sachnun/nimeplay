@@ -1,5 +1,5 @@
-import { registerNeonDatabase } from '../utils/db/neon'
+import { definePlugin } from 'nitro'
 
-export default defineNitroPlugin(() => {
+export default definePlugin(() => {
   registerNeonDatabase()
 })

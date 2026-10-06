@@ -1,4 +1,4 @@
-import { defineEventHandler, getRequestURL, setHeader } from 'h3'
+import { defineEventHandler, getRequestURL } from 'nuxt/server'
 
 const EXTRA_ROUTES = ['/openapi.json', '/docs']
 
@@ -13,6 +13,6 @@ export default defineEventHandler(event => {
   const path = getRequestURL(event).pathname
   if (!path.startsWith('/api/') && !EXTRA_ROUTES.includes(path)) return
 
-  for (const [name, value] of Object.entries(API_CORS_HEADERS)) setHeader(event, name, value)
-  if (event.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CORS_HEADERS })
+  for (const [name, value] of Object.entries(API_CORS_HEADERS)) event.res.headers.set(name, value)
+  if (event.req.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CORS_HEADERS })
 })

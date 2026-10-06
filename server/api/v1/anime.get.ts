@@ -1,7 +1,5 @@
-import { getQuery } from 'h3'
-import { listAnimePage } from '../../utils/db/queries/catalog'
-import { searchAnime } from '../../utils/db/queries/search'
-import { toAbsoluteUrl } from '../../utils/media'
+import { defineRouteMeta } from 'nitro'
+import { defineEventHandler, getQuery, getRequestURL } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -280,7 +278,7 @@ export default defineEventHandler(async event => {
   const query = getQuery(event)
   const q = String(query.q ?? '').trim()
   if (q) {
-    setHeader(event, 'Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
+    event.res.headers.set('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
     const origin = getRequestURL(event).origin
     const rows = await searchAnime(q)
     return {
@@ -294,7 +292,7 @@ export default defineEventHandler(async event => {
   const status = rawType === 'COMPLETED' ? 'COMPLETED' : 'ONGOING'
   const page = Math.max(1, Number(query.page) || 1)
 
-  setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
+  event.res.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   const result = await listAnimePage(status, page)
   return {
     data: result.anime.map(item => ({

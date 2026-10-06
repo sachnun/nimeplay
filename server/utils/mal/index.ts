@@ -1,6 +1,6 @@
-import { cleanSynopsis } from './synopsis'
-import { fetchAniListMedia, fetchAniListSearch, type AniListMedia } from './anilist'
+import { type AniListMedia, fetchAniListMedia, fetchAniListSearch } from './anilist'
 import { decodeEntities, matchTitleOf, stripHtml, titleOf, titlesOf } from './matching'
+import { cleanSynopsis } from './synopsis'
 import type { MalAnime, MalCharacter, MalSearchEntry } from './types'
 
 function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
@@ -35,7 +35,13 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
       entries.set(item.idMal, {
         id: item.idMal,
         title: matchTitleOf(item.title),
-        titles: [...new Set([...titlesOf(item.title), ...(item.synonyms ?? [])].map(value => decodeEntities(value).trim()).filter(Boolean))],
+        titles: [
+          ...new Set(
+            [...titlesOf(item.title), ...(item.synonyms ?? [])]
+              .map(value => decodeEntities(value).trim())
+              .filter(Boolean),
+          ),
+        ],
         format: item.format ?? null,
         poster: item.coverImage?.extraLarge ?? item.coverImage?.large ?? null,
         score: item.averageScore != null ? Math.round(item.averageScore) / 10 : null,
@@ -51,25 +57,26 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
 
 function parseCharacters(media: AniListMedia): MalCharacter[] {
   const edges = media.characters?.edges ?? []
-  return edges.slice(0, 25).map((edge): MalCharacter => {
-    const voiceActor = edge.voiceActors?.[0]
-    const vaUrl = voiceActor?.image?.large ?? ''
-    return {
-      name: edge.node?.name?.full ?? '',
-      imageUrl: edge.node?.image?.large ?? '',
-      role: edge.role === 'MAIN' ? 'Main' : 'Supporting',
-      voiceActor: voiceActor?.name?.full && vaUrl
-        ? { name: voiceActor.name.full, imageUrl: vaUrl }
-        : undefined,
-    }
-  }).filter(character => character.name && character.imageUrl)
+  return edges
+    .slice(0, 25)
+    .map((edge): MalCharacter => {
+      const voiceActor = edge.voiceActors?.[0]
+      const vaUrl = voiceActor?.image?.large ?? ''
+      return {
+        name: edge.node?.name?.full ?? '',
+        imageUrl: edge.node?.image?.large ?? '',
+        role: edge.role === 'MAIN' ? 'Main' : 'Supporting',
+        voiceActor: voiceActor?.name?.full && vaUrl ? { name: voiceActor.name.full, imageUrl: vaUrl } : undefined,
+      }
+    })
+    .filter(character => character.name && character.imageUrl)
 }
 
 export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
   const media = await fetchAniListMedia(malId)
   if (!media) return null
 
-  const trailer = media.trailer && media.trailer.site === 'youtube' ? media.trailer.id ?? null : null
+  const trailer = media.trailer && media.trailer.site === 'youtube' ? (media.trailer.id ?? null) : null
 
   return {
     malId,

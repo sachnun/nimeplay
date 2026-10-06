@@ -9,7 +9,7 @@ if (genres.value.length > 0 && !selectedGenre.value) {
   throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
 }
 
-watch(selectedGenre, (genre) => {
+watch(selectedGenre, genre => {
   if (genres.value.length > 0 && !genre) showError(createError({ statusCode: 404, statusMessage: 'Genre not found' }))
 })
 

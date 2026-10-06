@@ -1,10 +1,10 @@
+import type { AnimeSourceRow } from '../../../database/schema'
+import { log, ok } from '../../log'
 import { fetchMalAnime, searchMalAnimeEntries } from '../../mal'
-import { malSearchVariants, seasonNumber } from '../../mal/season'
 import { rankMalAnimeMatches } from '../../mal/matching'
 import { offlineLookup } from '../../mal/offline'
-import { log, ok } from '../../log'
+import { malSearchVariants, seasonNumber } from '../../mal/season'
 import type { MalAnime, MalSearchEntry } from '../../mal/types'
-import type { AnimeSourceRow } from '../../../database/schema'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
 import { findAnimeIdByTitle, linkSource, recordMetadataFailure, upsertCanonicalAnime } from './persist'
 
@@ -25,7 +25,11 @@ function parseOdYear(value: string | null | undefined): number | null {
   return year >= 1990 && year <= 2100 ? year : null
 }
 
-export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: AnimeSource, detail: ScrapedAnimeDetail | null): Promise<number | null> {
+export async function resolveSourceMetadata(
+  sourceRow: AnimeSourceRow,
+  source: AnimeSource,
+  detail: ScrapedAnimeDetail | null,
+): Promise<number | null> {
   const slug = `${source.id}:${sourceRow.slug}`
   const scraped = (detail?.title || '').trim()
   const title = scraped || slugTitle(sourceRow.slug)
@@ -41,7 +45,12 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
     if (mal) {
       const animeId = await upsertCanonicalAnime(mal)
       await linkSource(sourceRow.id, animeId)
-      ok(`[metadata] linked ${slug}`, { malId: mal.malId, title: mal.title, via: 'offline', score: Number(offline.score.toFixed(3)) })
+      ok(`[metadata] linked ${slug}`, {
+        malId: mal.malId,
+        title: mal.title,
+        via: 'offline',
+        score: Number(offline.score.toFixed(3)),
+      })
       return animeId
     }
   }
@@ -85,7 +94,7 @@ export async function resolveSourceMetadata(sourceRow: AnimeSourceRow, source: A
   log(`[metadata] match ${slug}`, { title, candidates: merged.size, ranked: ranked.length, top: candidates[0]?.title })
 
   const detailYear = parseOdYear(detail?.releaseDate ?? null)
-  let yearFallback: { mal: MalAnime, diff: number } | null = null
+  let yearFallback: { mal: MalAnime; diff: number } | null = null
 
   for (const candidate of candidates.slice(0, 3)) {
     const mal = await fetchMalAnime(candidate.id)

@@ -2,10 +2,10 @@ import { SQL } from 'bun'
 import { drizzle } from 'drizzle-orm/bun-sql'
 import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
-import { enableProxy } from '../server/utils/media/proxy'
-import { loadOfflineIndex } from '../server/utils/mal/offline'
 import { runCatalog } from '../server/utils/jobs'
-import { error as logError, log } from '../server/utils/log'
+import { log, error as logError } from '../server/utils/log'
+import { loadOfflineIndex } from '../server/utils/mal/offline'
+import { enableProxy } from '../server/utils/media/proxy'
 
 const POOL_MAX = 32
 
@@ -19,11 +19,9 @@ try {
   await loadOfflineIndex().catch(() => null)
   await runCatalog()
   log('[run] done', { ms: Date.now() - startedAt })
-}
-catch (error) {
+} catch (error) {
   logError('[run] failed', { error: error instanceof Error ? error.message : String(error) })
   process.exitCode = 1
-}
-finally {
+} finally {
   await client.close().catch(() => {})
 }

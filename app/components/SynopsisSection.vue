@@ -10,13 +10,17 @@ const textRef = shallowRef<HTMLParagraphElement | null>(null)
 const hasSynopsis = computed(() => !!props.synopsis?.trim())
 const text = computed(() => props.synopsis ?? '')
 
-watch([text, expanded], () => {
-  if (expanded.value || !import.meta.client) return
-  requestAnimationFrame(() => {
-    const el = textRef.value
-    if (el) clamped.value = el.scrollHeight > el.clientHeight
-  })
-}, { immediate: true })
+watch(
+  [text, expanded],
+  () => {
+    if (expanded.value || !import.meta.client) return
+    requestAnimationFrame(() => {
+      const el = textRef.value
+      if (el) clamped.value = el.scrollHeight > el.clientHeight
+    })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

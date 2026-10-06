@@ -1,5 +1,5 @@
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http'
-import * as schema from '../../database/schema'
+import type * as schema from '../../database/schema'
 
 type Database = NeonHttpDatabase<typeof schema>
 
@@ -10,7 +10,8 @@ interface DbState {
 }
 
 const holder = globalThis as unknown as { __db_state__?: DbState }
-const state = (holder.__db_state__ ??= {})
+if (!holder.__db_state__) holder.__db_state__ = {}
+const state = holder.__db_state__
 
 export function setNodeDatabase(database: unknown): void {
   state.node = database as Database

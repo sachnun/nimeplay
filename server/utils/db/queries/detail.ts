@@ -1,11 +1,11 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
+import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../../../database/schema'
+import { cleanSynopsis } from '../../mal/synopsis'
 import { posterSrc } from '../../media'
 import { sourcePriority } from '../../sources'
-import { cleanSynopsis } from '../../mal/synopsis'
 import { db } from '../index'
 import { CATALOG_READY, formatSeason } from './shared'
-import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 
 async function getGenresForAnime(animeId: number): Promise<Genre[]> {
   return db()
@@ -33,9 +33,7 @@ async function getCharactersForAnime(animeId: number): Promise<AnimeCharacter[]>
     name: row.name,
     imageUrl: posterSrc(row.imageKey),
     role: row.role === 'Main' ? 'Main' : 'Supporting',
-    voiceActor: row.voiceActorName
-      ? { name: row.voiceActorName, imageUrl: posterSrc(row.voiceActorKey) }
-      : undefined,
+    voiceActor: row.voiceActorName ? { name: row.voiceActorName, imageUrl: posterSrc(row.voiceActorKey) } : undefined,
   }))
 }
 
@@ -88,7 +86,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
     getCharactersForAnime(row.id),
   ])
 
-  const episodeByNumber = new Map<number, { number: number, date: string }>()
+  const episodeByNumber = new Map<number, { number: number; date: string }>()
   const chosenPriority = new Map<number, number>()
   for (const entry of sourceEpisodeRows) {
     const priority = sourcePriority(entry.source)

@@ -2,7 +2,7 @@ export interface MalCharacter {
   name: string
   imageUrl: string
   role: 'Main' | 'Supporting'
-  voiceActor?: { name: string, imageUrl: string }
+  voiceActor?: { name: string; imageUrl: string }
 }
 
 export interface MalSearchEntry {

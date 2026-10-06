@@ -28,11 +28,12 @@ const fullHeight = () => vh.value
 const panelStyle = computed(() => ({
   height: `${panelHeightPx.value}px`,
   transform: `translate3d(0, ${dragY.value}px, 0)`,
-  transition: dragging.value || !ready.value
-    ? 'none'
-    : closing.value
-      ? 'height 150ms cubic-bezier(0.4, 0, 1, 1), transform 150ms cubic-bezier(0.4, 0, 1, 1)'
-      : 'height 300ms cubic-bezier(0.16, 1, 0.3, 1), transform 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+  transition:
+    dragging.value || !ready.value
+      ? 'none'
+      : closing.value
+        ? 'height 150ms cubic-bezier(0.4, 0, 1, 1), transform 150ms cubic-bezier(0.4, 0, 1, 1)'
+        : 'height 300ms cubic-bezier(0.16, 1, 0.3, 1), transform 300ms cubic-bezier(0.16, 1, 0.3, 1)',
 }))
 
 function syncSize() {

@@ -18,8 +18,7 @@ export async function optimizeImage(bytes: ArrayBuffer, contentType: string, max
     const output = await image.webp({ quality: WEBP_QUALITY }).bytes()
     if (output.byteLength === 0 || output.byteLength >= bytes.byteLength) return { bytes, contentType }
     return { bytes: toArrayBuffer(output), contentType: 'image/webp' }
-  }
-  catch {
+  } catch {
     return { bytes, contentType }
   }
 }

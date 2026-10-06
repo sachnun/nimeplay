@@ -1,12 +1,22 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ className?: string; message?: string; title?: string | null; malId?: number | null; controlsSkeleton?: boolean; header?: boolean }>(), {
-  className: 'fixed inset-0 bg-black z-50',
-  message: 'Memuat...',
-  title: null,
-  malId: null,
-  controlsSkeleton: true,
-  header: true,
-})
+const props = withDefaults(
+  defineProps<{
+    className?: string
+    message?: string
+    title?: string | null
+    malId?: number | null
+    controlsSkeleton?: boolean
+    header?: boolean
+  }>(),
+  {
+    className: 'fixed inset-0 bg-black z-50',
+    message: 'Memuat...',
+    title: null,
+    malId: null,
+    controlsSkeleton: true,
+    header: true,
+  },
+)
 
 const router = useRouter()
 
@@ -23,13 +33,134 @@ type Block = [number, number]
 type Shape = Block[]
 
 const PIECES: Shape[][] = [
-  [[[0, 0], [0, 1], [0, 2], [0, 3]], [[0, 0], [1, 0], [2, 0], [3, 0]]],
-  [[[0, 0], [0, 1], [1, 0], [1, 1]]],
-  [[[0, 0], [0, 1], [0, 2], [1, 1]], [[0, 0], [1, 0], [1, 1], [2, 0]], [[0, 1], [1, 0], [1, 1], [1, 2]], [[0, 1], [1, 0], [1, 1], [2, 1]]],
-  [[[0, 1], [0, 2], [1, 0], [1, 1]], [[0, 0], [1, 0], [1, 1], [2, 1]]],
-  [[[0, 0], [0, 1], [1, 1], [1, 2]], [[0, 1], [1, 0], [1, 1], [2, 0]]],
-  [[[0, 0], [1, 0], [2, 0], [2, 1]], [[0, 0], [0, 1], [0, 2], [1, 0]], [[0, 0], [0, 1], [1, 1], [2, 1]], [[0, 2], [1, 0], [1, 1], [1, 2]]],
-  [[[0, 1], [1, 1], [2, 0], [2, 1]], [[0, 0], [1, 0], [1, 1], [1, 2]], [[0, 0], [0, 1], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2], [1, 2]]],
+  [
+    [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [0, 3],
+    ],
+    [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+    ],
+  ],
+  [
+    [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+    ],
+  ],
+  [
+    [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 1],
+    ],
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [2, 0],
+    ],
+    [
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [1, 2],
+    ],
+    [
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [2, 1],
+    ],
+  ],
+  [
+    [
+      [0, 1],
+      [0, 2],
+      [1, 0],
+      [1, 1],
+    ],
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [2, 1],
+    ],
+  ],
+  [
+    [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 2],
+    ],
+    [
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [2, 0],
+    ],
+  ],
+  [
+    [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [2, 1],
+    ],
+    [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 0],
+    ],
+    [
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [2, 1],
+    ],
+    [
+      [0, 2],
+      [1, 0],
+      [1, 1],
+      [1, 2],
+    ],
+  ],
+  [
+    [
+      [0, 1],
+      [1, 1],
+      [2, 0],
+      [2, 1],
+    ],
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [1, 2],
+    ],
+    [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [2, 0],
+    ],
+    [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 2],
+    ],
+  ],
 ]
 
 const COLS = 6
@@ -71,7 +202,7 @@ function findLanding(shape: Shape, col: number): number {
 }
 
 function columnHeight(sim: boolean[][], col: number): number {
-  const firstFilled = sim.findIndex((row) => row[col])
+  const firstFilled = sim.findIndex(row => row[col])
   return firstFilled === -1 ? 0 : ROWS - firstFilled
 }
 
@@ -91,7 +222,7 @@ function bumpiness(heights: number[]): number {
 
 function evaluate(sim: boolean[][]): number {
   const heights = Array.from({ length: COLS }, (_, col) => columnHeight(sim, col))
-  const lines = sim.filter((row) => row.every(Boolean)).length
+  const lines = sim.filter(row => row.every(Boolean)).length
   let holes = 0
   for (let c = 0; c < COLS; c++) holes += countColumnHoles(sim, c)
   return 8 * lines - 5 * holes - 2 * bumpiness(heights) - 0.3 * heights.reduce((a, b) => a + b, 0)
@@ -103,7 +234,7 @@ function columnsFor(shape: Shape): number[] {
 }
 
 function simulateMove(shape: Shape, col: number, land: number): boolean[][] {
-  const sim = grid.value.map((r) => [...r])
+  const sim = grid.value.map(r => [...r])
   for (const [dr, dc] of shape) sim[land + dr]![col + dc] = true
   return sim
 }
@@ -115,11 +246,18 @@ function moveForColumn(shape: Shape, col: number): ScoredMove | null {
 }
 
 function validMoves(piece: Shape[]): ScoredMove[] {
-  return piece.flatMap((shape) => columnsFor(shape).map((col) => moveForColumn(shape, col)).filter((move): move is ScoredMove => move !== null))
+  return piece.flatMap(shape =>
+    columnsFor(shape)
+      .map(col => moveForColumn(shape, col))
+      .filter((move): move is ScoredMove => move !== null),
+  )
 }
 
 function pickBest(piece: Shape[]): Move | null {
-  const best = validMoves(piece).reduce<ScoredMove | null>((current, move) => !current || move.score > current.score ? move : current, null)
+  const best = validMoves(piece).reduce<ScoredMove | null>(
+    (current, move) => (!current || move.score > current.score ? move : current),
+    null,
+  )
   return best ? { shape: best.shape, col: best.col, land: best.land } : null
 }
 
@@ -146,14 +284,16 @@ function placeMove(move: Move) {
 }
 
 function getFullRows(): number[] {
-  return grid.value.map((row, rowIndex) => row.every(Boolean) ? rowIndex : -1).filter((row) => row !== -1)
+  return grid.value.map((row, rowIndex) => (row.every(Boolean) ? rowIndex : -1)).filter(row => row !== -1)
 }
 
 function collapseRows(full: number[]) {
-  const kept = grid.value.filter((_, rowIndex) => !full.includes(rowIndex)).map((row) => [...row])
+  const kept = grid.value.filter((_, rowIndex) => !full.includes(rowIndex)).map(row => [...row])
   while (kept.length < ROWS) kept.unshift(Array(COLS).fill(false))
   grid.value = kept
-  cells.value = cells.value.filter((cell) => !full.includes(cell.row)).map((cell) => ({ ...cell, row: cell.row + full.filter((row) => row > cell.row).length }))
+  cells.value = cells.value
+    .filter(cell => !full.includes(cell.row))
+    .map(cell => ({ ...cell, row: cell.row + full.filter(row => row > cell.row).length }))
   clearRows.value = new Set()
   busy.value = false
 }
@@ -188,13 +328,18 @@ function tick(schedule: (fn: () => void, ms: number) => void) {
 onMounted(() => {
   const timeouts = new Set<ReturnType<typeof setTimeout>>()
   const schedule = (fn: () => void, ms: number) => {
-    const tid = setTimeout(() => { timeouts.delete(tid); fn() }, ms)
+    const tid = setTimeout(() => {
+      timeouts.delete(tid)
+      fn()
+    }, ms)
     timeouts.add(tid)
   }
   const interval = setInterval(() => tick(schedule), 600)
   onBeforeUnmount(() => {
     clearInterval(interval)
-    timeouts.forEach((t) => clearTimeout(t))
+    timeouts.forEach(t => {
+      clearTimeout(t)
+    })
   })
 })
 </script>

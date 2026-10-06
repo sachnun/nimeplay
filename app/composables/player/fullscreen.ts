@@ -12,14 +12,21 @@ export function useEpisodePlayerFullscreen(options: EpisodePlayerFullscreenOptio
 
   async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
     try {
-      if (orientation === 'landscape') await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
+      if (orientation === 'landscape')
+        await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
       else (screen.orientation as unknown as { unlock: () => void }).unlock()
-    } catch (error) { console.warn('screen.orientation lock/unlock failed', error) }
+    } catch (error) {
+      console.warn('screen.orientation lock/unlock failed', error)
+    }
   }
 
   async function exitPlayerFullscreen() {
     if (document.fullscreenElement) {
-      try { await document.exitFullscreen() } catch (error) { console.warn('exitFullscreen failed', error) }
+      try {
+        await document.exitFullscreen()
+      } catch (error) {
+        console.warn('exitFullscreen failed', error)
+      }
     }
     isFullscreen.value = false
     cancelAutoNext()
@@ -34,7 +41,11 @@ export function useEpisodePlayerFullscreen(options: EpisodePlayerFullscreenOptio
       return
     }
 
-    try { await el.requestFullscreen() } catch (error) { console.warn('requestFullscreen failed', error) }
+    try {
+      await el.requestFullscreen()
+    } catch (error) {
+      console.warn('requestFullscreen failed', error)
+    }
     await lockPlayerOrientation('landscape')
 
     if (document.fullscreenElement || isFullscreen.value) {

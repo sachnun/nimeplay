@@ -1,8 +1,18 @@
 import { titleSimilarity } from './fuzzy'
 import { seasonNumber } from './season'
-import { baseTitle, bracketVariants, cleanTitle, isMovieTitle, isSpinoffTitle, movieSeasonClash, normalizeTitleKey, tokenizeTitle } from './title'
+import {
+  baseTitle,
+  bracketVariants,
+  cleanTitle,
+  isMovieTitle,
+  isSpinoffTitle,
+  movieSeasonClash,
+  normalizeTitleKey,
+  tokenizeTitle,
+} from './title'
 
-const DATASET_URL = 'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json'
+const DATASET_URL =
+  'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json'
 const MIN_SCORE = 0.86
 const MIN_MARGIN = 0.03
 
@@ -31,12 +41,16 @@ async function buildIndex(): Promise<OfflineIndex | null> {
   try {
     const res = await fetch(DATASET_URL, { signal: AbortSignal.timeout(180000) })
     if (!res.ok) return null
-    const dataset = JSON.parse(await res.text()) as { data?: { title?: string, type?: string, synonyms?: string[], sources?: string[] }[] }
+    const dataset = JSON.parse(await res.text()) as {
+      data?: { title?: string; type?: string; synonyms?: string[]; sources?: string[] }[]
+    }
     const entries: OfflineEntry[] = []
     const exact = new Map<string, number[]>()
     const postings = new Map<string, number[]>()
     for (const item of dataset.data ?? []) {
-      const malId = (item.sources ?? []).map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1]).find(Boolean)
+      const malId = (item.sources ?? [])
+        .map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1])
+        .find(Boolean)
       if (!malId || !item.title) continue
       const titles = [item.title, ...(item.synonyms ?? [])].filter(Boolean) as string[]
       const index = entries.length
@@ -55,8 +69,7 @@ async function buildIndex(): Promise<OfflineIndex | null> {
       }
     }
     return { exact, postings, entries }
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -78,7 +91,8 @@ function scoreEntry(entry: OfflineEntry, queries: string[]): number {
       if (querySeason === null && candidateSeason !== null && candidateSeason > 1) continue
       if (querySeason !== null && querySeason > 1 && candidateSeason === null) continue
       score = Math.max(score, titleSimilarity(candidateQuery, cleanTitle(candidate)))
-      if (querySeason === null || querySeason === 1) score = Math.max(score, titleSimilarity(baseTitle(candidateQuery), baseTitle(candidate)))
+      if (querySeason === null || querySeason === 1)
+        score = Math.max(score, titleSimilarity(baseTitle(candidateQuery), baseTitle(candidate)))
     }
   }
   return score
@@ -105,7 +119,7 @@ export async function offlineLookup(query: string): Promise<OfflineMatch | null>
     const entry = index.entries[[...exact][0]!]!
     if (!movieSeasonClash(title, entry.title)) return { malId: entry.malId, title: entry.title, score: 1 }
   }
-  let best: { entryIndex: number, score: number } | null = null
+  let best: { entryIndex: number; score: number } | null = null
   let second = 0
   for (const entryIndex of candidates) {
     const entry = index.entries[entryIndex]!
@@ -113,13 +127,16 @@ export async function offlineLookup(query: string): Promise<OfflineMatch | null>
     let score = scoreEntry(entry, queries)
     if (score === 0) continue
     if (entry.type === 'MOVIE' && !isMovieTitle(title)) score -= 0.05
-    else if ((entry.type === 'OVA' || entry.type === 'ONA' || entry.type === 'SPECIAL' || entry.type === 'MUSIC') && !/\b(ova|ona|special|music)\b/i.test(title)) score -= 0.15
+    else if (
+      (entry.type === 'OVA' || entry.type === 'ONA' || entry.type === 'SPECIAL' || entry.type === 'MUSIC') &&
+      !/\b(ova|ona|special|music)\b/i.test(title)
+    )
+      score -= 0.15
     if (score <= 0) continue
     if (!best || score > best.score) {
       second = best?.score ?? 0
       best = { entryIndex, score }
-    }
-    else if (score > second) {
+    } else if (score > second) {
       second = score
     }
   }

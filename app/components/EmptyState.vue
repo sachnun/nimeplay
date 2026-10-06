@@ -1,9 +1,12 @@
 <script setup lang="ts">
-withDefaults(defineProps<{
-  compact?: boolean
-}>(), {
-  compact: false,
-})
+withDefaults(
+  defineProps<{
+    compact?: boolean
+  }>(),
+  {
+    compact: false,
+  },
+)
 </script>
 
 <template>

@@ -7,15 +7,19 @@ definePageMeta({
   scrollToTop: (_to, from) => !from.meta.browse,
 })
 
-const { data, error, status } = await useAsyncData<HomeData>('home', async () => {
-  return fetchHome()
-}, {
-  default: () => ({
-    ongoingData: { anime: [], totalPages: 1 },
-    completedData: { anime: [], totalPages: 1 },
-    genres: [],
-  }),
-})
+const { data, error, status } = await useAsyncData<HomeData>(
+  'home',
+  async () => {
+    return fetchHome()
+  },
+  {
+    default: () => ({
+      ongoingData: { anime: [], totalPages: 1 },
+      completedData: { anime: [], totalPages: 1 },
+      genres: [],
+    }),
+  },
+)
 
 const homeFailed = computed(() => status.value !== 'pending' && isServerError(error.value))
 </script>

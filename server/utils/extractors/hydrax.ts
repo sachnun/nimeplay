@@ -1,5 +1,5 @@
-import { asHttpUrl, isPlaceholderStreamUrl, VIDEO_UA } from './hosts'
 import { md5Hex } from '../crypto/md5'
+import { asHttpUrl, isPlaceholderStreamUrl, VIDEO_UA } from './hosts'
 
 const DATAS_RE = /const\s+datas\s*=\s*"([^"]+)"/
 const ABYSS_REFERER = 'https://abyss.to/'
@@ -28,10 +28,12 @@ interface HydraxMedia {
 
 export function isHydrax(url: string): boolean {
   const lower = url.toLowerCase()
-  return lower.includes('abyssplayer.')
-    || lower.includes('abysscdn.')
-    || lower.includes('abyss.to')
-    || lower.includes('hydrax')
+  return (
+    lower.includes('abyssplayer.') ||
+    lower.includes('abysscdn.') ||
+    lower.includes('abyss.to') ||
+    lower.includes('hydrax')
+  )
 }
 
 function charCodeBytes(value: string): Uint8Array {
@@ -56,9 +58,10 @@ function hexKey(input: Uint8Array): Uint8Array {
 async function aesCtr(key: Uint8Array, data: Uint8Array, mode: 'encrypt' | 'decrypt'): Promise<Uint8Array> {
   const cryptoKey = await crypto.subtle.importKey('raw', key as BufferSource, 'AES-CTR', false, [mode])
   const algorithm: AesCtrParams = { name: 'AES-CTR', counter: key.slice(0, 16) as BufferSource, length: 128 }
-  const result = mode === 'encrypt'
-    ? await crypto.subtle.encrypt(algorithm, cryptoKey, data as BufferSource)
-    : await crypto.subtle.decrypt(algorithm, cryptoKey, data as BufferSource)
+  const result =
+    mode === 'encrypt'
+      ? await crypto.subtle.encrypt(algorithm, cryptoKey, data as BufferSource)
+      : await crypto.subtle.decrypt(algorithm, cryptoKey, data as BufferSource)
   return new Uint8Array(result)
 }
 
@@ -80,9 +83,11 @@ function qualityRank(source: HydraxSource): number {
 }
 
 function pickSource(sources: HydraxSource[]): HydraxSource | null {
-  return [...sources]
-    .filter(source => typeof source.res_id === 'number' && typeof source.size === 'number' && source.sub)
-    .sort((a, b) => qualityRank(b) - qualityRank(a) || (b.size ?? 0) - (a.size ?? 0))[0] ?? null
+  return (
+    [...sources]
+      .filter(source => typeof source.res_id === 'number' && typeof source.size === 'number' && source.sub)
+      .sort((a, b) => qualityRank(b) - qualityRank(a) || (b.size ?? 0) - (a.size ?? 0))[0] ?? null
+  )
 }
 
 function hostFor(media: HydraxMedia, sub: string): string {
@@ -110,8 +115,7 @@ async function followToFinal(url: string): Promise<string | null> {
     void res.body?.cancel()
     if (!res.ok && res.status !== 206) return null
     return asHttpUrl(res.url) ?? url
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -123,8 +127,7 @@ export async function extractHydrax(_embedUrl: string, html: string): Promise<st
   let datas: HydraxDatas
   try {
     datas = JSON.parse(atob(encoded)) as HydraxDatas
-  }
-  catch {
+  } catch {
     return null
   }
   if (!datas.user_id || !datas.slug || !datas.md5_id || typeof datas.media !== 'string') return null
@@ -134,8 +137,7 @@ export async function extractHydrax(_embedUrl: string, html: string): Promise<st
   try {
     const plain = await aesCtr(mediaKey, charCodeBytes(datas.media), 'decrypt')
     media = JSON.parse(new TextDecoder().decode(plain)) as HydraxMedia
-  }
-  catch {
+  } catch {
     return null
   }
 

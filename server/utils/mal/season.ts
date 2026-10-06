@@ -1,17 +1,49 @@
 const ROMAN_SEASONS: Record<string, number> = {
-  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12,
+  ii: 2,
+  iii: 3,
+  iv: 4,
+  v: 5,
+  vi: 6,
+  vii: 7,
+  viii: 8,
+  ix: 9,
+  x: 10,
+  xi: 11,
+  xii: 12,
 }
 const WORD_SEASONS: Record<string, number> = {
-  first: 1, second: 2, third: 3, fourth: 4, fifth: 5,
-  sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10,
 }
 const JP_SEASONS: Record<string, number> = {
-  ichi: 1, ni: 2, san: 3, yon: 4, shi: 4, go: 5, roku: 6, nana: 7, shichi: 7, hachi: 8, kyuu: 9, ku: 9, juu: 10,
+  ichi: 1,
+  ni: 2,
+  san: 3,
+  yon: 4,
+  shi: 4,
+  go: 5,
+  roku: 6,
+  nana: 7,
+  shichi: 7,
+  hachi: 8,
+  kyuu: 9,
+  ku: 9,
+  juu: 10,
 }
 
 export function seasonNumber(title: string): number | null {
   const lower = title.toLowerCase()
-  const digit = /(?:(\d+)\s*(?:st|nd|rd|th)?\s*season)|(?:season\s*(\d+))|(?:\bpart\s*(\d+))|(?:\bs\s*(\d+)\b)/.exec(lower)
+  const digit = /(?:(\d+)\s*(?:st|nd|rd|th)?\s*season)|(?:season\s*(\d+))|(?:\bpart\s*(\d+))|(?:\bs\s*(\d+)\b)/.exec(
+    lower,
+  )
   if (digit) {
     for (const group of digit.slice(1)) {
       if (group !== undefined) return Number(group)
@@ -41,7 +73,12 @@ export function malSearchVariants(title: string): string[] {
     if (cleaned && !variants.includes(cleaned)) variants.push(cleaned)
   }
   push(title)
-  push(title.replace(/\s*[([][^)\]]*[)\]]\s*/g, ' ').replace(/\s+/g, ' ').trim())
+  push(
+    title
+      .replace(/\s*[([][^)\]]*[)\]]\s*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
   const seasonMatch = title.match(/(.+?)\s+Season\s+(\d+)\s*$/i)
   if (seasonMatch?.[1] && seasonMatch[2]) {
     const base = seasonMatch[1].trim()

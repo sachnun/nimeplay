@@ -1,4 +1,4 @@
-import { eq, or, sql, type SQL } from 'drizzle-orm'
+import { eq, or, type SQL, sql } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
 
 export const PAGE_SIZE = 24

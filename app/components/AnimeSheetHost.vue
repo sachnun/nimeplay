@@ -7,23 +7,30 @@ const anime = ref<AnimeDetail | null>(null)
 const sheetRef = ref<{ requestClose: () => void } | null>(null)
 let fromPopstate = false
 
-watch(() => sheet.state.value.malId, async (malId) => {
-  anime.value = null
-  if (!malId) return
-  try {
-    anime.value = await fetchAnimeDetail(malId)
-  } catch {
+watch(
+  () => sheet.state.value.malId,
+  async malId => {
     anime.value = null
-    sheet.markClosed()
-    sheet.dropFakeEntry()
-  }
-}, { immediate: true })
+    if (!malId) return
+    try {
+      anime.value = await fetchAnimeDetail(malId)
+    } catch {
+      anime.value = null
+      sheet.markClosed()
+      sheet.dropFakeEntry()
+    }
+  },
+  { immediate: true },
+)
 
-watch(() => sheet.state.value.closing, (closing) => {
-  if (!closing) return
-  fromPopstate = true
-  sheetRef.value?.requestClose()
-})
+watch(
+  () => sheet.state.value.closing,
+  closing => {
+    if (!closing) return
+    fromPopstate = true
+    sheetRef.value?.requestClose()
+  },
+)
 
 function onClosed() {
   const goBack = !fromPopstate && sheet.hasFakeEntry()

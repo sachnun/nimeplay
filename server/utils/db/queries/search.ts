@@ -1,10 +1,10 @@
 import { sql } from 'drizzle-orm'
+import type { SearchResult } from '#shared/types'
 import { anime } from '../../../database/schema'
 import { posterSrc } from '../../media'
-import { db } from '../index'
 import { toFtsQuery } from '../fts'
+import { db } from '../index'
 import { notBlockedGenre, playableEpisodeExists } from './shared'
-import type { SearchResult } from '#shared/types'
 
 function toSearchResult(row: Record<string, unknown>): SearchResult {
   return {

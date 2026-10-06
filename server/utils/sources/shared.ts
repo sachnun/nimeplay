@@ -1,14 +1,16 @@
-import { getSpoofHeaders } from '../net/spoof'
 import { proxyFetch } from '../media/proxy'
 import { isRetryableStatus, withRetry } from '../net/retry'
+import { getSpoofHeaders } from '../net/spoof'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
 export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): string {
-  return rules.reduce((value, rule) => {
-    if (Array.isArray(rule)) return value.replace(rule[0], rule[1])
-    return value.replace(rule, '')
-  }, title).trim()
+  return rules
+    .reduce((value, rule) => {
+      if (Array.isArray(rule)) return value.replace(rule[0], rule[1])
+      return value.replace(rule, '')
+    }, title)
+    .trim()
 }
 
 const HTML_TIMEOUT_MS = 8000
@@ -22,8 +24,7 @@ export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promi
         signal: AbortSignal.timeout(timeoutMs),
       })
       return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
-    }
-    catch {
+    } catch {
       return { value: null, retry: true }
     }
   })
@@ -44,12 +45,11 @@ export async function postForm(url: string, body: string, referer: string): Prom
         signal: AbortSignal.timeout(POST_TIMEOUT_MS),
       })
       return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
-    }
-    catch {
+    } catch {
       return { value: null, retry: true }
     }
   })
-  if (!res || !res.ok) throw new Error(`Failed to fetch ${url}: ${res?.status ?? 0}`)
+  if (!res?.ok) throw new Error(`Failed to fetch ${url}: ${res?.status ?? 0}`)
   return res.json()
 }
 
@@ -75,7 +75,9 @@ export function parseEpisodeDate(raw: string): Date | null {
   if (lower === 'hari ini') return new Date()
   if (lower === 'kemarin') return new Date(Date.now() - 86_400_000)
 
-  const relativeMatch = lower.match(/^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu|month|bulan|year|tahun)\w*\s+lalu$/)
+  const relativeMatch = lower.match(
+    /^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu|month|bulan|year|tahun)\w*\s+lalu$/,
+  )
   if (relativeMatch) {
     const num = Number(relativeMatch[1])
     const unit = relativeMatch[2]
@@ -94,7 +96,7 @@ export function parseEpisodeDate(raw: string): Date | null {
       year: 365 * 86400 * 1000,
       tahun: 365 * 86400 * 1000,
     }
-    const ms = unit ? msMap[unit] ?? 0 : 0
+    const ms = unit ? (msMap[unit] ?? 0) : 0
     const delta = ms * num
     return new Date(Date.now() - delta)
   }
@@ -118,7 +120,11 @@ function episodeLabel(title: string): string {
 }
 
 function labelKey(label: string): string {
-  return label.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '')
+  return label
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '')
 }
 
 function keyMatches(a: string, b: string): boolean {
@@ -127,7 +133,11 @@ function keyMatches(a: string, b: string): boolean {
   return a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))
 }
 
-export function keepSeriesEpisodes<T extends { title: string }>(seriesTitle: string, seriesSlug: string, episodes: T[]): T[] {
+export function keepSeriesEpisodes<T extends { title: string }>(
+  seriesTitle: string,
+  seriesSlug: string,
+  episodes: T[],
+): T[] {
   const counts = new Map<string, number>()
   for (const episode of episodes) {
     const key = labelKey(episodeLabel(episode.title))
@@ -146,7 +156,7 @@ export function keepSeriesEpisodes<T extends { title: string }>(seriesTitle: str
   const trusted = dominantCount >= 2 && dominantCount >= labeled * 0.7
   const seriesKey = labelKey(seriesTitle)
   const slugKey = labelKey(seriesSlug)
-  return episodes.filter((episode) => {
+  return episodes.filter(episode => {
     const key = labelKey(episodeLabel(episode.title))
     if (!key) return true
     if (keyMatches(key, seriesKey) || keyMatches(key, slugKey)) return true

@@ -4,7 +4,7 @@ let hlsPromise: Promise<HlsModule> | null = null
 
 export function preloadHls() {
   if (!import.meta.client || hlsPromise) return hlsPromise
-  hlsPromise = import('hls.js/light').catch((error) => {
+  hlsPromise = import('hls.js/light').catch(error => {
     hlsPromise = null
     throw error
   })

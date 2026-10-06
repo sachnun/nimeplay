@@ -1,3 +1,4 @@
+import type Hls from 'hls.js'
 import type { Ref } from 'vue'
 import { loadHls } from '~/utils/hls'
 
@@ -12,7 +13,7 @@ interface EpisodePlayerSourceOptions {
 
 export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
   const { videoRef, directUrl, directKind, videoLoading, loadingMessage, triggerFallback } = options
-  let hls: any | null = null
+  let hls: Hls | null = null
   let resumeTime = 0
   let autoPlayOnLoad = true
 
@@ -60,7 +61,12 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
     if (video.paused) void video.play().catch(() => {})
   }
 
-  async function attachVideoSource(video: HTMLVideoElement, url: string, kind: 'hls' | 'file' | null, onVideoError: () => void) {
+  async function attachVideoSource(
+    video: HTMLVideoElement,
+    url: string,
+    kind: 'hls' | 'file' | null,
+    onVideoError: () => void,
+  ) {
     if (kind === 'hls') return attachHlsSource(video, url, onVideoError)
     attachNativeSource(video, url, onVideoError)
   }
@@ -73,8 +79,7 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
         video.pause()
         video.removeAttribute('src')
         video.load()
-      }
-      catch {}
+      } catch {}
       return
     }
     loadingMessage.value = 'Memuat video...'
@@ -122,9 +127,15 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
     destroyHls,
     setHlsMaxBufferLength,
     bandwidthEstimate: () => hls?.bandwidthEstimate ?? NaN,
-    setAutoPlay: (value: boolean) => { autoPlayOnLoad = value },
+    setAutoPlay: (value: boolean) => {
+      autoPlayOnLoad = value
+    },
     autoPlayWanted: () => autoPlayOnLoad,
-    setResume: (time: number) => { resumeTime = time },
-    clearResume: () => { resumeTime = 0 },
+    setResume: (time: number) => {
+      resumeTime = time
+    },
+    clearResume: () => {
+      resumeTime = 0
+    },
   }
 }

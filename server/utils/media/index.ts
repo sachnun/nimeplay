@@ -95,7 +95,7 @@ export async function getCachedMedia(key: string): Promise<MediaObject | null> {
   const url = objectUrl(key)
   if (!client || !url) return null
   const res = await client.fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }).catch(() => null)
-  if (!res || !res.ok) return null
+  if (!res?.ok) return null
   return {
     body: res.body,
     contentType: res.headers.get('content-type') ?? 'image/jpeg',

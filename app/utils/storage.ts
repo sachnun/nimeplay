@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase } from 'idb'
+import { type IDBPDatabase, openDB } from 'idb'
 
 const DB_NAME = 'nimeplay'
 const DB_VERSION = 3
@@ -62,12 +62,16 @@ export function progressKey(malId: number, episodeNumber: number): string {
 export async function markWatched(key: string, data: Omit<WatchProgress, 'updatedAt'>) {
   if (!import.meta.client) return
   const db = await getDb()
-  await db.put('progress', {
-    ...data,
-    currentTime: Math.max(data.currentTime, data.duration),
-    duration: Math.max(data.duration, 1),
-    updatedAt: Date.now(),
-  }, key)
+  await db.put(
+    'progress',
+    {
+      ...data,
+      currentTime: Math.max(data.currentTime, data.duration),
+      duration: Math.max(data.duration, 1),
+      updatedAt: Date.now(),
+    },
+    key,
+  )
 }
 
 export async function saveProgress(key: string, data: Omit<WatchProgress, 'updatedAt'>) {
@@ -98,11 +102,13 @@ async function getAllProgress(): Promise<WatchProgress[]> {
 }
 
 function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | null): number {
-  if (!progress || !progress.duration || progress.duration <= 0) return 0
+  if (!progress?.duration || progress.duration <= 0) return 0
   return Math.min(progress.currentTime / progress.duration, 1)
 }
 
-async function getProgressStatus(progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null): Promise<WatchProgressStatus> {
+async function getProgressStatus(
+  progress: Pick<WatchProgress, 'currentTime' | 'duration'> | string | null,
+): Promise<WatchProgressStatus> {
   const actual = typeof progress === 'string' ? await getProgress(progress) : progress
   const ratio = getProgressRatio(actual)
   if (ratio >= COMPLETED_PROGRESS_THRESHOLD) return 'completed'
@@ -135,7 +141,8 @@ export async function getEpisodeStatusMap(malId: number): Promise<Record<string,
     for (const p of all) {
       if (p.malId !== malId) continue
       const ratio = getProgressRatio(p)
-      map[progressKey(p.malId, p.episodeNumber)] = ratio >= COMPLETED_PROGRESS_THRESHOLD ? 'completed' : ratio > 0 ? 'in_progress' : 'unstarted'
+      map[progressKey(p.malId, p.episodeNumber)] =
+        ratio >= COMPLETED_PROGRESS_THRESHOLD ? 'completed' : ratio > 0 ? 'in_progress' : 'unstarted'
     }
     return map
   } catch {
@@ -148,7 +155,7 @@ export async function removeAnimeProgress(malId: number): Promise<void> {
   const db = await getDb()
   const keys = await db.getAllKeys('progress')
   const prefix = `${malId}:`
-  await Promise.all(keys.filter((key) => String(key).startsWith(prefix)).map((key) => db.delete('progress', key)))
+  await Promise.all(keys.filter(key => String(key).startsWith(prefix)).map(key => db.delete('progress', key)))
 }
 
 export async function clearAllProgress(): Promise<void> {

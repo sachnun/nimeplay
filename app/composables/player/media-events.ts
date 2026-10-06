@@ -1,6 +1,6 @@
 import type { ComputedRef, Ref } from 'vue'
-import { bufferedEndAt } from '~/utils/player'
 import type { SkipTime } from '~/types'
+import { bufferedEndAt } from '~/utils/player'
 
 type EpisodeLink = { num: number }
 

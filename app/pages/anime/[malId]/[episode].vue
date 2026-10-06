@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { preloadHls } from '~/utils/hls'
 import type { EpisodeMetaData, EpisodePageData } from '~/types'
+import { preloadHls } from '~/utils/hls'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,7 +51,13 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   },
 )
 
-const showPlane = computed(() => !pending.value && !pageData.value && !metaData.value && (isServerError(pageError.value) || isServerError(metaError.value)))
+const showPlane = computed(
+  () =>
+    !pending.value &&
+    !pageData.value &&
+    !metaData.value &&
+    (isServerError(pageError.value) || isServerError(metaError.value)),
+)
 
 const anime = computed(() => pageData.value?.anime ?? metaData.value?.anime ?? null)
 const episodeData = computed(() => pageData.value?.episode ?? null)

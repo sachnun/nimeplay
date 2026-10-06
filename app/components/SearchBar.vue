@@ -12,42 +12,49 @@ let debounce: ReturnType<typeof setTimeout> | null = null
 let searchToken = 0
 let pendingQuery = ''
 
-watch(() => props.open, (open) => {
-  if (!import.meta.client) return
-  if (open) {
-    if (pendingQuery) {
-      query.value = pendingQuery
-      pendingQuery = ''
+watch(
+  () => props.open,
+  open => {
+    if (!import.meta.client) return
+    if (open) {
+      if (pendingQuery) {
+        query.value = pendingQuery
+        pendingQuery = ''
+      }
+      document.body.style.overflow = 'hidden'
+      setTimeout(() => inputRef.value?.focus(), 50)
+    } else {
+      document.body.style.overflow = ''
     }
-    document.body.style.overflow = 'hidden'
-    setTimeout(() => inputRef.value?.focus(), 50)
-  } else {
-    document.body.style.overflow = ''
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
-watch(query, (value) => {
+watch(query, value => {
   if (debounce) clearTimeout(debounce)
   const token = ++searchToken
-  debounce = setTimeout(async () => {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      results.value = []
-      loading.value = false
-      return
-    }
-    loading.value = true
-    try {
-      const result = await fetchSearch(trimmed)
-      if (token !== searchToken) return
-      results.value = result
-    } catch {
-      if (token !== searchToken) return
-      results.value = []
-    } finally {
-      if (token === searchToken) loading.value = false
-    }
-  }, value.trim() ? 500 : 0)
+  debounce = setTimeout(
+    async () => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        results.value = []
+        loading.value = false
+        return
+      }
+      loading.value = true
+      try {
+        const result = await fetchSearch(trimmed)
+        if (token !== searchToken) return
+        results.value = result
+      } catch {
+        if (token !== searchToken) return
+        results.value = []
+      } finally {
+        if (token === searchToken) loading.value = false
+      }
+    },
+    value.trim() ? 500 : 0,
+  )
 })
 
 function isDesktop() {

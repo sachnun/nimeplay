@@ -1,15 +1,11 @@
 import { eq } from 'drizzle-orm'
-import { db } from './index'
 import { episodes } from '../../database/schema'
 import { scrapeEpisode } from '../sources'
 import type { EpisodeData } from '../sources/types'
+import { db } from './index'
 
 async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
-  const [row] = await db()
-    .select({ cache: episodes.cache })
-    .from(episodes)
-    .where(eq(episodes.slug, slug))
-    .limit(1)
+  const [row] = await db().select({ cache: episodes.cache }).from(episodes).where(eq(episodes.slug, slug)).limit(1)
   return row?.cache ?? null
 }
 

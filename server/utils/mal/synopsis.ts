@@ -1,4 +1,5 @@
-const SYNOPSIS_METADATA = /(?:^|\s)(?:\((?:Sources?|Written by|Adapted from)\b|\[Written by\b|Notes?\s*:|Source\s*:)|(?:^|\n)\s*Includes? episode\b/
+const SYNOPSIS_METADATA =
+  /(?:^|\s)(?:\((?:Sources?|Written by|Adapted from)\b|\[Written by\b|Notes?\s*:|Source\s*:)|(?:^|\n)\s*Includes? episode\b/
 
 export function cleanSynopsis(value: string | null | undefined): string {
   if (!value) return ''

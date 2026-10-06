@@ -7,7 +7,8 @@ defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'List anime',
-    description: 'Paginated list of ongoing or completed anime. Set q to search by title, alternate titles, studio, genre, character, or synopsis.',
+    description:
+      'Paginated list of ongoing or completed anime. Set q to search by title, alternate titles, studio, genre, character, or synopsis.',
     parameters: [
       {
         name: 'type',
@@ -40,37 +41,38 @@ defineRouteMeta({
           'application/json': {
             schema: {
               type: 'object',
-              oneOf: [
-                { $ref: '#/components/schemas/AnimeList' },
-                { $ref: '#/components/schemas/SearchList' },
-              ],
+              oneOf: [{ $ref: '#/components/schemas/AnimeList' }, { $ref: '#/components/schemas/SearchList' }],
             },
             examples: {
               list: {
                 value: {
-                  data: [{
-                    malId: 52991,
-                    title: 'Sousou no Frieren',
-                    thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
-                    episode: 'Episode 28',
-                    day: 'Minggu',
-                    date: 'Fall 2023',
-                    rating: '9.3',
-                  }],
+                  data: [
+                    {
+                      malId: 52991,
+                      title: 'Sousou no Frieren',
+                      thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                      episode: 'Episode 28',
+                      day: 'Minggu',
+                      date: 'Fall 2023',
+                      rating: '9.3',
+                    },
+                  ],
                   page: 1,
                   totalPages: 12,
                 },
               },
               search: {
                 value: {
-                  data: [{
-                    malId: 52991,
-                    title: 'Sousou no Frieren',
-                    thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
-                    genres: 'Adventure, Drama, Fantasy',
-                    status: 'ONGOING',
-                    rating: '9.3',
-                  }],
+                  data: [
+                    {
+                      malId: 52991,
+                      title: 'Sousou no Frieren',
+                      thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                      genres: 'Adventure, Drama, Fantasy',
+                      status: 'ONGOING',
+                      rating: '9.3',
+                    },
+                  ],
                   page: 1,
                   totalPages: 1,
                 },
@@ -90,8 +92,16 @@ defineRouteMeta({
               malId: { type: 'integer', example: 52991 },
               title: { type: 'string', example: 'Sousou no Frieren' },
               thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
-              episode: { type: 'string', description: 'Latest episode label, empty when unknown', example: 'Episode 28' },
-              day: { type: 'string', description: 'Broadcast weekday in Japan time, empty when unknown', example: 'Minggu' },
+              episode: {
+                type: 'string',
+                description: 'Latest episode label, empty when unknown',
+                example: 'Episode 28',
+              },
+              day: {
+                type: 'string',
+                description: 'Broadcast weekday in Japan time, empty when unknown',
+                example: 'Minggu',
+              },
               date: { type: 'string', description: 'Season label', example: 'Fall 2023' },
               rating: { type: 'string', description: 'Score, omitted when unknown', example: '9.3' },
             },
@@ -103,7 +113,11 @@ defineRouteMeta({
               malId: { type: 'integer', example: 52991 },
               title: { type: 'string', example: 'Sousou no Frieren' },
               thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
-              genres: { type: 'string', description: 'Comma-separated genre names', example: 'Adventure, Drama, Fantasy' },
+              genres: {
+                type: 'string',
+                description: 'Comma-separated genre names',
+                example: 'Adventure, Drama, Fantasy',
+              },
               status: { type: 'string', enum: ['ONGOING', 'COMPLETED'], example: 'ONGOING' },
               rating: { type: 'string', example: '9.3' },
             },
@@ -153,13 +167,21 @@ defineRouteMeta({
             required: ['name', 'imageUrl', 'role'],
             properties: {
               name: { type: 'string', example: 'Frieren' },
-              imageUrl: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/character/frieren.webp' },
+              imageUrl: {
+                type: 'string',
+                format: 'uri',
+                example: 'https://nimeplay.example/media/character/frieren.webp',
+              },
               role: { type: 'string', enum: ['Main', 'Supporting'], example: 'Main' },
               voiceActor: {
                 type: 'object',
                 properties: {
                   name: { type: 'string', example: 'Atsumi Tanezaki' },
-                  imageUrl: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/character/tanezaki.webp' },
+                  imageUrl: {
+                    type: 'string',
+                    format: 'uri',
+                    example: 'https://nimeplay.example/media/character/tanezaki.webp',
+                  },
                 },
               },
             },
@@ -182,7 +204,11 @@ defineRouteMeta({
               season: { type: 'string', example: 'Fall 2023' },
               genres: { type: 'array', items: { $ref: '#/components/schemas/Genre' } },
               thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
-              synopsis: { type: 'string', example: 'During their journey, the elf mage Frieren reflects on the time she spent with her human companions.' },
+              synopsis: {
+                type: 'string',
+                example:
+                  'During their journey, the elf mage Frieren reflects on the time she spent with her human companions.',
+              },
               episodes: {
                 type: 'array',
                 items: {
@@ -225,7 +251,11 @@ defineRouteMeta({
                 properties: {
                   malId: { type: 'integer', example: 52991 },
                   title: { type: 'string', example: 'Sousou no Frieren' },
-                  thumbnail: { type: 'string', format: 'uri', example: 'https://nimeplay.example/media/poster/52991.webp' },
+                  thumbnail: {
+                    type: 'string',
+                    format: 'uri',
+                    example: 'https://nimeplay.example/media/poster/52991.webp',
+                  },
                 },
               },
               episodeNumber: { type: 'integer', example: 1 },
@@ -246,14 +276,18 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const query = getQuery(event)
   const q = String(query.q ?? '').trim()
   if (q) {
     setHeader(event, 'Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
     const origin = getRequestURL(event).origin
     const rows = await searchAnime(q)
-    return { data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, origin) })), page: 1, totalPages: 1 }
+    return {
+      data: rows.map(row => ({ ...row, thumbnail: toAbsoluteUrl(row.thumbnail, origin) })),
+      page: 1,
+      totalPages: 1,
+    }
   }
 
   const rawType = String(query.type || 'ongoing').toUpperCase()
@@ -262,5 +296,12 @@ export default defineEventHandler(async (event) => {
 
   setHeader(event, 'Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   const result = await listAnimePage(status, page)
-  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin) })), page, totalPages: result.totalPages }
+  return {
+    data: result.anime.map(item => ({
+      ...item,
+      thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin),
+    })),
+    page,
+    totalPages: result.totalPages,
+  }
 })

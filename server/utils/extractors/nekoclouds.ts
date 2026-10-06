@@ -21,10 +21,16 @@ function extractCsrf(html: string): string | null {
 
 function collectCookies(res: Response): string {
   const anyHeaders = res.headers as Headers & { getSetCookie?: () => string[] }
-  const setCookies = typeof anyHeaders.getSetCookie === 'function'
-    ? anyHeaders.getSetCookie()
-    : res.headers.get('set-cookie') ? [res.headers.get('set-cookie') as string] : []
-  return setCookies.map((cookie) => cookie.split(';')[0]?.trim()).filter(Boolean).join('; ')
+  const setCookies =
+    typeof anyHeaders.getSetCookie === 'function'
+      ? anyHeaders.getSetCookie()
+      : res.headers.get('set-cookie')
+        ? [res.headers.get('set-cookie') as string]
+        : []
+  return setCookies
+    .map(cookie => cookie.split(';')[0]?.trim())
+    .filter(Boolean)
+    .join('; ')
 }
 
 export async function extractNekoclouds(embedUrl: string, html: string): Promise<string | null> {
@@ -53,8 +59,7 @@ export async function extractNekoclouds(embedUrl: string, html: string): Promise
           signal: AbortSignal.timeout(AUTHORIZE_TIMEOUT_MS),
         })
         if (res.ok) cookies = collectCookies(res)
-      } catch {
-      }
+      } catch {}
     }
 
     if (!mediaId || !csrf) return null
@@ -73,7 +78,7 @@ export async function extractNekoclouds(embedUrl: string, html: string): Promise
       signal: AbortSignal.timeout(AUTHORIZE_TIMEOUT_MS),
     })
     if (!authRes.ok) return null
-    const data = await authRes.json() as { status?: string, manifest_url?: string }
+    const data = (await authRes.json()) as { status?: string; manifest_url?: string }
     if (data.status !== 'ok' || !data.manifest_url) return null
     return data.manifest_url.startsWith('http') ? data.manifest_url : `${origin}${data.manifest_url}`
   } catch {

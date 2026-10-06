@@ -1,18 +1,18 @@
+import type { EpisodeData, EpisodePageData, SkipTime } from '~/types'
+import { fetchEpisode, toEpisodePageData } from '~/utils/api'
 import { preloadHls } from '~/utils/hls'
 import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
-import { fetchEpisode, toEpisodePageData } from '~/utils/api'
+import { useEpisodePlayerFullscreen } from './player/fullscreen'
 import { useEpisodePlayerGestures } from './player/gestures'
 import { useEpisodePlayerKeyboard } from './player/keyboard'
 import { useEpisodePlayerMediaEvents } from './player/media-events'
 import { useEpisodePlayerMediaSession } from './player/media-session'
 import { useEpisodePlayerProgress } from './player/progress'
-import { useEpisodePlayerQuality, pickInitialQuality } from './player/quality'
+import { pickInitialQuality, useEpisodePlayerQuality } from './player/quality'
 import { useEpisodePlayerResolution } from './player/resolution'
-import { useEpisodePlayerSource } from './player/source'
 import { useEpisodePlayerSkip } from './player/skip'
+import { useEpisodePlayerSource } from './player/source'
 import { useEpisodePlayerVolume } from './player/volume'
-import { useEpisodePlayerFullscreen } from './player/fullscreen'
-import type { EpisodeData, EpisodePageData, SkipTime } from '~/types'
 
 interface EpisodePlayerProps {
   malId: number
@@ -102,8 +102,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   const showEmpty = computed(() => !showNative.value && !resolving.value)
   const showLoading = computed(() => resolving.value || (showNative.value && videoLoading.value))
   const controlsVisible = computed(() => !speedBoost.value && (showControls.value || !isPlaying.value))
-  const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
-  const bufferedPct = computed(() => duration.value > 0 ? (buffered.value / duration.value) * 100 : 0)
+  const progress = computed(() => (duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0))
+  const bufferedPct = computed(() => (duration.value > 0 ? (buffered.value / duration.value) * 100 : 0))
 
   function controlsIdleMs() {
     if (!import.meta.client) return CONTROLS_IDLE_MS
@@ -175,8 +175,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
         if (epoch !== resetEpoch) return
         source.setResume(resume)
         watchedMarked = (await getEpisodeStatus(progressKey.value)) === 'completed'
-      }
-      catch {}
+      } catch {}
     })()
     resetSettled = pendingReset
     await pendingReset
@@ -235,11 +234,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     clearIdleTimer()
   }
 
-  const {
-    invalidatePlaybackSession,
-    playWithFallback,
-    triggerFallback,
-  } = useEpisodePlayerResolution({
+  const { invalidatePlaybackSession, playWithFallback, triggerFallback } = useEpisodePlayerResolution({
     malId: props.malId,
     currentEpisodeNum,
     activeQuality,
@@ -259,7 +254,11 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     triggerFallback,
   })
 
-  const { reset: resetQuality, start: startQuality, stop: stopQuality } = useEpisodePlayerQuality({
+  const {
+    reset: resetQuality,
+    start: startQuality,
+    stop: stopQuality,
+  } = useEpisodePlayerQuality({
     videoRef,
     levels: qualityLevels,
     activeQuality,
@@ -301,8 +300,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     let data: EpisodePageData | null = null
     try {
       data = toEpisodePageData(await fetchEpisode(props.malId, epNum))
-    }
-    catch {
+    } catch {
       resolving.value = false
       return
     }
@@ -377,7 +375,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (seekIndicatorTimer) clearTimeout(seekIndicatorTimer)
     seekIndicator.value = { side, seconds }
     seekIndicatorKey.value++
-    seekIndicatorTimer = setTimeout(() => { seekIndicator.value = null }, 600)
+    seekIndicatorTimer = setTimeout(() => {
+      seekIndicator.value = null
+    }, 600)
   }
 
   function clearIdleTimer() {
@@ -385,32 +385,28 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     idleTimer = null
   }
 
-  const {
-    clearPlaybackTimers,
-    clearWatchedTimer,
-    registerVideoEvents,
-    resetPlaybackTracking,
-  } = useEpisodePlayerMediaEvents({
-    isPlaying,
-    isSeeking,
-    currentTime,
-    duration,
-    buffered,
-    volume,
-    isMuted,
-    isFullscreen,
-    videoLoading,
-    nextEpisode,
-    skipTimes,
-    autoSkipCurrentSegment: skip.autoSkipCurrentSegment,
-    canMarkWatched: () => !watchedMarked,
-    doMark,
-    doSaveProgress: progressStore.doSaveProgress,
-    fetchSkipTimesIfNeeded: skip.fetchSkipTimesIfNeeded,
-    saveNextEpisodeResume,
-    startAutoNextCountdown,
-    onPlaybackStart: onPlaybackStarted,
-  })
+  const { clearPlaybackTimers, clearWatchedTimer, registerVideoEvents, resetPlaybackTracking } =
+    useEpisodePlayerMediaEvents({
+      isPlaying,
+      isSeeking,
+      currentTime,
+      duration,
+      buffered,
+      volume,
+      isMuted,
+      isFullscreen,
+      videoLoading,
+      nextEpisode,
+      skipTimes,
+      autoSkipCurrentSegment: skip.autoSkipCurrentSegment,
+      canMarkWatched: () => !watchedMarked,
+      doMark,
+      doSaveProgress: progressStore.doSaveProgress,
+      fetchSkipTimesIfNeeded: skip.fetchSkipTimesIfNeeded,
+      saveNextEpisodeResume,
+      startAutoNextCountdown,
+      onPlaybackStart: onPlaybackStarted,
+    })
 
   const {
     clearGestureState,
@@ -452,9 +448,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   function loadEpisodeSource(value: EpisodeData) {
     if (!import.meta.client) return
     const stream = value.stream
-    const def = (stream && { server: stream.server, quality: stream.quality })
-      ?? pickInitialQuality(qualityLevels.value)
-      ?? findDefaultMirror(value)
+    const def =
+      (stream && { server: stream.server, quality: stream.quality }) ??
+      pickInitialQuality(qualityLevels.value) ??
+      findDefaultMirror(value)
     if (!def) {
       resolving.value = false
       return
@@ -464,14 +461,16 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       void playWithFallback(def, false)
       return
     }
-    void gate.catch(() => {}).then(() => {
-      void playWithFallback(def, false)
-    })
+    void gate
+      .catch(() => {})
+      .then(() => {
+        void playWithFallback(def, false)
+      })
   }
 
   watch(episode, loadEpisodeSource, { immediate: true })
 
-  watch(autoSkip, (value) => {
+  watch(autoSkip, value => {
     if (import.meta.client) void setAutoSkip(value)
   })
 
@@ -485,8 +484,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     if (pendingStartHide) {
       pendingStartHide = false
       resetIdle(START_CONTROLS_IDLE_MS)
-    }
-    else resetIdle()
+    } else resetIdle()
   }
 
   function updatePlayingState(playing: boolean) {
@@ -497,7 +495,9 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
 
   watch(isPlaying, updatePlayingState)
 
-  watch([() => episode.value.title, () => currentEpisodeNum.value], mediaSession.updateMediaMetadata, { immediate: true })
+  watch([() => episode.value.title, () => currentEpisodeNum.value], mediaSession.updateMediaMetadata, {
+    immediate: true,
+  })
 
   function prefetchNextEpisode() {
     const target = nextEpisode.value
@@ -505,13 +505,19 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const run = () => {
       fetchEpisode(props.malId, target.num, { stream: false }).catch(() => {})
     }
-    if ('requestIdleCallback' in window) (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback(run, { timeout: 2000 })
+    if ('requestIdleCallback' in window)
+      (
+        window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }
+      ).requestIdleCallback(run, { timeout: 2000 })
     else setTimeout(run, 1500)
   }
 
   onMounted(() => {
-    isTouchDevice.value = window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
-    getAutoSkip().then((val) => { autoSkip.value = val })
+    isTouchDevice.value =
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
+    getAutoSkip().then(val => {
+      autoSkip.value = val
+    })
     preloadHls()
     startQuality()
     prefetchNextEpisode()
@@ -551,9 +557,13 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
       progressStore.doSaveProgress()
       const current = videoRef.value
       if (current) {
-        try { current.pause() } catch {}
+        try {
+          current.pause()
+        } catch {}
         current.removeAttribute('src')
-        try { current.load() } catch {}
+        try {
+          current.load()
+        } catch {}
       }
       source.destroyHls()
       stopQuality()

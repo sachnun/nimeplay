@@ -29,7 +29,11 @@ export function useEpisodePlayerDragSeek(options: EpisodePlayerDragSeekOptions) 
       const target = options.currentTime.value
       if (!Number.isFinite(target)) return
       if (Math.abs(video.currentTime - target) < 0.25) return
-      try { video.currentTime = target } catch (error) { console.warn('preview seek failed', error) }
+      try {
+        video.currentTime = target
+      } catch (error) {
+        console.warn('preview seek failed', error)
+      }
     }, 350)
   }
 

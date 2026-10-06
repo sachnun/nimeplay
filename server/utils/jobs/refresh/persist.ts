@@ -1,18 +1,22 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { anime, animeGenres, animeSources, characters, episodes, genres } from '../../../database/schema'
 import type { AnimeSourceRow } from '../../../database/schema'
+import { anime, animeGenres, animeSources, characters, episodes, genres } from '../../../database/schema'
 import { db } from '../../db'
+import { warn } from '../../log'
 import { fetchMalAnime } from '../../mal'
-import { isValidMediaKey, mediaRef, type MediaRef } from '../../media'
-import { ingestMedia } from '../../media/ingest'
+import { normalizeTitleKey } from '../../mal/title'
 import type { MalAnime } from '../../mal/types'
+import { isValidMediaKey, type MediaRef, mediaRef } from '../../media'
+import { ingestMedia } from '../../media/ingest'
 import type { AnimeSource } from '../../sources/types'
 import { chunkValues, episodeNumber } from './util'
-import { warn } from '../../log'
-import { normalizeTitleKey } from '../../mal/title'
 
 function slugify(value: string): string {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
 }
 
 export function recordMetadataFailure(slug: string, message: string): Promise<void> {
@@ -31,20 +35,32 @@ export async function getSourceRow(sourceId: string, vendorSlug: string): Promis
 
 const EPISODE_JUNK = /pembatas|^\s*[=\-–—|+]+/i
 
-export async function upsertEpisodes(source: AnimeSource, sourceId: number, list: { title: string, slug: string, date: string }[]): Promise<void> {
+export async function upsertEpisodes(
+  source: AnimeSource,
+  sourceId: number,
+  list: { title: string; slug: string; date: string }[],
+): Promise<void> {
   const rows = list
     .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
-    .filter((row): row is { entry: typeof list[number], number: number } => row.number !== null && !EPISODE_JUNK.test(row.entry.title))
+    .filter(
+      (row): row is { entry: (typeof list)[number]; number: number } =>
+        row.number !== null && !EPISODE_JUNK.test(row.entry.title),
+    )
 
   const client = db()
   for (const chunk of chunkValues(rows, 15)) {
-    await client.insert(episodes).values(chunk.map(({ entry, number }) => ({
-      sourceId,
-      slug: `${source.id}:${entry.slug}`,
-      number,
-      title: entry.title,
-      releaseDate: entry.date || null,
-    }))).onConflictDoNothing()
+    await client
+      .insert(episodes)
+      .values(
+        chunk.map(({ entry, number }) => ({
+          sourceId,
+          slug: `${source.id}:${entry.slug}`,
+          number,
+          title: entry.title,
+          releaseDate: entry.date || null,
+        })),
+      )
+      .onConflictDoNothing()
   }
 }
 
@@ -136,9 +152,13 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     .values(values)
     .onConflictDoUpdate({
       target: anime.malId,
-      set: mal.status === 'COMPLETED' && mal.episodeTotal != null
-        ? { ...values, status: sql`case when ${anime.episodeCount} >= ${mal.episodeTotal} then 'COMPLETED' else 'ONGOING' end` }
-        : values,
+      set:
+        mal.status === 'COMPLETED' && mal.episodeTotal != null
+          ? {
+              ...values,
+              status: sql`case when ${anime.episodeCount} >= ${mal.episodeTotal} then 'COMPLETED' else 'ONGOING' end`,
+            }
+          : values,
     })
     .returning({ id: anime.id })
   const animeId = row!.id
@@ -165,14 +185,14 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
 export async function findAnimeIdByTitle(title: string): Promise<number | null> {
   const key = normalizeTitleKey(title)
   if (!key) return null
-  const result = await db().execute(sql`
+  const result = (await db().execute(sql`
     select id from anime
     where regexp_replace(lower(title), '[^a-z0-9]+', '', 'g') = ${key}
        or exists (
          select 1 from jsonb_array_elements_text(coalesce(extra->'titles', '[]'::jsonb)) as t(value)
          where regexp_replace(lower(t.value), '[^a-z0-9]+', '', 'g') = ${key}
        )
-    limit 1`) as unknown as { rows: { id: number }[] }
+    limit 1`)) as unknown as { rows: { id: number }[] }
   return result.rows[0]?.id ?? null
 }
 

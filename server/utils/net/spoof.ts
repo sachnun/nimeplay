@@ -63,11 +63,15 @@ export function getSpoofHeaders(referer?: string, context: SpoofContext = 'navig
     'Accept-Language': pick(ACCEPT_LANGUAGES),
   }
 
-  headers.Accept = context === 'navigate'
-    ? 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
-    : '*/*'
+  headers.Accept =
+    context === 'navigate'
+      ? 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+      : '*/*'
 
-  if (referer) headers.Referer = /[^\u0000-\u00ff]/.test(referer) ? encodeURI(referer) : referer
+  if (referer) {
+    const nonLatin1 = [...referer].some(char => (char.codePointAt(0) ?? 0) > 0xff)
+    headers.Referer = nonLatin1 ? encodeURI(referer) : referer
+  }
 
   const ip = randomPublicIp()
   headers['X-Forwarded-For'] = ip

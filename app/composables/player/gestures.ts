@@ -108,7 +108,9 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
       if (event.cancelable) event.preventDefault()
       speed.cancelTimer()
       speed.stop()
-      setTimeout(() => { options.wasLongPress.value = false }, 50)
+      setTimeout(() => {
+        options.wasLongPress.value = false
+      }, 50)
       return
     }
     speed.cancelTimer()
@@ -133,7 +135,11 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     mouseDown = true
     mousePointerId = event.pointerId
     if (el) {
-      try { el.setPointerCapture(event.pointerId) } catch (error) { console.warn('setPointerCapture failed', error) }
+      try {
+        el.setPointerCapture(event.pointerId)
+      } catch (error) {
+        console.warn('setPointerCapture failed', error)
+      }
     }
     if (mouseDownZone === 'right' && speed.canStart()) speed.startTimer()
   }
@@ -154,7 +160,9 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (speed.isActive()) {
       speed.cancelTimer()
       speed.stop()
-      setTimeout(() => { options.wasLongPress.value = false }, 50)
+      setTimeout(() => {
+        options.wasLongPress.value = false
+      }, 50)
       return
     }
     speed.cancelTimer()

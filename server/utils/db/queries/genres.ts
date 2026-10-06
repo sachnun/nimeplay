@@ -1,10 +1,10 @@
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
+import type { Genre, GenreAnimeCard } from '#shared/types'
 import { anime, animeGenres, genres } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'
-import { BLOCKED_GENRE_SLUGS_SQL, CATALOG_READY, PAGE_SIZE, SEASON_RANK, formatSeason } from './shared'
-import type { Genre, GenreAnimeCard } from '#shared/types'
+import { BLOCKED_GENRE_SLUGS_SQL, CATALOG_READY, formatSeason, PAGE_SIZE, SEASON_RANK } from './shared'
 
 export async function getGenreList(): Promise<Genre[]> {
   const rows = await db()
@@ -27,8 +27,10 @@ async function getGenreCount(genreId: number): Promise<number> {
 export async function getGenreAnimePage(
   slug: string,
   page: number,
-): Promise<{ anime: GenreAnimeCard[], totalPages: number } | null> {
-  const [genre] = await db().select({ id: genres.id }).from(genres)
+): Promise<{ anime: GenreAnimeCard[]; totalPages: number } | null> {
+  const [genre] = await db()
+    .select({ id: genres.id })
+    .from(genres)
     .where(and(eq(genres.slug, slug), sql`${genres.slug} not in (${BLOCKED_GENRE_SLUGS_SQL})`))
     .limit(1)
   if (!genre) return null

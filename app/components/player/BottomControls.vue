@@ -1,45 +1,48 @@
 <script setup lang="ts">
 import type { SkipTime } from '~/types'
 
-const props = withDefaults(defineProps<{
-  autoSkip?: boolean
-  bufferedPct?: number
-  controlsVisible?: boolean
-  currentEpisodeNum?: number
-  currentTime?: number
-  duration?: number
-  episodeCount?: number
-  isFullscreen?: boolean
-  isMuted?: boolean
-  isPlaying?: boolean
-  isSeeking?: boolean
-  nextEpisode?: { num: number } | null
-  prevEpisode?: { num: number } | null
-  progress?: number
-  showEpisodes?: boolean
-  showVolume?: boolean
-  skipTimes?: SkipTime[]
-  volume?: number
-}>(), {
-  autoSkip: false,
-  bufferedPct: 0,
-  controlsVisible: true,
-  currentEpisodeNum: 0,
-  currentTime: 0,
-  duration: 0,
-  episodeCount: 0,
-  isFullscreen: false,
-  isMuted: false,
-  isPlaying: false,
-  isSeeking: false,
-  nextEpisode: null,
-  prevEpisode: null,
-  progress: 0,
-  showEpisodes: false,
-  showVolume: false,
-  skipTimes: () => [],
-  volume: 1,
-})
+const props = withDefaults(
+  defineProps<{
+    autoSkip?: boolean
+    bufferedPct?: number
+    controlsVisible?: boolean
+    currentEpisodeNum?: number
+    currentTime?: number
+    duration?: number
+    episodeCount?: number
+    isFullscreen?: boolean
+    isMuted?: boolean
+    isPlaying?: boolean
+    isSeeking?: boolean
+    nextEpisode?: { num: number } | null
+    prevEpisode?: { num: number } | null
+    progress?: number
+    showEpisodes?: boolean
+    showVolume?: boolean
+    skipTimes?: SkipTime[]
+    volume?: number
+  }>(),
+  {
+    autoSkip: false,
+    bufferedPct: 0,
+    controlsVisible: true,
+    currentEpisodeNum: 0,
+    currentTime: 0,
+    duration: 0,
+    episodeCount: 0,
+    isFullscreen: false,
+    isMuted: false,
+    isPlaying: false,
+    isSeeking: false,
+    nextEpisode: null,
+    prevEpisode: null,
+    progress: 0,
+    showEpisodes: false,
+    showVolume: false,
+    skipTimes: () => [],
+    volume: 1,
+  },
+)
 
 const isDesktopLayout = useMediaQuery('(min-width: 768px)')
 
@@ -79,7 +82,11 @@ function onSeekPointerDown(event: PointerEvent) {
   event.preventDefault()
   activePointer = event.pointerId
   dragging.value = true
-  try { el.setPointerCapture(event.pointerId) } catch (error) { console.warn('setPointerCapture failed', error) }
+  try {
+    el.setPointerCapture(event.pointerId)
+  } catch (error) {
+    console.warn('setPointerCapture failed', error)
+  }
   emit('seekStart')
   const time = timeAtX(event.clientX)
   if (time !== null) emit('seekPreview', time)

@@ -13,7 +13,7 @@ interface EpisodeCandidate {
 export async function resolveEpisode(
   malId: number,
   number: number,
-): Promise<{ animeId: number, anime: { title: string, thumbnail: string }, candidates: EpisodeCandidate[] } | null> {
+): Promise<{ animeId: number; anime: { title: string; thumbnail: string }; candidates: EpisodeCandidate[] } | null> {
   const rows = await db()
     .select({
       animeId: anime.id,

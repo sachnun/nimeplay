@@ -1,5 +1,5 @@
-import { proxyFetch } from '../media/proxy'
 import { warn } from '../log'
+import { proxyFetch } from '../media/proxy'
 
 const ANILIST_URL = 'https://graphql.anilist.co'
 const FETCH_TIMEOUT_MS = 15000
@@ -22,7 +22,7 @@ interface AniListSearchMedia {
   startDate?: { year?: number | null } | null
   genres?: string[] | null
   synonyms?: string[] | null
-  coverImage?: { extraLarge?: string | null, large?: string | null } | null
+  coverImage?: { extraLarge?: string | null; large?: string | null } | null
   title: TitleNames
 }
 
@@ -32,24 +32,24 @@ export interface AniListMedia {
   status?: string | null
   format?: string | null
   title: TitleNames
-  coverImage?: { extraLarge?: string | null, large?: string | null } | null
+  coverImage?: { extraLarge?: string | null; large?: string | null } | null
   description?: string | null
   averageScore?: number | null
-  rankings?: { rank: number, type: string }[] | null
+  rankings?: { rank: number; type: string }[] | null
   popularity?: number | null
   season?: string | null
   seasonYear?: number | null
   startDate?: { year?: number | null } | null
-  trailer?: { id?: string | null, site?: string | null } | null
+  trailer?: { id?: string | null; site?: string | null } | null
   studios?: { nodes?: { name: string }[] } | null
   genres?: string[] | null
   episodes?: number | null
-  nextAiringEpisode?: { airingAt?: number | null, episode?: number | null } | null
+  nextAiringEpisode?: { airingAt?: number | null; episode?: number | null } | null
   characters?: {
     edges?: {
       role?: string | null
-      node?: { name?: { full?: string | null } | null, image?: { large?: string | null } | null } | null
-      voiceActors?: { name?: { full?: string | null } | null, image?: { large?: string | null } | null }[] | null
+      node?: { name?: { full?: string | null } | null; image?: { large?: string | null } | null } | null
+      voiceActors?: { name?: { full?: string | null } | null; image?: { large?: string | null } | null }[] | null
     }[]
   } | null
 }
@@ -135,10 +135,9 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
         warn(`[anilist] ${res.status} ${res.statusText}`)
         return null
       }
-      const body = await res.json() as { data?: T }
+      const body = (await res.json()) as { data?: T }
       return body.data ?? null
-    }
-    catch (error) {
+    } catch (error) {
       const message = error instanceof Error ? error.message : error
       warn('[anilist] fetch error', { error: String(message) })
       if (typeof message === 'string' && message.includes('Too many subrequests')) return null

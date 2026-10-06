@@ -38,10 +38,13 @@ onMounted(() => {
   onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
 })
 
-watch(() => props.malId, () => {
-  prefetched.clear()
-  void refreshEpisodeStatuses()
-})
+watch(
+  () => props.malId,
+  () => {
+    prefetched.clear()
+    void refreshEpisodeStatuses()
+  },
+)
 
 function episodeClass(number: number) {
   const status = episodeStatuses.value[progressKey(props.malId, number)] ?? 'unstarted'
@@ -49,7 +52,6 @@ function episodeClass(number: number) {
   if (status === 'in_progress') return 'bg-white/10 text-white/50 opacity-75'
   return 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'
 }
-
 </script>
 
 <template>

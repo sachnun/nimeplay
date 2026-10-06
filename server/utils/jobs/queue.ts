@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
+import { type JobRow, jobs } from '../../database/schema'
 import { db } from '../db'
-import { jobs, type JobRow } from '../../database/schema'
 
 interface JobInput {
   type: string
@@ -27,14 +27,25 @@ export async function enqueue(item: JobInput): Promise<void> {
   return enqueueMany([item])
 }
 
-export async function claim(worker: string, limit: number, types?: string[], excludeSources?: string[]): Promise<JobRow[]> {
-  const typeFilter = types && types.length
-    ? sql` and type in (${sql.join(types.map(type => sql`${type}`), sql`, `)})`
+export async function claim(
+  worker: string,
+  limit: number,
+  types?: string[],
+  excludeSources?: string[],
+): Promise<JobRow[]> {
+  const typeFilter = types?.length
+    ? sql` and type in (${sql.join(
+        types.map(type => sql`${type}`),
+        sql`, `,
+      )})`
     : sql``
-  const sourceFilter = excludeSources && excludeSources.length
-    ? sql` and coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), '') not in (${sql.join(excludeSources.map(id => sql`${id}`), sql`, `)})`
+  const sourceFilter = excludeSources?.length
+    ? sql` and coalesce(payload->>'sourceId', split_part(payload->>'slug', ':', 1), '') not in (${sql.join(
+        excludeSources.map(id => sql`${id}`),
+        sql`, `,
+      )})`
     : sql``
-  const result = await db().execute(sql`
+  const result = (await db().execute(sql`
     update jobs j
     set status = 'active', locked_at = now(), locked_by = ${worker}, attempts = j.attempts + 1, updated_at = now()
     from (
@@ -52,7 +63,7 @@ export async function claim(worker: string, limit: number, types?: string[], exc
     ) picked
     where j.id = picked.id and j.status = 'waiting'
     returning j.*
-  `) as unknown as { rows: JobRow[] }
+  `)) as unknown as { rows: JobRow[] }
   return result.rows
 }
 

@@ -1,11 +1,13 @@
-import type { NuxtConfig } from 'nuxt/schema'
 import tailwindcss from '@tailwindcss/vite'
+import type { NuxtConfig } from 'nuxt/schema'
+import type { RollupLog } from 'rollup'
 
-function handleRollupWarning(warning: any, warn: (warning: any) => void) {
+function handleRollupWarning(warning: RollupLog, warn: (warning: RollupLog) => void) {
   if (
-    warning.code === 'SOURCEMAP_BROKEN'
-    && ['nuxt:module-preload-polyfill', '@tailwindcss/vite:generate:build'].includes(warning.plugin || '')
-  ) return
+    warning.code === 'SOURCEMAP_BROKEN' &&
+    ['nuxt:module-preload-polyfill', '@tailwindcss/vite:generate:build'].includes(warning.plugin || '')
+  )
+    return
   warn(warning)
 }
 
@@ -40,13 +42,14 @@ export default defineNuxtConfig({
   },
   modules: ['@nuxt/fonts', '@nuxtjs/device'],
   hooks: {
-    'build:manifest': (manifest) => {
+    'build:manifest': manifest => {
       for (const [id, chunk] of Object.entries(manifest)) {
         if (id.includes('hls.js')) (chunk as { prefetch?: boolean }).prefetch = false
       }
     },
     'prepare:types': ({ tsConfig }) => {
-      const compilerOptions = (tsConfig.compilerOptions ??= {})
+      if (!tsConfig.compilerOptions) tsConfig.compilerOptions = {}
+      const compilerOptions = tsConfig.compilerOptions
       compilerOptions.lib = ['ESNext', 'DOM', 'DOM.Iterable']
     },
   },
@@ -54,8 +57,24 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   fonts: {
     families: [
-      { name: 'Geist', provider: 'fontsource', weights: ['400', '500', '600', '700'], styles: ['normal'], subsets: ['latin'], global: true, preload: true },
-      { name: 'Geist Mono', provider: 'fontsource', weights: ['400'], styles: ['normal'], subsets: ['latin'], global: true, preload: false },
+      {
+        name: 'Geist',
+        provider: 'fontsource',
+        weights: ['400', '500', '600', '700'],
+        styles: ['normal'],
+        subsets: ['latin'],
+        global: true,
+        preload: true,
+      },
+      {
+        name: 'Geist Mono',
+        provider: 'fontsource',
+        weights: ['400'],
+        styles: ['normal'],
+        subsets: ['latin'],
+        global: true,
+        preload: false,
+      },
     ],
   },
   app: {
@@ -64,15 +83,13 @@ export default defineNuxtConfig({
       bodyAttrs: { class: 'min-h-full' },
       title: 'Nimeplay',
       titleTemplate: '%s - Nimeplay',
-      link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }
-      ],
+      link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
       meta: [
         { name: 'description', content: 'Minimal anime streaming' },
         { name: 'google', content: 'notranslate' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
-      ]
-    }
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      ],
+    },
   },
   vite: {
     build: {
@@ -91,6 +108,6 @@ export default defineNuxtConfig({
         },
       },
     },
-    plugins: [tailwindcss()] as NonNullable<NuxtConfig['vite']>['plugins']
-  }
+    plugins: [tailwindcss()] as NonNullable<NuxtConfig['vite']>['plugins'],
+  },
 })

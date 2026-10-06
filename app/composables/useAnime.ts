@@ -56,9 +56,12 @@ export function useInfiniteGridObserver(options: {
       resizeObserver.observe(options.gridRef.value)
     }
 
-    intersectionObserver = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) void options.loadMore()
-    }, { rootMargin: `${PREFETCH_SCREENS * 100}% 0px` })
+    intersectionObserver = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) void options.loadMore()
+      },
+      { rootMargin: `${PREFETCH_SCREENS * 100}% 0px` },
+    )
     if (options.sentinelRef.value) intersectionObserver.observe(options.sentinelRef.value)
   })
 

@@ -1,6 +1,6 @@
+import { sealStreamToken } from '../media/stream'
 import { plainGet } from '../net/fetch'
 import { keepSeriesEpisodes } from './shared'
-import { sealStreamToken } from '../media/stream'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const SITE_BASE = 'https://api.nakanime.my.id'
@@ -36,7 +36,7 @@ interface NakanimeDetail {
   description?: string
   rating?: string
   info?: string[]
-  genre?: { name: string, slug: string }[]
+  genre?: { name: string; slug: string }[]
   episodes?: NakanimeEpisode[]
 }
 
@@ -48,10 +48,10 @@ interface NakanimeStreamData {
   video_uri?: string
   prev_eps?: string | null
   next_eps?: string | null
-  iframe_uri?: { title?: string, video_uri?: string }[]
+  iframe_uri?: { title?: string; video_uri?: string }[]
 }
 
-async function apiGet<T>(path: string): Promise<{ data: T | null, lastPage: number }> {
+async function apiGet<T>(path: string): Promise<{ data: T | null; lastPage: number }> {
   const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
   if (res && res.status === 200 && res.text.trim()) {
     try {
@@ -59,8 +59,7 @@ async function apiGet<T>(path: string): Promise<{ data: T | null, lastPage: numb
       if (body.data !== undefined && body.data !== null) {
         return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
       }
-    }
-    catch {
+    } catch {
       // malformed body
     }
   }
@@ -108,9 +107,13 @@ function parseInfo(info: string[] | undefined): Map<string, string> {
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
   const { data } = await apiGet<NakanimeDetail>(`/anime/?name=${encodeURIComponent(slug)}`)
-  if (!data || !data.title) return null
+  if (!data?.title) return null
   const info = parseInfo(data.info)
-  const episodes = keepSeriesEpisodes(data.title, data.slug || slug, (data.episodes ?? []).filter(episode => episode.slug))
+  const episodes = keepSeriesEpisodes(
+    data.title,
+    data.slug || slug,
+    (data.episodes ?? []).filter(episode => episode.slug),
+  )
   return {
     title: data.title,
     japanese: '',
@@ -135,7 +138,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   if (!data) return null
 
   const seen = new Set<string>()
-  const groups = new Map<string, { name: string, dataContent: string }[]>()
+  const groups = new Map<string, { name: string; dataContent: string }[]>()
   const add = async (quality: string, url: string): Promise<void> => {
     if (!url.startsWith('http') || seen.has(url)) return
     seen.add(url)
@@ -149,7 +152,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   }
   if (groups.size === 0) await add(DEFAULT_QUALITY, decodeUrl(data.video_uri))
 
-  const episodeNav: { title: string, slug: string }[] = []
+  const episodeNav: { title: string; slug: string }[] = []
   if (data.prev_eps) episodeNav.push({ title: 'Previous Episode', slug: data.prev_eps })
   if (data.next_eps) episodeNav.push({ title: 'Next Episode', slug: data.next_eps })
 

@@ -4,8 +4,8 @@ import { astronime } from './astronime'
 import { nakanime } from './nakanime'
 import { otakudesu } from './otakudesu'
 import { sokuja } from './sokuja'
-import { ylnime } from './ylnime'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
+import { ylnime } from './ylnime'
 
 export const sources: Record<string, AnimeSource> = {
   animein,
@@ -28,7 +28,7 @@ export function getSources(): AnimeSource[] {
   return Object.values(sources)
 }
 
-export function splitSource(slug: string): { source: AnimeSource, rest: string } | null {
+export function splitSource(slug: string): { source: AnimeSource; rest: string } | null {
   const index = slug.indexOf(':')
   if (index <= 0) return null
   const source = sources[slug.slice(0, index)]

@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
-import { hasFiniteDuration } from '~/utils/player'
 import type { SkipTime } from '~/types'
+import { hasFiniteDuration } from '~/utils/player'
 
 interface EpisodePlayerSkipOptions {
   malId: number
@@ -20,13 +20,13 @@ export function useEpisodePlayerSkip(options: EpisodePlayerSkipOptions) {
 
   function autoSkipCurrentSegment(video: HTMLVideoElement) {
     if (!autoSkip.value) return
-    const current = skipTimes.value.find((skipTime) => shouldSkipSegment(skipTime, video.currentTime))
+    const current = skipTimes.value.find(skipTime => shouldSkipSegment(skipTime, video.currentTime))
     if (current) video.currentTime = current.interval.endTime
   }
 
   function currentVideoDuration() {
     const video = videoRef.value
-    return hasFiniteDuration(video) ? video?.duration ?? null : null
+    return hasFiniteDuration(video) ? (video?.duration ?? null) : null
   }
 
   async function fetchSkipTimesIfNeeded() {

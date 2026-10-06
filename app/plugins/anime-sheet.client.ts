@@ -1,4 +1,4 @@
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin(nuxtApp => {
   const sheet = useAnimeSheet()
 
   nuxtApp.$router.beforeEach((to, from) => {

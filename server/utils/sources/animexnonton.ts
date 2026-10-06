@@ -1,5 +1,5 @@
-import { sealStreamToken } from '../media/stream'
 import { proxyUrl } from '../media/proxy'
+import { sealStreamToken } from '../media/stream'
 import { keepSeriesEpisodes } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
@@ -15,7 +15,7 @@ const API_HEADERS: Record<string, string> = {
   'user-agent': 'okhttp/5.5.0',
 }
 
-const MIRROR_FIELDS: { quality: string, field: string, name: string }[] = [
+const MIRROR_FIELDS: { quality: string; field: string; name: string }[] = [
   { quality: '1080p', field: 'channel_url_fhd', name: 'Origin' },
   { quality: '720p', field: 'channel_url_hd', name: 'FB' },
   { quality: '720p', field: 'channel_url_hd_ori', name: 'Origin' },
@@ -67,7 +67,7 @@ interface EpisodeResponse {
   [key: string]: unknown
 }
 
-let cachedConfig: { base: string, auth: string | null, at: number } | null = null
+let cachedConfig: { base: string; auth: string | null; at: number } | null = null
 
 function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   const length = Math.floor(hex.length / 2)
@@ -96,20 +96,19 @@ async function decrypt(keyHex: string, payload: string): Promise<string | null> 
     const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt'])
     const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)
     return new TextDecoder().decode(plain)
-  }
-  catch {
+  } catch {
     return null
   }
 }
 
-async function loadConfig(): Promise<{ base: string, auth: string | null }> {
+async function loadConfig(): Promise<{ base: string; auth: string | null }> {
   if (cachedConfig && Date.now() - cachedConfig.at < BASE_TTL_MS) return cachedConfig
   let base = API_BASE_FALLBACK
   let auth: string | null = null
   try {
     const res = await fetch(CONFIG_URL, { headers: API_HEADERS, signal: AbortSignal.timeout(8000) })
     if (res.ok) {
-      const config = await res.json() as { hex?: string, server_url?: string, video_pass?: string }
+      const config = (await res.json()) as { hex?: string; server_url?: string; video_pass?: string }
       if (config.hex) {
         if (config.server_url) {
           const resolved = await decrypt(config.hex, config.server_url)
@@ -117,13 +116,11 @@ async function loadConfig(): Promise<{ base: string, auth: string | null }> {
         }
         if (config.video_pass) {
           const pass = await decrypt(config.hex, config.video_pass)
-          if (pass && pass.startsWith('Basic ')) auth = pass
+          if (pass?.startsWith('Basic ')) auth = pass
         }
       }
     }
-  }
-  catch {
-  }
+  } catch {}
   cachedConfig = { base, auth, at: Date.now() }
   return cachedConfig
 }
@@ -144,9 +141,8 @@ async function postEndpoint<T>(name: string, fields: Record<string, string | num
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!res.ok) return null
-    return await res.json() as T
-  }
-  catch {
+    return (await res.json()) as T
+  } catch {
     return null
   }
 }
@@ -184,12 +180,18 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   const title = (category?.category_name ?? '').trim()
   if (!title) return null
 
-  const posts = (data?.posts ?? []).filter((post): post is CategoryPost & { channel_id: number } => Number.isFinite(post.channel_id))
-  const channels = keepSeriesEpisodes(title, slug, posts.map(post => ({ title: post.channel_name ?? '' })))
+  const posts = (data?.posts ?? []).filter((post): post is CategoryPost & { channel_id: number } =>
+    Number.isFinite(post.channel_id),
+  )
+  const channels = keepSeriesEpisodes(
+    title,
+    slug,
+    posts.map(post => ({ title: post.channel_name ?? '' })),
+  )
   const kept = new Set(channels.map(channel => channel.title))
   const episodes = posts
     .filter(post => kept.has(post.channel_name ?? ''))
-    .map((post) => {
+    .map(post => {
       const number = parseEpisodeNumber(post.channel_name ?? '') ?? (posts.length === 1 ? 1 : null)
       if (number === null) return null
       return {
@@ -199,7 +201,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
         date: '',
       }
     })
-    .filter((entry): entry is { number: number, title: string, slug: string, date: string } => entry !== null)
+    .filter((entry): entry is { number: number; title: string; slug: string; date: string } => entry !== null)
     .sort((a, b) => a.number - b.number)
     .map(({ title: episodeTitle, slug: episodeSlug, date }) => ({ title: episodeTitle, slug: episodeSlug, date }))
 
@@ -217,10 +219,13 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   if (!match) return null
   const channelId = match[1]!
 
-  const data = await postEndpoint<EpisodeResponse>('get_post_description', { channel_id: channelId, isAPKvalid: 'true' })
+  const data = await postEndpoint<EpisodeResponse>('get_post_description', {
+    channel_id: channelId,
+    isAPKvalid: 'true',
+  })
   if (!data?.channel_name) return null
 
-  const grouped = new Map<string, { name: string, dataContent: string }[]>()
+  const grouped = new Map<string, { name: string; dataContent: string }[]>()
   if (data.secretKey) {
     for (const { quality, field, name } of MIRROR_FIELDS) {
       const value = data[field]
@@ -255,7 +260,10 @@ async function resolveMirror(opaque: string): Promise<string | null> {
   const [, channelId, field] = match
   if (!channelId || !field || !MIRROR_FIELDS.some(entry => entry.field === field)) return null
 
-  const data = await postEndpoint<EpisodeResponse>('get_post_description', { channel_id: channelId, isAPKvalid: 'true' })
+  const data = await postEndpoint<EpisodeResponse>('get_post_description', {
+    channel_id: channelId,
+    isAPKvalid: 'true',
+  })
   const payload = data?.[field]
   if (!data?.secretKey || typeof payload !== 'string') return null
   const url = await decrypt(data.secretKey, payload)
@@ -268,8 +276,7 @@ async function proxyHeaders(url: string): Promise<{ headers?: Record<string, str
   let host = ''
   try {
     host = new URL(url).host
-  }
-  catch {
+  } catch {
     return null
   }
   if (!host.includes(ORIGIN_HOST)) return null

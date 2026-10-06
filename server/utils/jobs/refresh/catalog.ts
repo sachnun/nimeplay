@@ -1,12 +1,12 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { animeSources } from '../../../database/schema'
 import { db } from '../../db'
+import { ok, warn } from '../../log'
 import { getSources } from '../../sources'
-import type { AnimeSource } from '../../sources/types'
 import { parseEpisodeDate } from '../../sources/shared'
+import type { AnimeSource } from '../../sources/types'
 import { syncAnimeAggregate } from './persist'
 import { getAppState, setAppState } from './state'
-import { ok, warn } from '../../log'
 import { chunkValues } from './util'
 
 function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promise<T | null> {
@@ -19,7 +19,10 @@ function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promis
   )
 }
 
-async function registerOngoingCards(sourceId: string, cards: { slug: string, date?: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank?: number }[]) {
+async function registerOngoingCards(
+  sourceId: string,
+  cards: { slug: string; date?: string; status?: 'ONGOING' | 'COMPLETED'; ongoingRank?: number }[],
+) {
   if (cards.length === 0) return
   const rows = cards.map(card => ({
     source: sourceId,
@@ -30,18 +33,24 @@ async function registerOngoingCards(sourceId: string, cards: { slug: string, dat
   }))
   const client = db()
   for (const chunk of chunkValues(rows, 10)) {
-    await client.insert(animeSources).values(chunk).onConflictDoUpdate({
-      target: [animeSources.source, animeSources.slug],
-      set: {
-        status: sql`excluded.status`,
-        latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${animeSources.latestEpisodeAt})`,
-        ongoingRank: sql`coalesce(excluded.ongoing_rank, ${animeSources.ongoingRank})`,
-      },
-    })
+    await client
+      .insert(animeSources)
+      .values(chunk)
+      .onConflictDoUpdate({
+        target: [animeSources.source, animeSources.slug],
+        set: {
+          status: sql`excluded.status`,
+          latestEpisodeAt: sql`coalesce(excluded.latest_episode_at, ${animeSources.latestEpisodeAt})`,
+          ongoingRank: sql`coalesce(excluded.ongoing_rank, ${animeSources.ongoingRank})`,
+        },
+      })
   }
 
   const touched = new Set<number>()
-  for (const chunk of chunkValues(rows.map(row => row.slug), 200)) {
+  for (const chunk of chunkValues(
+    rows.map(row => row.slug),
+    200,
+  )) {
     const linked = await client
       .select({ animeId: animeSources.animeId })
       .from(animeSources)
@@ -53,7 +62,7 @@ async function registerOngoingCards(sourceId: string, cards: { slug: string, dat
   for (const animeId of touched) await syncAnimeAggregate(animeId)
 }
 
-export async function backfillCompleted(source: AnimeSource): Promise<{ pages: number, registered: number }> {
+export async function backfillCompleted(source: AnimeSource): Promise<{ pages: number; registered: number }> {
   const key = `backfill:${source.id}`
   const cursor = await getAppState(key)
   if (cursor === 'done') return { pages: 0, registered: 0 }
@@ -63,9 +72,10 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
   let pages = 0
   let registered = 0
   while (page <= totalPages) {
-    const result = await attempt(
-      source.completedFresh(page),
-      error => warn(`[catalog] ${source.id} completed page ${page} failed`, { error: error instanceof Error ? error.message : String(error) }),
+    const result = await attempt(source.completedFresh(page), error =>
+      warn(`[catalog] ${source.id} completed page ${page} failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      }),
     )
     if (result === null) break
     pages++
@@ -76,9 +86,10 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
         date: card.date,
         status: 'COMPLETED' as const,
       }))
-      const done = await attempt(
-        registerOngoingCards(source.id, cards),
-        error => warn(`[catalog] ${source.id} completed register failed`, { error: error instanceof Error ? error.message : String(error) }),
+      const done = await attempt(registerOngoingCards(source.id, cards), error =>
+        warn(`[catalog] ${source.id} completed register failed`, {
+          error: error instanceof Error ? error.message : String(error),
+        }),
       )
       if (done !== null) registered += result.anime.length
     }
@@ -91,10 +102,11 @@ export async function backfillCompleted(source: AnimeSource): Promise<{ pages: n
 export async function syncOngoingCatalog(): Promise<void> {
   let ongoingRank = 0
   for (const source of getSources()) {
-    const cards: { slug: string, date: string, status?: 'ONGOING' | 'COMPLETED', ongoingRank: number }[] = []
-    const first = await attempt(
-      source.ongoingFresh(1),
-      error => warn(`[catalog] ${source.id} ongoing page 1 failed`, { error: error instanceof Error ? error.message : String(error) }),
+    const cards: { slug: string; date: string; status?: 'ONGOING' | 'COMPLETED'; ongoingRank: number }[] = []
+    const first = await attempt(source.ongoingFresh(1), error =>
+      warn(`[catalog] ${source.id} ongoing page 1 failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      }),
     )
     if (first !== null && first.anime.length > 0) {
       for (const card of first.anime) {
@@ -103,10 +115,15 @@ export async function syncOngoingCatalog(): Promise<void> {
       }
       const pages: number[] = []
       for (let page = 2; page <= first.totalPages; page++) pages.push(page)
-      const restResults = await Promise.all(pages.map(page => attempt(
-        source.ongoingFresh(page),
-        error => warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: error instanceof Error ? error.message : String(error) }),
-      )))
+      const restResults = await Promise.all(
+        pages.map(page =>
+          attempt(source.ongoingFresh(page), error =>
+            warn(`[catalog] ${source.id} ongoing page ${page} failed`, {
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          ),
+        ),
+      )
       for (const result of restResults) {
         if (result === null) continue
         for (const card of result.anime) {

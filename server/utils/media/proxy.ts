@@ -4,16 +4,8 @@ const POOL_OVERRIDES: [string, string][] = [
   ['sokuja.net', 'pl'],
   ['sokuja.uk', 'pl'],
 ]
-const BYPASS_HOSTS = [
-  'myanimelist.net',
-  'malcdn.com',
-  'mega.nz',
-  'mega.co.nz',
-  'github.io',
-]
-const NO_REGION_HOSTS = [
-  'anilist.co',
-]
+const BYPASS_HOSTS = ['myanimelist.net', 'malcdn.com', 'mega.nz', 'mega.co.nz', 'github.io']
+const NO_REGION_HOSTS = ['anilist.co']
 
 let enabled = false
 
@@ -30,8 +22,7 @@ export function proxyUrl(input: string, force = false): string {
   let host: string
   try {
     host = new URL(input).hostname
-  }
-  catch {
+  } catch {
     return input
   }
   if (BYPASS_HOSTS.some(suffix => matches(host, suffix))) return input

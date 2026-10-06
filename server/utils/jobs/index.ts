@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
+import { ok, warn } from '../log'
+import { getSources } from '../sources'
+import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
 import { alert } from './alert'
 import { claim, classifyError, complete, fail, prune, releaseStale } from './queue'
-import { getSources } from '../sources'
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
-import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
-import { ok, warn } from '../log'
 
 const BATCH = 64
 const STALE_MS = 15 * 60 * 1000
@@ -66,14 +66,12 @@ async function processJob(job: JobRow): Promise<void> {
     await complete(job.id)
     recordSuccess(sourceId)
     ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
-  }
-  catch (error) {
+  } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: message })
     if (classifyError(message) === 'transient') {
       if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
-    }
-    else {
+    } else {
       recordSuccess(sourceId)
     }
     await fail(job.id, message)

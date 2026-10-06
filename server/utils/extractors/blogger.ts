@@ -31,8 +31,7 @@ function findStreamingData(value: unknown): BloggerStreamingData | null {
     if (!value.includes('streamingData')) return null
     try {
       return findStreamingData(JSON.parse(value))
-    }
-    catch {
+    } catch {
       return null
     }
   }
@@ -67,8 +66,7 @@ export async function extractBlogger(embedUrl: string, _html: string): Promise<s
   let token: string | null = null
   try {
     token = new URL(embedUrl).searchParams.get('token')
-  }
-  catch {
+  } catch {
     return null
   }
   if (!token) return null
@@ -112,8 +110,7 @@ export async function extractBlogger(embedUrl: string, _html: string): Promise<s
     if (!chunk) return null
     const data = findStreamingData(JSON.parse(chunk))
     return data ? bestFormatUrl(data) : null
-  }
-  catch {
+  } catch {
     return null
   }
 }

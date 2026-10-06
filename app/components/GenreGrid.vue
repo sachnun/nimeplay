@@ -13,7 +13,10 @@ const props = defineProps<{
 const sentinelRef = shallowRef<HTMLDivElement | null>(null)
 const gridRef = shallowRef<HTMLDivElement | null>(null)
 const cols = ref(2)
-const gridState = useState<{ pages: PageData[]; size: number }>(`genre-grid:${props.genreSlug}`, () => ({ pages: [], size: 0 }))
+const gridState = useState<{ pages: PageData[]; size: number }>(`genre-grid:${props.genreSlug}`, () => ({
+  pages: [],
+  size: 0,
+}))
 const loading = ref(false)
 const loadError = ref(false)
 const loadServerError = ref(false)
@@ -31,23 +34,25 @@ onMounted(() => {
   })
 })
 
-const allAnime = computed(() => gridState.value.pages.flatMap((d) => d.anime))
+const allAnime = computed(() => gridState.value.pages.flatMap(d => d.anime))
 const showPlane = computed(() => loadError.value && loadServerError.value && allAnime.value.length === 0)
 const totalPages = computed(() => gridState.value.pages[0]?.totalPages ?? 1)
 const isEnd = computed(() => gridState.value.size >= totalPages.value)
-const animeCards = computed(() => allAnime.value.map((anime) => {
-  const progress = progressMap.value.get(anime.malId)
-  const latest = Number(anime.episodes?.match(/\d+/)?.[0])
-  return {
-    anime,
-    to: `/anime/${anime.malId}`,
-    badge: anime.episodes && /\d/.test(anime.episodes) ? anime.episodes : '',
-    newEpisode: progress?.latestEpisode !== undefined && Number.isFinite(latest) && latest > progress.latestEpisode,
-    resumeTo: progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined,
-    subtitle: progress ? `Lanjutkan EP ${progress.episodeNumber}` : anime.date,
-    progressPct: progress && progress.duration > 0 ? (progress.currentTime / progress.duration) * 100 : undefined,
-  }
-}))
+const animeCards = computed(() =>
+  allAnime.value.map(anime => {
+    const progress = progressMap.value.get(anime.malId)
+    const latest = Number(anime.episodes?.match(/\d+/)?.[0])
+    return {
+      anime,
+      to: `/anime/${anime.malId}`,
+      badge: anime.episodes && /\d/.test(anime.episodes) ? anime.episodes : '',
+      newEpisode: progress?.latestEpisode !== undefined && Number.isFinite(latest) && latest > progress.latestEpisode,
+      resumeTo: progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined,
+      subtitle: progress ? `Lanjutkan EP ${progress.episodeNumber}` : anime.date,
+      progressPct: progress && progress.duration > 0 ? (progress.currentTime / progress.duration) * 100 : undefined,
+    }
+  }),
+)
 async function loadPage(page: number) {
   return fetchGenrePage(props.genreSlug, page)
 }
@@ -69,12 +74,15 @@ async function loadMore() {
   })
 }
 
-watch(() => props.genreSlug, () => {
-  if (gridState.value.pages.length === 0) void loadMore()
-}, { immediate: true })
+watch(
+  () => props.genreSlug,
+  () => {
+    if (gridState.value.pages.length === 0) void loadMore()
+  },
+  { immediate: true },
+)
 
 const { isSentinelNearViewport } = useInfiniteGridObserver({ gridRef, sentinelRef, cols, isEnd, loadMore })
-
 </script>
 
 <template>

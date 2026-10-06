@@ -47,10 +47,9 @@ async function apiGet<T>(path: string): Promise<T | null> {
   const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
   if (res && res.status === 200) {
     try {
-      const body = JSON.parse(res.text) as { status?: number, error?: boolean, data?: T }
+      const body = JSON.parse(res.text) as { status?: number; error?: boolean; data?: T }
       if (!body.error && body.status === 200 && body.data) return body.data
-    }
-    catch {
+    } catch {
       return null
     }
   }
@@ -174,7 +173,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const index = match[2]!
   const episodeId = match[3]!
 
-  const data = await apiGet<{ episode?: AnimeinEpisode, server?: AnimeinServer[] }>(
+  const data = await apiGet<{ episode?: AnimeinEpisode; server?: AnimeinServer[] }>(
     `/3/2/episode/streamnew/${encodeURIComponent(episodeId)}`,
   )
   const episode = data?.episode
@@ -182,7 +181,7 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
 
   const servers = (data?.server ?? []).filter(server => server.type === 'direct' && server.link)
 
-  const grouped = new Map<string, { name: string, dataContent: string }[]>()
+  const grouped = new Map<string, { name: string; dataContent: string }[]>()
   for (const server of servers) {
     const quality = server.quality || 'HD'
     const sealed = await sealStreamToken(`animein:${server.link}`)

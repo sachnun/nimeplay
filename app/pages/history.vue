@@ -52,7 +52,7 @@ async function loadHistory() {
 
 async function removeItem(malId: number) {
   await removeAnimeProgress(malId)
-  items.value = items.value.filter((item) => item.malId !== malId)
+  items.value = items.value.filter(item => item.malId !== malId)
   if ((await getContinueWatching()).length === 0) await navigateTo('/', { replace: true })
 }
 

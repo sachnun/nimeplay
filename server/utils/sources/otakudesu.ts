@@ -30,7 +30,7 @@ function extractEpisodeSlug(href: string): string {
 
 function getTotalPages($: cheerio.CheerioAPI): number {
   const lastPage = $('.pagenavix a.page-numbers').not('.next').last().text().trim()
-  return Number.parseInt(lastPage) || 1
+  return Number.parseInt(lastPage, 10) || 1
 }
 
 function parseAnimeCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
@@ -60,16 +60,18 @@ function parseInfo($: cheerio.CheerioAPI): Record<string, string> {
 }
 
 function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: string; date: string }[] {
-  return $('.episodelist ul li').map((_, el) => {
-    const $el = $(el)
-    const link = $el.find('a').attr('href') || ''
-    if (!link.includes('/episode/')) return null
-    return {
-      title: $el.find('a').text().trim(),
-      slug: extractEpisodeSlug(link),
-      date: $el.find('.zeebr').text().trim(),
-    }
-  }).get()
+  return $('.episodelist ul li')
+    .map((_, el) => {
+      const $el = $(el)
+      const link = $el.find('a').attr('href') || ''
+      if (!link.includes('/episode/')) return null
+      return {
+        title: $el.find('a').text().trim(),
+        slug: extractEpisodeSlug(link),
+        date: $el.find('.zeebr').text().trim(),
+      }
+    })
+    .get()
 }
 
 function infoValue(info: Record<string, string>, key: string): string {
@@ -122,10 +124,10 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
 
 function parseEpisodeAnimeSlug($: cheerio.CheerioAPI): string {
   return extractAnimeSlug(
-    $('.flir a[href*="/anime/"]').attr('href')
-    || $('.alert-info a[href*="/anime/"]').attr('href')
-    || $('a[href*="/anime/"][rel="follow"]').attr('href')
-    || '',
+    $('.flir a[href*="/anime/"]').attr('href') ||
+      $('.alert-info a[href*="/anime/"]').attr('href') ||
+      $('a[href*="/anime/"][rel="follow"]').attr('href') ||
+      '',
   )
 }
 
@@ -137,39 +139,53 @@ function parseMirrorQuality($ul: ReturnType<cheerio.CheerioAPI>): string {
 }
 
 async function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio.CheerioAPI>) {
-  const sources = $ul.find('a[data-content]').map((_, a) => ({
-    name: $(a).text().trim(),
-    dataContent: $(a).attr('data-content') || '',
-  })).get().filter((source) => source.name && source.dataContent)
-  return Promise.all(sources.map(async (source) => ({
-    ...source,
-    dataContent: await sealStreamToken(`otakudesu:${source.dataContent}`),
-  })))
+  const sources = $ul
+    .find('a[data-content]')
+    .map((_, a) => ({
+      name: $(a).text().trim(),
+      dataContent: $(a).attr('data-content') || '',
+    }))
+    .get()
+    .filter(source => source.name && source.dataContent)
+  return Promise.all(
+    sources.map(async source => ({
+      ...source,
+      dataContent: await sealStreamToken(`otakudesu:${source.dataContent}`),
+    })),
+  )
 }
 
 async function parseEpisodeMirrors($: cheerio.CheerioAPI): Promise<EpisodeData['mirrors']> {
   const uls = $('.mirrorstream ul').toArray()
-  const mirrors = await Promise.all(uls.map(async (ul) => {
-    const $ul = $(ul)
-    const quality = parseMirrorQuality($ul)
-    const sources = await parseMirrorSources($, $ul)
-    return sources.length > 0 && quality !== '360p' ? { quality, sources } : null
-  }))
+  const mirrors = await Promise.all(
+    uls.map(async ul => {
+      const $ul = $(ul)
+      const quality = parseMirrorQuality($ul)
+      const sources = await parseMirrorSources($, $ul)
+      return sources.length > 0 && quality !== '360p' ? { quality, sources } : null
+    }),
+  )
   return mirrors.filter((mirror): mirror is EpisodeData['mirrors'][number] => mirror !== null)
 }
 
 function parseEpisodeNav($: cheerio.CheerioAPI): EpisodeData['episodeNav'] {
-  return $('#selectcog option').map((_, el) => {
-    const value = $(el).attr('value') || ''
-    return value && value !== '0' && value.includes('/episode/')
-      ? { title: $(el).text().trim(), slug: extractEpisodeSlug(value) }
-      : null
-  }).get()
+  return $('#selectcog option')
+    .map((_, el) => {
+      const value = $(el).attr('value') || ''
+      return value && value !== '0' && value.includes('/episode/')
+        ? { title: $(el).text().trim(), slug: extractEpisodeSlug(value) }
+        : null
+    })
+    .get()
 }
 
 async function resolveMirror(opaque: string): Promise<string | null> {
   try {
-    const nonceData = await postForm(`${BASE_URL}/wp-admin/admin-ajax.php`, 'action=aa1208d27f29ca340c92c66d1926f13f', BASE_URL + '/')
+    const nonceData = await postForm(
+      `${BASE_URL}/wp-admin/admin-ajax.php`,
+      'action=aa1208d27f29ca340c92c66d1926f13f',
+      `${BASE_URL}/`,
+    )
     const nonce = nonceData.data as string
     const decoded = JSON.parse(atob(opaque))
     const params = new URLSearchParams({
@@ -179,7 +195,7 @@ async function resolveMirror(opaque: string): Promise<string | null> {
       nonce,
       action: '2a3505c93b0035d3f455df82bf976b84',
     })
-    const mirrorData = await postForm(`${BASE_URL}/wp-admin/admin-ajax.php`, params.toString(), BASE_URL + '/')
+    const mirrorData = await postForm(`${BASE_URL}/wp-admin/admin-ajax.php`, params.toString(), `${BASE_URL}/`)
     if (!mirrorData.data) return null
     const html = atob(mirrorData.data as string)
     return cheerio.load(html)('iframe').attr('src') || ''
@@ -192,8 +208,8 @@ export const otakudesu: AnimeSource = {
   id: 'otakudesu',
   name: 'Otakudesu',
   baseUrl: BASE_URL,
-  ongoingFresh: (page) => scrapeAnimeListFresh('ongoing-anime', page),
-  completedFresh: (page) => scrapeAnimeListFresh('complete-anime', page),
+  ongoingFresh: page => scrapeAnimeListFresh('ongoing-anime', page),
+  completedFresh: page => scrapeAnimeListFresh('complete-anime', page),
   detailFresh: scrapeAnimeDetailFresh,
   episodeFresh: scrapeEpisodeFresh,
   resolveMirror,

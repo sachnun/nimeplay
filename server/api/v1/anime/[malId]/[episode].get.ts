@@ -1,14 +1,15 @@
 import { createError, getQuery, getRouterParam } from 'h3'
+import { loadEpisodeData } from '../../../../utils/db/episode-cache'
 import { getEpisodeNumbers, resolveEpisode } from '../../../../utils/db/queries/episodes'
 import { toAbsoluteUrl } from '../../../../utils/media'
 import { prepareMirror, selectDefaultCandidate } from '../../../../utils/media/prepare'
-import { loadEpisodeData } from '../../../../utils/db/episode-cache'
 
 defineRouteMeta({
   openAPI: {
     tags: ['Anime'],
     summary: 'Watch episode',
-    description: 'Resolve an episode to a ready-to-play stream URL. Pick a server with server and quality, defaults to the best server.',
+    description:
+      'Resolve an episode to a ready-to-play stream URL. Pick a server with server and quality, defaults to the best server.',
     parameters: [
       {
         name: 'malId',
@@ -87,7 +88,7 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const malId = Number(getRouterParam(event, 'malId'))
   const episodeNumber = Number(getRouterParam(event, 'episode'))
   if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0) {
@@ -95,7 +96,9 @@ export default defineEventHandler(async (event) => {
   }
 
   const query = getQuery(event)
-  const preferredServer = String(query.server || '').toLowerCase().trim()
+  const preferredServer = String(query.server || '')
+    .toLowerCase()
+    .trim()
   const preferredQuality = String(query.quality || '').trim()
   const resolveStream = !['0', 'false'].includes(String(query.stream ?? '').toLowerCase())
 
@@ -121,16 +124,17 @@ export default defineEventHandler(async (event) => {
   )
 
   let ordered = candidates
-  const requested = preferredServer || preferredQuality
-    ? candidates.find(candidate =>
-        (!preferredServer || candidate.name.toLowerCase() === preferredServer)
-        && (!preferredQuality || candidate.quality === preferredQuality),
-      )
-    : null
+  const requested =
+    preferredServer || preferredQuality
+      ? candidates.find(
+          candidate =>
+            (!preferredServer || candidate.name.toLowerCase() === preferredServer) &&
+            (!preferredQuality || candidate.quality === preferredQuality),
+        )
+      : null
   if (requested) {
     ordered = [requested]
-  }
-  else {
+  } else {
     const best = selectDefaultCandidate(scraped.mirrors)
     if (best) {
       const match = candidates.find(candidate => candidate.dataContent === best.dataContent)
@@ -139,7 +143,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const origin = getRequestURL(event).origin
-  let stream: { playUrl: string, kind: 'hls' | 'file', quality: string, server: string } | null = null
+  let stream: { playUrl: string; kind: 'hls' | 'file'; quality: string; server: string } | null = null
   for (const candidate of resolveStream ? ordered.slice(0, 3) : []) {
     try {
       const result = await prepareMirror(candidate.dataContent, origin)
@@ -147,8 +151,7 @@ export default defineEventHandler(async (event) => {
         stream = { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
         break
       }
-    }
-    catch {}
+    } catch {}
   }
 
   return {

@@ -1,5 +1,5 @@
 import type { ComputedRef, Ref } from 'vue'
-import { qualityBitrate, type MirrorCandidate } from '~/utils/player'
+import { type MirrorCandidate, qualityBitrate } from '~/utils/player'
 
 interface EpisodePlayerQualityOptions {
   videoRef: Ref<HTMLVideoElement | null>
@@ -28,13 +28,15 @@ const UPGRADE_SAMPLES = 1
 
 function networkBandwidth(): number | null {
   if (!import.meta.client) return null
-  const connection = (navigator as Navigator & {
-    connection?: { downlink?: number; effectiveType?: string; saveData?: boolean }
-  }).connection
+  const connection = (
+    navigator as Navigator & {
+      connection?: { downlink?: number; effectiveType?: string; saveData?: boolean }
+    }
+  ).connection
   if (!connection) return null
   if (connection.saveData) return 0
   if (typeof connection.downlink === 'number' && connection.downlink > 0) return connection.downlink * 1_000_000
-  return connection.effectiveType ? NETWORK_RATES[connection.effectiveType] ?? null : null
+  return connection.effectiveType ? (NETWORK_RATES[connection.effectiveType] ?? null) : null
 }
 
 export function pickInitialQuality(levels: MirrorCandidate[]): MirrorCandidate | null {
@@ -67,7 +69,7 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     const levels = options.levels.value
     if (levels.length < 2) return
     if (Date.now() - lastSwitchAt < MIN_SWITCH_INTERVAL_MS) return
-    const index = levels.findIndex((level) => level.quality === options.activeQuality.value)
+    const index = levels.findIndex(level => level.quality === options.activeQuality.value)
     if (index === -1) return
     const active = levels[index]!
     const ahead = options.bufferAhead()

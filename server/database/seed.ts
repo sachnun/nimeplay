@@ -1,9 +1,9 @@
 import { SQL } from 'bun'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sql'
+import { db, setNodeDatabase } from '../utils/db'
 import * as schema from './schema'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
-import { db, setNodeDatabase } from '../utils/db'
 
 const client = new SQL({ url: process.env.DATABASE_URL!, max: 4 })
 setNodeDatabase(drizzle({ client, schema }))
@@ -38,14 +38,14 @@ interface SeedAnime {
 function mulberry32(seed: number): () => number {
   let state = seed
   return () => {
-    state = (state + 0x6D2B79F5) | 0
+    state = (state + 0x6d2b79f5) | 0
     let value = Math.imul(state ^ (state >>> 15), 1 | state)
     value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296
   }
 }
 
-const rand = mulberry32(0x5EEDCAFE)
+const rand = mulberry32(0x5eedcafe)
 
 function int(min: number, max: number): number {
   return min + Math.floor(rand() * (max - min + 1))
@@ -65,19 +65,141 @@ function pickMany<T>(items: readonly T[], min: number, max: number): T[] {
   return picked
 }
 
-const adjectives = ['Crimson', 'Silent', 'Eternal', 'Broken', 'Sacred', 'Hollow', 'Radiant', 'Frozen', 'Burning', 'Lost', 'Golden', 'Midnight', 'Iron', 'Violet', 'Endless', 'Shattered', 'Hidden', 'Wandering', 'Azure', 'Scarlet']
-const nouns = ['Blade', 'Requiem', 'Horizon', 'Garden', 'Symphony', 'Chronicle', 'Sky', 'Echo', 'Dream', 'Empire', 'Wanderer', 'Promise', 'Alchemist', 'Reaper', 'Academy', 'Odyssey', 'Lament', 'Covenant', 'Paradox', 'Nexus']
+const adjectives = [
+  'Crimson',
+  'Silent',
+  'Eternal',
+  'Broken',
+  'Sacred',
+  'Hollow',
+  'Radiant',
+  'Frozen',
+  'Burning',
+  'Lost',
+  'Golden',
+  'Midnight',
+  'Iron',
+  'Violet',
+  'Endless',
+  'Shattered',
+  'Hidden',
+  'Wandering',
+  'Azure',
+  'Scarlet',
+]
+const nouns = [
+  'Blade',
+  'Requiem',
+  'Horizon',
+  'Garden',
+  'Symphony',
+  'Chronicle',
+  'Sky',
+  'Echo',
+  'Dream',
+  'Empire',
+  'Wanderer',
+  'Promise',
+  'Alchemist',
+  'Reaper',
+  'Academy',
+  'Odyssey',
+  'Lament',
+  'Covenant',
+  'Paradox',
+  'Nexus',
+]
 const tails = ['Dawn', 'Abyss', 'Fallen', 'Void', 'Stars', 'Storm', 'King', 'Witch', 'Moon', 'Dust']
 const subtitles = ['Requiem', 'Rebirth', 'Zero', 'Aftermath', 'Legacy', 'Protocol', 'Rising', 'Fall']
 const suffixes = ['Academy', 'Chronicles', 'Project', 'Saga', 'Frontier', 'Society', 'Experiment', 'Crusade']
-const genrePool = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Sci-Fi', 'Supernatural', 'Horror', 'Mystery', 'Psychological', 'Thriller', 'Romance', 'Slice of Life', 'Sports', 'Music', 'Mecha', 'Isekai', 'Shounen']
-const studios = ['Madhouse', 'MAPPA', 'ufotable', 'Bones', 'Wit Studio', 'A-1 Pictures', 'White Fox', 'Production I.G', 'Kyoto Animation', 'CloverWorks', 'Trigger', 'Shaft', 'J.C.Staff', 'Studio Pierrot']
+const genrePool = [
+  'Action',
+  'Adventure',
+  'Comedy',
+  'Drama',
+  'Fantasy',
+  'Sci-Fi',
+  'Supernatural',
+  'Horror',
+  'Mystery',
+  'Psychological',
+  'Thriller',
+  'Romance',
+  'Slice of Life',
+  'Sports',
+  'Music',
+  'Mecha',
+  'Isekai',
+  'Shounen',
+]
+const studios = [
+  'Madhouse',
+  'MAPPA',
+  'ufotable',
+  'Bones',
+  'Wit Studio',
+  'A-1 Pictures',
+  'White Fox',
+  'Production I.G',
+  'Kyoto Animation',
+  'CloverWorks',
+  'Trigger',
+  'Shaft',
+  'J.C.Staff',
+  'Studio Pierrot',
+]
 const days = [0, 1, 2, 3, 4, 5, 6]
-const givenNames = ['Haru', 'Akira', 'Yuki', 'Rin', 'Sora', 'Kaito', 'Mei', 'Ren', 'Hina', 'Sota', 'Aoi', 'Itsuki', 'Nao', 'Takumi', 'Emi', 'Kohaku', 'Shion', 'Ayaka', 'Daichi', 'Mio']
-const familyNames = ['Tanaka', 'Suzuki', 'Sato', 'Yamada', 'Kobayashi', 'Ishikawa', 'Fujimoto', 'Nakamura', 'Hayashi', 'Mori', 'Okada', 'Shimizu', 'Kuroda', 'Sakamoto', 'Nishimura', 'Hasegawa', 'Aoyama', 'Yoshida', 'Kawasaki', 'Matsuda']
+const givenNames = [
+  'Haru',
+  'Akira',
+  'Yuki',
+  'Rin',
+  'Sora',
+  'Kaito',
+  'Mei',
+  'Ren',
+  'Hina',
+  'Sota',
+  'Aoi',
+  'Itsuki',
+  'Nao',
+  'Takumi',
+  'Emi',
+  'Kohaku',
+  'Shion',
+  'Ayaka',
+  'Daichi',
+  'Mio',
+]
+const familyNames = [
+  'Tanaka',
+  'Suzuki',
+  'Sato',
+  'Yamada',
+  'Kobayashi',
+  'Ishikawa',
+  'Fujimoto',
+  'Nakamura',
+  'Hayashi',
+  'Mori',
+  'Okada',
+  'Shimizu',
+  'Kuroda',
+  'Sakamoto',
+  'Nishimura',
+  'Hasegawa',
+  'Aoyama',
+  'Yoshida',
+  'Kawasaki',
+  'Matsuda',
+]
 
 function slugify(value: string): string {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
 }
 
 function image(seed: string, width: number, height: number): string {
@@ -100,13 +222,14 @@ function seasonOf(month: number): SeedAnime['season'] {
 function buildTitle(used: Set<string>): string {
   for (let attempt = 0; attempt < 200; attempt++) {
     const style = int(0, 3)
-    const title = style === 0
-      ? `${pick(adjectives)} ${pick(nouns)}`
-      : style === 1
-        ? `${pick(nouns)} of the ${pick(tails)}`
-        : style === 2
-          ? `${pick(adjectives)} ${pick(nouns)}: ${pick(subtitles)}`
-          : `${pick(nouns)} ${pick(suffixes)}`
+    const title =
+      style === 0
+        ? `${pick(adjectives)} ${pick(nouns)}`
+        : style === 1
+          ? `${pick(nouns)} of the ${pick(tails)}`
+          : style === 2
+            ? `${pick(adjectives)} ${pick(nouns)}: ${pick(subtitles)}`
+            : `${pick(nouns)} ${pick(suffixes)}`
     if (!used.has(title)) {
       used.add(title)
       return title
@@ -182,7 +305,7 @@ function animeValues(entry: SeedAnime, malId: number): typeof anime.$inferInsert
     year: entry.year,
     status: entry.status,
     type: entry.type,
-    day: entry.status === 'ONGOING' ? entry.day ?? null : null,
+    day: entry.status === 'ONGOING' ? (entry.day ?? null) : null,
     studio: entry.studio,
     episodeCount: entry.episodes,
     latestEpisode: entry.episodes,
@@ -235,7 +358,9 @@ async function seed(): Promise<void> {
     .where(inArray(genres.slug, genreSlugs))
   const genreIds = new Map(genreRows.map(row => [row.slug, row.id]))
 
-  await client.execute(sql`delete from anime where id in (select anime_id from anime_sources where source = 'seed' and anime_id is not null)`)
+  await client.execute(
+    sql`delete from anime where id in (select anime_id from anime_sources where source = 'seed' and anime_id is not null)`,
+  )
 
   for (const [index, entry] of CATALOG.entries()) {
     const malId = MAL_BASE + index + 1
@@ -265,7 +390,7 @@ async function seed(): Promise<void> {
     await client.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
     const links = entry.genres
       .map(name => ({ animeId, genreId: genreIds.get(slugify(name)) }))
-      .filter((link): link is { animeId: number, genreId: number } => link.genreId !== undefined)
+      .filter((link): link is { animeId: number; genreId: number } => link.genreId !== undefined)
     if (links.length > 0) await client.insert(animeGenres).values(links).onConflictDoNothing()
 
     await client.delete(episodes).where(eq(episodes.sourceId, sourceId))
@@ -278,7 +403,9 @@ async function seed(): Promise<void> {
 
   const episodeTotal = CATALOG.reduce((total, entry) => total + entry.episodes, 0)
   const characterTotal = CATALOG.reduce((total, entry) => total + entry.characters.length, 0)
-  console.log(`[seed] ${CATALOG.length} anime, ${genreNames.length} genres, ${episodeTotal} episodes, ${characterTotal} characters`)
+  console.log(
+    `[seed] ${CATALOG.length} anime, ${genreNames.length} genres, ${episodeTotal} episodes, ${characterTotal} characters`,
+  )
 }
 
 if (process.env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
@@ -294,7 +421,7 @@ if (process.argv.includes('--dry-run')) {
 
 seed()
   .then(() => client.close())
-  .catch((error) => {
+  .catch(error => {
     console.error('[seed] failed:', error instanceof Error ? error.message : error)
     process.exit(1)
   })

@@ -39,16 +39,18 @@ defineRouteMeta({
               },
             },
             example: {
-              data: [{
-                malId: 52991,
-                title: 'Sousou no Frieren',
-                thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
-                studio: '',
-                episodes: '28 Eps',
-                rating: '9.3',
-                genres: 'Adventure, Drama, Fantasy',
-                date: 'Fall 2023',
-              }],
+              data: [
+                {
+                  malId: 52991,
+                  title: 'Sousou no Frieren',
+                  thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
+                  studio: '',
+                  episodes: '28 Eps',
+                  rating: '9.3',
+                  genres: 'Adventure, Drama, Fantasy',
+                  date: 'Fall 2023',
+                },
+              ],
               page: 1,
               totalPages: 12,
             },
@@ -60,11 +62,18 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const slug = getRouterParam(event, 'slug') || ''
   const page = Math.max(1, Number(getQuery(event).page) || 1)
 
   const result = await getGenreAnimePage(slug, page)
   if (!result) throw createError({ statusCode: 404, statusMessage: 'Genre not found' })
-  return { data: result.anime.map(item => ({ ...item, thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin) })), page, totalPages: result.totalPages }
+  return {
+    data: result.anime.map(item => ({
+      ...item,
+      thumbnail: toAbsoluteUrl(item.thumbnail, getRequestURL(event).origin),
+    })),
+    page,
+    totalPages: result.totalPages,
+  }
 })

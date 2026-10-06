@@ -9,7 +9,7 @@ const API_CORS_HEADERS = {
   'Access-Control-Max-Age': '86400',
 }
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(event => {
   const path = getRequestURL(event).pathname
   if (!path.startsWith('/api/') && !EXTRA_ROUTES.includes(path)) return
 

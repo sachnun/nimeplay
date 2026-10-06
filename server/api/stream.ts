@@ -22,7 +22,7 @@ function isPlaylistResponse(contentType: string | null): boolean {
   return !!contentType && contentType.toLowerCase().includes('mpegurl')
 }
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const query = getQuery(event)
   const token = String(query.t || '')
 
@@ -94,13 +94,13 @@ export default defineEventHandler(async (event) => {
 })
 
 async function rewriteHlsPlaylist(text: string, baseUrl: string, origin: string): Promise<string> {
-  const lines = text.split('\n').map(async (line) => {
+  const lines = text.split('\n').map(async line => {
     const trimmed = line.trim()
     if (!trimmed) return line
     if (trimmed.startsWith('#')) {
-      const uris = [...line.matchAll(/URI="([^"]+)"/g)].map((match) => match[1] ?? '')
+      const uris = [...line.matchAll(/URI="([^"]+)"/g)].map(match => match[1] ?? '')
       if (uris.length === 0) return line
-      const sealed = await Promise.all(uris.map((uri) => sealedStreamUrl(origin, uri, baseUrl)))
+      const sealed = await Promise.all(uris.map(uri => sealedStreamUrl(origin, uri, baseUrl)))
       let index = 0
       return line.replace(/URI="([^"]+)"/g, () => `URI="${sealed[index++] ?? ''}"`)
     }

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { anime, animeSources } from '../../../database/schema'
 import { db } from '../../db'
+import { log, ok, warn } from '../../log'
 import { getSources, splitSource } from '../../sources'
 import { parseEpisodeDate } from '../../sources/shared'
 import { backfillCompleted, syncOngoingCatalog } from './catalog'
@@ -8,7 +9,6 @@ import { getSourceRow, refreshCanonicalMetadata, syncAnimeAggregate, upsertEpiso
 import { resolveSourceMetadata } from './resolve'
 import { acquireSync, releaseSync } from './state'
 import { episodeNumber } from './util'
-import { log, ok, warn } from '../../log'
 
 function normalizeStatus(raw: string): string {
   const value = raw.toLowerCase()
@@ -29,7 +29,7 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
       .values({ source: source.id, slug: vendorSlug })
       .onConflictDoNothing()
       .returning()
-    sourceRow = row ?? await getSourceRow(source.id, vendorSlug)
+    sourceRow = row ?? (await getSourceRow(source.id, vendorSlug))
     if (!sourceRow) return
   }
 
@@ -46,13 +46,15 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
       return parsed != null && parsed > max ? parsed : max
     }, 0)
     await upsertEpisodes(source, sourceRow.id, detail.episodes)
-    await db().update(animeSources).set({
-      status,
-      ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
-      updatedAt: new Date(),
-    }).where(eq(animeSources.id, sourceRow.id))
-  }
-  else {
+    await db()
+      .update(animeSources)
+      .set({
+        status,
+        ...(latestEpisodeAt ? { latestEpisodeAt } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(animeSources.id, sourceRow.id))
+  } else {
     await db().update(animeSources).set({ updatedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
   }
 
@@ -73,8 +75,7 @@ export async function refreshSourceBySlug(compositeSlug: string): Promise<void> 
       }
     }
     await syncAnimeAggregate(linkedAnimeId)
-  }
-  else {
+  } else {
     const animeId = await resolveSourceMetadata(sourceRow, source, detail)
     if (animeId) await syncAnimeAggregate(animeId)
   }
@@ -90,11 +91,9 @@ export async function runOngoingSync(): Promise<void> {
   if (!acquireSync('catalog')) return
   try {
     await syncOngoingCatalog()
-  }
-  catch (error) {
+  } catch (error) {
     warn('[ongoing] sync failed', { error: error instanceof Error ? error.message : String(error) })
-  }
-  finally {
+  } finally {
     releaseSync('catalog')
   }
 }
@@ -106,11 +105,9 @@ export async function runBackfill(sourceId: string): Promise<void> {
   try {
     const result = await backfillCompleted(source)
     if (result.registered > 0) ok(`[backfill] ${sourceId}: +${result.registered}`)
-  }
-  catch (error) {
+  } catch (error) {
     warn(`[backfill] ${sourceId} failed`, { error: error instanceof Error ? error.message : String(error) })
-  }
-  finally {
+  } finally {
     releaseSync(`backfill:${sourceId}`)
   }
 }

@@ -1,11 +1,32 @@
-import { isNekoclouds, extractNekoclouds } from './nekoclouds'
-import { isOdcloud, extractOdcloud } from './odcloud'
-import { isVidhide, extractVidhide } from './vidhide'
-import { asHttpUrl, isPlaceholderStreamUrl, isAnimeverse, extractAnimeverse, isDesuStreamHd, extractDesuStream, isDesuDrive, extractDesuDrive, isFiledon, extractFiledon, isMoeplay, extractMoeplay, isPixeldrain, extractPixeldrain, isYuplod, extractYuplod, isYourupload, extractYourupload, embedPageHeadersFor, upstreamHeadersFor } from './hosts'
-import { isPuterin, extractPuterin } from './puterin'
-import { isBlogger, extractBlogger } from './blogger'
-import { isHydrax, extractHydrax } from './hydrax'
-import { isMega, extractMega } from '../media/mega'
+import { extractMega, isMega } from '../media/mega'
+import { extractBlogger, isBlogger } from './blogger'
+import {
+  asHttpUrl,
+  embedPageHeadersFor,
+  extractAnimeverse,
+  extractDesuDrive,
+  extractDesuStream,
+  extractFiledon,
+  extractMoeplay,
+  extractPixeldrain,
+  extractYourupload,
+  extractYuplod,
+  isAnimeverse,
+  isDesuDrive,
+  isDesuStreamHd,
+  isFiledon,
+  isMoeplay,
+  isPixeldrain,
+  isPlaceholderStreamUrl,
+  isYourupload,
+  isYuplod,
+  upstreamHeadersFor,
+} from './hosts'
+import { extractHydrax, isHydrax } from './hydrax'
+import { extractNekoclouds, isNekoclouds } from './nekoclouds'
+import { extractOdcloud, isOdcloud } from './odcloud'
+import { extractPuterin, isPuterin } from './puterin'
+import { extractVidhide, isVidhide } from './vidhide'
 
 type HostExtractor = {
   matches: (url: string) => boolean
@@ -42,7 +63,7 @@ async function fetchEmbedHtml(embedUrl: string): Promise<string> {
 }
 
 async function extractKnownHost(embedUrl: string, html: string): Promise<string | null> {
-  const extractor = HOST_EXTRACTORS.find((c) => c.matches(embedUrl))
+  const extractor = HOST_EXTRACTORS.find(c => c.matches(embedUrl))
   if (!extractor) return null
   try {
     return await extractor.extract(embedUrl, html)
@@ -62,13 +83,15 @@ async function extractFallbackHost(embedUrl: string, html: string): Promise<stri
   if (jwFileDouble && !isPlaceholderStreamUrl(jwFileDouble)) return jwFileDouble
   try {
     return await extractDesuDrive(embedUrl, html)
-  }
-  catch {
+  } catch {
     return null
   }
 }
 
-export async function probeStream(url: string, headers?: Record<string, string>): Promise<{ kind: 'hls' | 'file', ok: boolean }> {
+export async function probeStream(
+  url: string,
+  headers?: Record<string, string>,
+): Promise<{ kind: 'hls' | 'file'; ok: boolean }> {
   const playlist = /\.m3u8($|\?)/i.test(url)
   const request = { ...upstreamHeadersFor(url, playlist ? undefined : 'bytes=0-15'), ...headers }
   for (const [key, value] of Object.entries(request)) {
@@ -82,8 +105,7 @@ export async function probeStream(url: string, headers?: Record<string, string>)
     void res.body?.cancel()
     const contentType = (res.headers.get('content-type') || '').toLowerCase()
     return { kind: playlist || contentType.includes('mpegurl') ? 'hls' : 'file', ok: res.ok || res.status === 206 }
-  }
-  catch {
+  } catch {
     return { kind: playlist ? 'hls' : 'file', ok: false }
   }
 }

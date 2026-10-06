@@ -68,11 +68,11 @@ export function fetchGenrePage(slug: string, page: number): Promise<PageData<Gen
 }
 
 export function fetchGenres(): Promise<Genre[]> {
-  return api<{ data: Genre[] }>(`${BASE}/genres`).then((response) => response.data)
+  return api<{ data: Genre[] }>(`${BASE}/genres`).then(response => response.data)
 }
 
 export function fetchSearch(query: string): Promise<SearchResult[]> {
-  return api<ListResponse<SearchResult>>(`${BASE}/anime`, { query: { q: query } }).then((response) => response.data)
+  return api<ListResponse<SearchResult>>(`${BASE}/anime`, { query: { q: query } }).then(response => response.data)
 }
 
 export function fetchAnimeDetail(malId: number): Promise<AnimeDetail> {

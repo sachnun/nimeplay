@@ -23,23 +23,28 @@ function extractEpisodeSlug(href: string): string {
 }
 
 function getTotalPages($: cheerio.CheerioAPI, path: string): number {
-  const pages = $('a[href]').map((_, el) => {
-    const href = $(el).attr('href') || ''
-    const page = href.match(new RegExp(`${path.replace('.', '\\.')}\\?page=(\\d+)`))?.[1]
-    return page ? Number(page) : 0
-  }).get()
+  const pages = $('a[href]')
+    .map((_, el) => {
+      const href = $(el).attr('href') || ''
+      const page = href.match(new RegExp(`${path.replace('.', '\\.')}\\?page=(\\d+)`))?.[1]
+      return page ? Number(page) : 0
+    })
+    .get()
   return Math.max(1, ...pages)
 }
 
 function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
-  return $('.card a[href*="?series="]').closest('.card').map((_, el) => {
-    const $el = $(el)
-    const link = $el.find('a[href*="?series="]').attr('href') || ''
-    return {
-      slug: extractSeriesSlug(link),
-      date: '',
-    }
-  }).get()
+  return $('.card a[href*="?series="]')
+    .closest('.card')
+    .map((_, el) => {
+      const $el = $(el)
+      const link = $el.find('a[href*="?series="]').attr('href') || ''
+      return {
+        slug: extractSeriesSlug(link),
+        date: '',
+      }
+    })
+    .get()
 }
 
 async function scrapeOngoingFresh(page: number): Promise<ListResult> {
@@ -57,16 +62,19 @@ async function scrapeCompletedFresh(page: number): Promise<ListResult> {
 }
 
 function parseDetailEpisodes($: cheerio.CheerioAPI, series: string): { title: string; slug: string; date: string }[] {
-  return $('.list-group a[href*="&episode="]').map((_, el) => {
-    const $el = $(el)
-    const episodeId = extractEpisodeSlug($el.attr('href') || '')
-    const title = $el.clone().find('.text-muted').remove().end().text().trim()
-    return {
-      title,
-      slug: episodeId ? `${series}@${episodeId}` : '',
-      date: $el.find('.text-muted').text().trim(),
-    }
-  }).get().filter(entry => entry.slug)
+  return $('.list-group a[href*="&episode="]')
+    .map((_, el) => {
+      const $el = $(el)
+      const episodeId = extractEpisodeSlug($el.attr('href') || '')
+      const title = $el.clone().find('.text-muted').remove().end().text().trim()
+      return {
+        title,
+        slug: episodeId ? `${series}@${episodeId}` : '',
+        date: $el.find('.text-muted').text().trim(),
+      }
+    })
+    .get()
+    .filter(entry => entry.slug)
 }
 
 async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
@@ -93,7 +101,9 @@ interface YlnimeStream {
 }
 
 function parseStreams($: cheerio.CheerioAPI): YlnimeStream[] {
-  const raw = $('script').map((_, el) => $(el).html() || '').get()
+  const raw = $('script')
+    .map((_, el) => $(el).html() || '')
+    .get()
     .find(script => script.includes('const streams'))
   if (!raw) return []
   const match = raw.match(/const streams = (\[[\s\S]*?\]);/)
@@ -137,13 +147,17 @@ async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
   const title = `${animeTitle} ${breadcrumb}`.trim()
   if (!title || !breadcrumb) return null
 
-  const mirrors = await Promise.all(groupByQuality(parseStreams($)).map(async (mirror) => ({
-    quality: mirror.quality,
-    sources: await Promise.all(mirror.sources.map(async (source) => ({
-      name: source.name,
-      dataContent: await sealStreamToken(`ylnime:${source.dataContent}`),
-    }))),
-  })))
+  const mirrors = await Promise.all(
+    groupByQuality(parseStreams($)).map(async mirror => ({
+      quality: mirror.quality,
+      sources: await Promise.all(
+        mirror.sources.map(async source => ({
+          name: source.name,
+          dataContent: await sealStreamToken(`ylnime:${source.dataContent}`),
+        })),
+      ),
+    })),
+  )
 
   return {
     title,

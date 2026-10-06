@@ -1,5 +1,10 @@
 function tokens(value: string): string[] {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean)
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
 }
 
 function jaro(a: string, b: string): number {
@@ -82,7 +87,10 @@ export function tokenSetRatio(a: string, b: string): number {
 }
 
 function stripToAlnum(value: string): string {
-  return value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '')
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '')
 }
 
 export function titleSimilarity(a: string, b: string): number {

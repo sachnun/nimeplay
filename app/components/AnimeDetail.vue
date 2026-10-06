@@ -14,10 +14,12 @@ const props = defineProps<{
   hideBack?: boolean
 }>()
 
-const infoItems = computed(() => [
-  { label: 'Status', value: props.otakudesu.status },
-  { label: 'Studio', value: props.otakudesu.studio },
-].filter((item) => item.value))
+const infoItems = computed(() =>
+  [
+    { label: 'Status', value: props.otakudesu.status },
+    { label: 'Studio', value: props.otakudesu.studio },
+  ].filter(item => item.value),
+)
 
 const headerRef = shallowRef<HTMLElement | null>(null)
 const episodesPanelRef = shallowRef<HTMLElement | null>(null)
@@ -62,7 +64,10 @@ onMounted(() => {
 })
 onBeforeUnmount(() => resizeObserver?.disconnect())
 
-watch(() => props.episodes.length, () => void nextTick(updateEpisodesReach))
+watch(
+  () => props.episodes.length,
+  () => void nextTick(updateEpisodesReach),
+)
 
 const router = useRouter()
 

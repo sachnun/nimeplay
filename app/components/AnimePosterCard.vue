@@ -1,24 +1,27 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{
-  to: string
-  thumbnail: string
-  title: string
-  badge?: string
-  newEpisode?: boolean
-  subtitle?: string
-  resumeTo?: string
-  progressPct?: number
-  priority?: boolean
-  fullRounded?: boolean
-}>(), {
-  badge: '',
-  newEpisode: false,
-  subtitle: '',
-  resumeTo: undefined,
-  progressPct: undefined,
-  priority: false,
-  fullRounded: false,
-})
+const props = withDefaults(
+  defineProps<{
+    to: string
+    thumbnail: string
+    title: string
+    badge?: string
+    newEpisode?: boolean
+    subtitle?: string
+    resumeTo?: string
+    progressPct?: number
+    priority?: boolean
+    fullRounded?: boolean
+  }>(),
+  {
+    badge: '',
+    newEpisode: false,
+    subtitle: '',
+    resumeTo: undefined,
+    progressPct: undefined,
+    priority: false,
+    fullRounded: false,
+  },
+)
 
 const router = useRouter()
 

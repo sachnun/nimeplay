@@ -1,5 +1,5 @@
-import type { EpisodeData, EpisodeSource } from '~/types'
 import { qualityRank, sourcePriority } from '#shared/mirror'
+import type { EpisodeData, EpisodeSource } from '~/types'
 
 export type MirrorCandidate = {
   server: string
@@ -25,9 +25,8 @@ export function hasFiniteDuration(video: HTMLVideoElement | null | undefined) {
 }
 
 function sortSources(sources: EpisodeSource[]): EpisodeSource[] {
-  return [...sources].sort((a, b) =>
-    qualityRank(a.quality) - qualityRank(b.quality)
-    || sourcePriority(a.server) - sourcePriority(b.server),
+  return [...sources].sort(
+    (a, b) => qualityRank(a.quality) - qualityRank(b.quality) || sourcePriority(a.server) - sourcePriority(b.server),
   )
 }
 
@@ -45,13 +44,18 @@ function toCandidates(sources: EpisodeSource[]): MirrorCandidate[] {
 
 function reorderSources(sources: EpisodeSource[], startQuality: string) {
   const sorted = sortSources(sources)
-  const startIdx = sorted.findIndex((source) => source.quality === startQuality)
+  const startIdx = sorted.findIndex(source => source.quality === startQuality)
   return startIdx > 0 ? [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)] : sorted
 }
 
-export function buildFallbackOrder(sources: EpisodeSource[], startQuality: string, exclude?: MirrorCandidate): MirrorCandidate[] {
-  return toCandidates(reorderSources(sources, startQuality))
-    .filter((candidate) => !exclude || candidate.server !== exclude.server || candidate.quality !== exclude.quality)
+export function buildFallbackOrder(
+  sources: EpisodeSource[],
+  startQuality: string,
+  exclude?: MirrorCandidate,
+): MirrorCandidate[] {
+  return toCandidates(reorderSources(sources, startQuality)).filter(
+    candidate => !exclude || candidate.server !== exclude.server || candidate.quality !== exclude.quality,
+  )
 }
 
 export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {

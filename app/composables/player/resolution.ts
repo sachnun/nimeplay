@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
-import { preloadHls } from '~/utils/hls'
-import { fetchEpisode } from '~/utils/api'
 import type { EpisodeData } from '~/types'
+import { fetchEpisode } from '~/utils/api'
+import { preloadHls } from '~/utils/hls'
 import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
@@ -51,7 +51,10 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
       return { prepared: cached }
     }
     try {
-      const response = await fetchEpisode(options.malId, options.currentEpisodeNum.value, { server: candidate.server, quality: candidate.quality })
+      const response = await fetchEpisode(options.malId, options.currentEpisodeNum.value, {
+        server: candidate.server,
+        quality: candidate.quality,
+      })
       return { prepared: response.stream }
     } catch {
       return null
@@ -112,7 +115,12 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     return sessionId
   }
 
-  async function resolveInitialPlayback(startCandidate: MirrorCandidate, candidates: MirrorCandidate[], fallbackIdx: number, sessionId: number) {
+  async function resolveInitialPlayback(
+    startCandidate: MirrorCandidate,
+    candidates: MirrorCandidate[],
+    fallbackIdx: number,
+    sessionId: number,
+  ) {
     const initialResolved = await tryMirror(startCandidate, sessionId)
     if (!isCurrentSession(sessionId) || initialResolved) return { nextIndex: fallbackIdx }
     const result = await resolveCandidateList(candidates, fallbackIdx, sessionId)
@@ -125,7 +133,13 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     options.resolving.value = false
   }
 
-  function installFallbackHandler(candidates: MirrorCandidate[], sessionId: number, getFallbackIdx: () => number, setFallbackIdx: (index: number) => void, seamless: boolean) {
+  function installFallbackHandler(
+    candidates: MirrorCandidate[],
+    sessionId: number,
+    getFallbackIdx: () => number,
+    setFallbackIdx: (index: number) => void,
+    seamless: boolean,
+  ) {
     fallbackFn = () => {
       if (fallbackRunning || !isCurrentSession(sessionId)) return
       fallbackRunning = true
@@ -148,7 +162,15 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1
-    installFallbackHandler(candidates, sessionId, () => fallbackIdx, (index) => { fallbackIdx = index }, seamless)
+    installFallbackHandler(
+      candidates,
+      sessionId,
+      () => fallbackIdx,
+      index => {
+        fallbackIdx = index
+      },
+      seamless,
+    )
     const result = await resolveInitialPlayback(startCandidate, candidates, fallbackIdx, sessionId)
     fallbackIdx = result.nextIndex
     finishPlaybackResolution(sessionId)

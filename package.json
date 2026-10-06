@@ -10,8 +10,10 @@
     "build": "bun --bun nuxt build",
     "dev": "bun --bun nuxt dev",
     "generate": "bun --bun nuxt generate",
-    "typecheck": "bun --bun nuxt typecheck",
-    "preview": "nuxt preview",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "preview": "bun --bun nuxt preview",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -33,17 +35,11 @@
     "nuxt": "^4.5.2",
     "vue": "3.5.42"
   },
-  "overrides": {
-    "@bomb.sh/tab": "0.0.22"
-  },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260911.1",
+    "@biomejs/biome": "^2.5.15",
     "@tailwindcss/vite": "^4.3.0",
     "@types/bun": "^1.4.2",
-    "@types/node": "^26.5.1",
     "drizzle-kit": "^0.31.10",
-    "typescript": "^6.0.3",
-    "vue-tsc": "3.3.11",
     "wrangler": "^4.131.1"
   }
 }

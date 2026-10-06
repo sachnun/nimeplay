@@ -3,7 +3,7 @@ import { getCachedMedia, isValidMediaKey } from '../../utils/media'
 
 const MEDIA_CACHE_CONTROL = 'public, max-age=31536000, s-maxage=31536000, immutable'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const key = getRouterParam(event, 'key')
   if (!key) throw createError({ statusCode: 400, statusMessage: 'Missing media key' })
   if (!isValidMediaKey(key)) throw createError({ statusCode: 404, statusMessage: 'Not found' })

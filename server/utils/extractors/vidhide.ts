@@ -15,8 +15,8 @@ function unpackJS(packed: string): string | null {
   const [, pRaw, aStr, cStr, kStr] = match
   if (!pRaw || !aStr || !cStr || !kStr) return null
   let p = pRaw
-  const a = Number.parseInt(aStr)
-  let c = Number.parseInt(cStr)
+  const a = Number.parseInt(aStr, 10)
+  let c = Number.parseInt(cStr, 10)
   const k = kStr.split('|')
 
   while (c--) {

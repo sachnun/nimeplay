@@ -123,16 +123,25 @@ function centerSelected(behavior: ScrollBehavior = 'smooth') {
   el.scrollTo({ left: Math.max(0, Math.min(max, left)), behavior })
 }
 
-watch(() => props.selectedGenre?.slug, () => nextTick(() => centerSelected()))
-watch(() => props.genres.length, () => nextTick(updateOverflow))
+watch(
+  () => props.selectedGenre?.slug,
+  () => nextTick(() => centerSelected()),
+)
+watch(
+  () => props.genres.length,
+  () => nextTick(updateOverflow),
+)
 
 if (import.meta.server && props.selectedGenre) {
   useHead({
-    script: [{
-      key: 'genre-scroll-init',
-      tagPosition: 'bodyClose',
-      innerHTML: "(function(){var s=document.querySelector('[data-genre-scroll]');if(!s)return;var a=s.querySelector('[data-active=\"true\"]');if(!a)return;var r=s.getBoundingClientRect(),b=a.getBoundingClientRect(),m=s.scrollWidth-s.clientWidth;s.scrollLeft=Math.max(0,Math.min(m,s.scrollLeft+(b.left-r.left)-(s.clientWidth-b.width)/2));})();",
-    }],
+    script: [
+      {
+        key: 'genre-scroll-init',
+        tagPosition: 'bodyClose',
+        innerHTML:
+          "(function(){var s=document.querySelector('[data-genre-scroll]');if(!s)return;var a=s.querySelector('[data-active=\"true\"]');if(!a)return;var r=s.getBoundingClientRect(),b=a.getBoundingClientRect(),m=s.scrollWidth-s.clientWidth;s.scrollLeft=Math.max(0,Math.min(m,s.scrollLeft+(b.left-r.left)-(s.clientWidth-b.width)/2));})();",
+      },
+    ],
   })
 }
 

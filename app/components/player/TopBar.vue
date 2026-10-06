@@ -14,7 +14,9 @@ defineEmits<{
 
 const router = useRouter()
 
-const isMobilePortraitControls = useMediaQuery('(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)')
+const isMobilePortraitControls = useMediaQuery(
+  '(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)',
+)
 
 function goBack() {
   const detailPath = `/anime/${props.malId}`

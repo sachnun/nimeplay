@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio'
-import { getSpoofHeaders } from '../net/spoof'
-import { sealStreamToken } from '../media/stream'
 import { proxyFetch, proxyUrl } from '../media/proxy'
+import { sealStreamToken } from '../media/stream'
+import { getSpoofHeaders } from '../net/spoof'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
@@ -21,18 +21,14 @@ async function baseUrl(): Promise<string> {
       })
       const location = res.headers.get('location')
       return location ? new URL(location, ENTRY_URL).origin : CANONICAL_URL
-    }
-    catch {
+    } catch {
       return CANONICAL_URL
     }
   })()
   return basePromise
 }
 
-const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [
-  /\s*Subtitle\s+Indonesia/gi,
-  /\s*Sub\s+Indo(nesia)?/gi,
-]
+const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [/\s*Subtitle\s+Indonesia/gi, /\s*Sub\s+Indo(nesia)?/gi]
 
 interface JsonLdTvSeries {
   '@type'?: string
@@ -62,14 +58,16 @@ function animeSlugFromHref(href: string): string {
 }
 
 function jsonLd($: cheerio.CheerioAPI): Record<string, unknown>[] {
-  return $('script[type="application/ld+json"]').map((_, el) => {
-    try {
-      return JSON.parse($(el).text()) as Record<string, unknown>
-    }
-    catch {
-      return null
-    }
-  }).get().filter((entry): entry is Record<string, unknown> => entry !== null)
+  return $('script[type="application/ld+json"]')
+    .map((_, el) => {
+      try {
+        return JSON.parse($(el).text()) as Record<string, unknown>
+      } catch {
+        return null
+      }
+    })
+    .get()
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
 }
 
 function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
@@ -116,17 +114,23 @@ function parseInfo($: cheerio.CheerioAPI): Record<string, string> {
 }
 
 function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: string; date: string }[] {
-  const heading = $('h2').filter((_, el) => $(el).text().trim().startsWith('Daftar Episode')).first()
+  const heading = $('h2')
+    .filter((_, el) => $(el).text().trim().startsWith('Daftar Episode'))
+    .first()
   if (heading.length === 0) return []
   const episodes: { title: string; slug: string; date: string }[] = []
-  heading.parent().parent().find('a[href]').each((_, el) => {
-    const href = $(el).attr('href') || ''
-    if (!/-episode-\d+-subtitle-indonesia\/?$/.test(href)) return
-    const spans = $(el).find('span')
-    const title = spans.eq(0).text().trim()
-    if (!title) return
-    episodes.push({ title, slug: slugFromPath(href), date: spans.eq(1).text().trim() })
-  })
+  heading
+    .parent()
+    .parent()
+    .find('a[href]')
+    .each((_, el) => {
+      const href = $(el).attr('href') || ''
+      if (!/-episode-\d+-subtitle-indonesia\/?$/.test(href)) return
+      const spans = $(el).find('span')
+      const title = spans.eq(0).text().trim()
+      if (!title) return
+      episodes.push({ title, slug: slugFromPath(href), date: spans.eq(1).text().trim() })
+    })
   return episodes
 }
 
@@ -161,18 +165,20 @@ async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> 
   try {
     const res = await proxyFetch(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
     if (!res.ok) return []
-    const data = await res.json() as { mirrors?: MirrorApiEntry[] }
+    const data = (await res.json()) as { mirrors?: MirrorApiEntry[] }
     const grouped = new Map<string, { name: string; dataContent: string }[]>()
     for (const mirror of data.mirrors ?? []) {
       if (!mirror.embedUrl) continue
       const quality = mirror.quality || 'default'
       const list = grouped.get(quality) ?? []
-      list.push({ name: mirror.serverName || 'SOKUJA', dataContent: await sealStreamToken(`sokuja:${mirror.embedUrl}`) })
+      list.push({
+        name: mirror.serverName || 'SOKUJA',
+        dataContent: await sealStreamToken(`sokuja:${mirror.embedUrl}`),
+      })
       grouped.set(quality, list)
     }
     return [...grouped].map(([quality, sources]) => ({ quality, sources }))
-  }
-  catch {
+  } catch {
     return []
   }
 }

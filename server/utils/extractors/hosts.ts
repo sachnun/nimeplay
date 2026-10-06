@@ -38,7 +38,7 @@ const PLACEHOLDER_PATTERNS = [
 export function isPlaceholderStreamUrl(value: string | null | undefined): boolean {
   if (!value) return false
   const lower = value.toLowerCase()
-  return PLACEHOLDER_PATTERNS.some((pattern) => lower.includes(pattern))
+  return PLACEHOLDER_PATTERNS.some(pattern => lower.includes(pattern))
 }
 
 const HD_PATTERNS = [
@@ -52,7 +52,7 @@ const HD_PATTERNS = [
 ]
 
 export function isDesuStreamHd(url: string): boolean {
-  return HD_PATTERNS.some((p) => url.includes(p))
+  return HD_PATTERNS.some(p => url.includes(p))
 }
 
 export async function extractDesuStream(embedUrl: string, html: string): Promise<string | null> {
@@ -227,7 +227,8 @@ function upstreamRefererFor(url: string): string | null {
   return null
 }
 
-export const VIDEO_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+export const VIDEO_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 export function embedPageHeadersFor(url: string): Record<string, string> {
   return { ...getSpoofHeaders(url, 'iframe'), 'User-Agent': VIDEO_UA }

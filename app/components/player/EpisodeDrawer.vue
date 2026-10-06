@@ -17,7 +17,7 @@ function setCurrentEpRef(el: Element | ComponentPublicInstance | null, number: n
 
 async function loadStatuses() {
   const entries = await Promise.all(
-    props.episodes.map(async (number) => {
+    props.episodes.map(async number => {
       const key = progressKey(props.malId, number)
       return [key, await getEpisodeStatus(key)] as const
     }),

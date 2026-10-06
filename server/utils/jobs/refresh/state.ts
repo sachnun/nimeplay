@@ -18,11 +18,7 @@ export function releaseSync(name: string): void {
 }
 
 export async function getAppState(key: string): Promise<string | null> {
-  const [row] = await db()
-    .select({ value: appState.value })
-    .from(appState)
-    .where(eq(appState.key, key))
-    .limit(1)
+  const [row] = await db().select({ value: appState.value }).from(appState).where(eq(appState.key, key)).limit(1)
   return row?.value ?? null
 }
 

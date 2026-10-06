@@ -1,9 +1,9 @@
 import { and, asc, desc, sql } from 'drizzle-orm'
+import type { AnimeCard } from '#shared/types'
 import { anime } from '../../../database/schema'
 import { posterSrc } from '../../media'
 import { db } from '../index'
-import { CATALOG_READY, PAGE_SIZE, SEASON_RANK, formatSeason, statusCondition } from './shared'
-import type { AnimeCard } from '#shared/types'
+import { CATALOG_READY, formatSeason, PAGE_SIZE, SEASON_RANK, statusCondition } from './shared'
 
 const WEEK_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
@@ -18,12 +18,13 @@ async function getStatusCount(status: 'ONGOING' | 'COMPLETED'): Promise<number> 
 export async function listAnimePage(
   status: 'ONGOING' | 'COMPLETED',
   page: number,
-): Promise<{ anime: AnimeCard[], totalPages: number }> {
+): Promise<{ anime: AnimeCard[]; totalPages: number }> {
   const filter = and(statusCondition(status), CATALOG_READY)
 
-  const orderBy = status === 'ONGOING'
-    ? [sql`coalesce(${anime.lastNewEpisodeAt}, ${anime.createdAt}) desc`, sql`${anime.malId} desc`]
-    : [sql`${anime.year} desc nulls last`, desc(SEASON_RANK), asc(anime.title), asc(anime.id)]
+  const orderBy =
+    status === 'ONGOING'
+      ? [sql`coalesce(${anime.lastNewEpisodeAt}, ${anime.createdAt}) desc`, sql`${anime.malId} desc`]
+      : [sql`${anime.year} desc nulls last`, desc(SEASON_RANK), asc(anime.title), asc(anime.id)]
 
   const rows = await db()
     .select({
@@ -34,7 +35,9 @@ export async function listAnimePage(
       day: anime.day,
       season: anime.season,
       year: anime.year,
-      maxEpisode: sql<number | null>`(select max(e.number) from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${sql.raw('"anime"."id"')})`,
+      maxEpisode: sql<
+        number | null
+      >`(select max(e.number) from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${sql.raw('"anime"."id"')})`,
       total: sql<number>`cast(count(*) over() as integer)`,
     })
     .from(anime)

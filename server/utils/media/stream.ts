@@ -12,7 +12,7 @@ function getKey(): Promise<CryptoKey> {
   const encoded = new TextEncoder().encode(secret)
   cachedKey = crypto.subtle
     .digest('SHA-256', encoded)
-    .then((digest) => crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']))
+    .then(digest => crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']))
   return cachedKey
 }
 
@@ -35,7 +35,7 @@ function toBase64Url(bytes: Uint8Array): string {
 }
 
 export function fromBase64Url(value: string): Uint8Array {
-  const bytes = new Uint8Array(Math.floor(value.length * 3 / 4))
+  const bytes = new Uint8Array(Math.floor((value.length * 3) / 4))
   let buffer = 0
   let bits = 0
   let length = 0
@@ -52,13 +52,20 @@ export function fromBase64Url(value: string): Uint8Array {
   return bytes.subarray(0, length)
 }
 
-export async function sealStreamToken(url: string, ttlMs?: number, headers?: Record<string, string>, megaKey?: string): Promise<string> {
+export async function sealStreamToken(
+  url: string,
+  ttlMs?: number,
+  headers?: Record<string, string>,
+  megaKey?: string,
+): Promise<string> {
   const key = await getKey()
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH))
   const payload: TokenPayload = { u: url, e: ttlMs ? Date.now() + ttlMs : 0 }
   if (headers && Object.keys(headers).length > 0) payload.h = headers
   if (megaKey) payload.k = megaKey
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload))))
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload))),
+  )
   const sealed = new Uint8Array(IV_LENGTH + ciphertext.length)
   sealed.set(iv)
   sealed.set(ciphertext, IV_LENGTH)
@@ -88,7 +95,9 @@ export async function openStreamToken(token: string): Promise<string | null> {
   return (await decodeToken(token))?.u ?? null
 }
 
-export async function openStreamRequest(token: string): Promise<{ url: string, headers: Record<string, string>, megaKey?: string } | null> {
+export async function openStreamRequest(
+  token: string,
+): Promise<{ url: string; headers: Record<string, string>; megaKey?: string } | null> {
   const payload = await decodeToken(token)
   if (!payload) return null
   return { url: payload.u, headers: payload.h ?? {}, megaKey: payload.k }

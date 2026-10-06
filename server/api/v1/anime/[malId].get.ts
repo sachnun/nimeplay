@@ -41,18 +41,24 @@ defineRouteMeta({
                 { name: 'Fantasy', slug: 'fantasy' },
               ],
               thumbnail: 'https://nimeplay.example/media/poster/52991.webp',
-              synopsis: 'During their journey, the elf mage Frieren reflects on the time she spent with her human companions.',
+              synopsis:
+                'During their journey, the elf mage Frieren reflects on the time she spent with her human companions.',
               season: 'Fall 2023',
-              episodes: [{ number: 1, date: '2023-09-29' }, { number: 2, date: '2023-09-29' }],
-              characters: [{
-                name: 'Frieren',
-                imageUrl: 'https://nimeplay.example/media/character/frieren.webp',
-                role: 'Main',
-                voiceActor: {
-                  name: 'Atsumi Tanezaki',
-                  imageUrl: 'https://nimeplay.example/media/character/tanezaki.webp',
+              episodes: [
+                { number: 1, date: '2023-09-29' },
+                { number: 2, date: '2023-09-29' },
+              ],
+              characters: [
+                {
+                  name: 'Frieren',
+                  imageUrl: 'https://nimeplay.example/media/character/frieren.webp',
+                  role: 'Main',
+                  voiceActor: {
+                    name: 'Atsumi Tanezaki',
+                    imageUrl: 'https://nimeplay.example/media/character/tanezaki.webp',
+                  },
                 },
-              }],
+              ],
             },
           },
         },
@@ -63,7 +69,7 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const malId = Number(getRouterParam(event, 'malId'))
   if (!Number.isInteger(malId) || malId <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid MAL id' })

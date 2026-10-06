@@ -1,12 +1,12 @@
+import type { TitleNames } from './anilist'
+import { jaroWinkler, tokenSetRatio } from './fuzzy'
 import { seasonNumber } from './season'
 import { isMovieTitle, isSeasonTitle, movieSeasonClash } from './title'
-import { jaroWinkler, tokenSetRatio } from './fuzzy'
-import type { TitleNames } from './anilist'
 import type { MalSearchEntry } from './types'
 
 export function decodeEntities(value: string): string {
   return value
-    .replace(/&#0?39;|&apos;/g, '\'')
+    .replace(/&#0?39;|&apos;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/&mdash;/g, '—')
     .replace(/&ndash;/g, '–')
@@ -37,7 +37,10 @@ const TITLE_STOPWORDS = new Set(['the', 'and', 'for', 'episode', 'movie', 'speci
 
 function titleWords(value: string): Set<string> {
   return new Set(
-    value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
       .filter(word => word.length >= 3 && !TITLE_STOPWORDS.has(word)),
   )
 }
@@ -72,11 +75,25 @@ function isTitlePrefix(a: string, b: string): boolean {
 }
 
 function phoneticNormalize(value: string): string {
-  return value.toLowerCase().split('ou').join('o').split('oo').join('o').split('skirt').join('suka').split('ph').join('f').split('dungeon').join('danjon')
+  return value
+    .toLowerCase()
+    .split('ou')
+    .join('o')
+    .split('oo')
+    .join('o')
+    .split('skirt')
+    .join('suka')
+    .split('ph')
+    .join('f')
+    .split('dungeon')
+    .join('danjon')
 }
 
 function matchWords(value: string): string[] {
-  return phoneticNormalize(value).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(word => word.length >= 2 && !TITLE_STOPWORDS.has(word))
+  return phoneticNormalize(value)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 2 && !TITLE_STOPWORDS.has(word))
 }
 
 function tokenJaccard(siteTitle: string, malTitle: string): number {
@@ -96,7 +113,9 @@ function tokenJaccard(siteTitle: string, malTitle: string): number {
 
 function isAbbrevOnBase(siteBase: string, malBase: string): boolean {
   const site = normalizeTitle(phoneticNormalize(siteBase))
-  const words = matchWords(malBase).map(word => normalizeTitle(phoneticNormalize(word))).filter(word => word.length >= 2)
+  const words = matchWords(malBase)
+    .map(word => normalizeTitle(phoneticNormalize(word)))
+    .filter(word => word.length >= 2)
   if (site.length < 3 || site.length > 24 || words.length === 0) return false
   function walk(pos: number, used: number): boolean {
     if (pos === site.length) return used >= 1
@@ -148,7 +167,23 @@ function baseScore(siteBase: string, malBase: string): number {
   return score
 }
 
-const SPINOFF_STRONG = ['petit', 'chibi', 'mini anime', 'minianime', 'picture drama', 'soumatou', 'recap', 'bonus stage', 'additional time', 'gift', 'pilot', 'collage', 'specials', 'junjou', 'buddy go']
+const SPINOFF_STRONG = [
+  'petit',
+  'chibi',
+  'mini anime',
+  'minianime',
+  'picture drama',
+  'soumatou',
+  'recap',
+  'bonus stage',
+  'additional time',
+  'gift',
+  'pilot',
+  'collage',
+  'specials',
+  'junjou',
+  'buddy go',
+]
 const SPINOFF_SOFT = ['movie', 'ova', 'ona', 'special', 'short anime', 'ova series']
 
 function hasSpinoffMark(siteTitle: string, malTitle: string): boolean {
@@ -177,10 +212,11 @@ function titlesMatch(siteTitle: string, malTitle: string): boolean {
   const siteBase = stripSeasonMarker(siteTitle)
   const malBase = stripSeasonMarker(malTitle)
   const score = baseScore(siteBase, malBase)
-  const baseAligned = normalizeTitle(siteBase) === normalizeTitle(malBase)
-    || similarity(normalizeTitle(siteBase), normalizeTitle(malBase)) >= 0.6
-    || tokenJaccard(siteBase, malBase) >= 0.5
-    || isAbbrevOnBase(siteBase, malBase)
+  const baseAligned =
+    normalizeTitle(siteBase) === normalizeTitle(malBase) ||
+    similarity(normalizeTitle(siteBase), normalizeTitle(malBase)) >= 0.6 ||
+    tokenJaccard(siteBase, malBase) >= 0.5 ||
+    isAbbrevOnBase(siteBase, malBase)
   let adjusted = score
   if (baseAligned && siteSeason !== null && malSeason !== null && siteSeason === malSeason) adjusted += 0.6
   if (siteSeason !== null && siteSeason > 1 && malSeason === null) adjusted -= 0.5
@@ -207,9 +243,26 @@ function matchScore(siteTitle: string, malTitle: string): number {
 }
 
 const MARKER_WORDS = new Set([
-  'season', 'part', 'first', 'second', 'third', 'fourth', 'fifth',
-  'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
-  'iii', 'iv', 'vi', 'vii', 'viii', 'ix', 'xi', 'xii',
+  'season',
+  'part',
+  'first',
+  'second',
+  'third',
+  'fourth',
+  'fifth',
+  'sixth',
+  'seventh',
+  'eighth',
+  'ninth',
+  'tenth',
+  'iii',
+  'iv',
+  'vi',
+  'vii',
+  'viii',
+  'ix',
+  'xi',
+  'xii',
 ])
 
 function isMarkerWord(word: string): boolean {
@@ -233,13 +286,17 @@ function formatBonus(format: string | null | undefined, siteTitle: string): numb
 }
 
 export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]): MalSearchEntry[] {
-  const scored = entries.flatMap((entry) => {
+  const scored = entries.flatMap(entry => {
     if (entry.format === 'MOVIE' && !isMovieTitle(siteTitle) && isSeasonTitle(siteTitle)) return []
     const titles = entry.titles?.length ? entry.titles : [entry.title]
     const matched = titles.filter(title => titlesMatch(siteTitle, title))
     if (matched.length === 0) return []
     const score = Math.max(...titles.map(title => matchScore(siteTitle, title))) + formatBonus(entry.format, siteTitle)
-    const hasContent = matched.some(title => contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(title)) > 0 || tokenJaccard(siteTitle, title) >= 0.3)
+    const hasContent = matched.some(
+      title =>
+        contentOverlap(stripSeasonMarker(siteTitle), stripSeasonMarker(title)) > 0 ||
+        tokenJaccard(siteTitle, title) >= 0.3,
+    )
     return [{ entry, score, hasContent }]
   })
   if (scored.length === 0) return []

@@ -19,7 +19,9 @@ export function useEpisodePlayerVolume(options: EpisodePlayerVolumeOptions) {
   }
 
   function hideVolumeControl() {
-    volumeTimer = setTimeout(() => { showVolume.value = false }, 300)
+    volumeTimer = setTimeout(() => {
+      showVolume.value = false
+    }, 300)
   }
 
   function showVolumeIndicator() {
@@ -27,7 +29,9 @@ export function useEpisodePlayerVolume(options: EpisodePlayerVolumeOptions) {
     if (!video) return
     if (indicatorTimer) clearTimeout(indicatorTimer)
     volumeIndicator.value = { volume: video.volume, isMuted: video.muted }
-    indicatorTimer = setTimeout(() => { volumeIndicator.value = null }, 1000)
+    indicatorTimer = setTimeout(() => {
+      volumeIndicator.value = null
+    }, 1000)
   }
 
   function toggleMute() {

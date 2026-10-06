@@ -1,9 +1,9 @@
 import { inArray } from 'drizzle-orm'
-import { db } from '../db'
 import { media } from '../../database/schema'
-import { fetchRemoteMedia, storeMedia } from './store'
+import { db } from '../db'
 import { warn } from '../log'
 import type { MediaRef } from './index'
+import { fetchRemoteMedia, storeMedia } from './store'
 
 async function ingestOne(ref: MediaRef): Promise<string | null> {
   try {
@@ -11,8 +11,7 @@ async function ingestOne(ref: MediaRef): Promise<string | null> {
     await storeMedia(ref.key, bytes, contentType)
     await db().insert(media).values({ key: ref.key, sourceUrl: ref.sourceUrl }).onConflictDoNothing()
     return ref.key
-  }
-  catch (error) {
+  } catch (error) {
     warn(`[ingest] failed ${ref.key}`, { error: error instanceof Error ? error.message : String(error) })
     return null
   }
@@ -26,13 +25,20 @@ export async function ingestMedia(refs: MediaRef[]): Promise<Map<string, string>
   const existing = await db()
     .select({ sourceUrl: media.sourceUrl, key: media.key })
     .from(media)
-    .where(inArray(media.sourceUrl, unique.map(ref => ref.sourceUrl)))
+    .where(
+      inArray(
+        media.sourceUrl,
+        unique.map(ref => ref.sourceUrl),
+      ),
+    )
   for (const row of existing) keys.set(row.sourceUrl, row.key)
 
   const missing = unique.filter(ref => !keys.has(ref.sourceUrl))
-  await Promise.all(missing.map(async (ref) => {
-    const key = await ingestOne(ref)
-    if (key) keys.set(ref.sourceUrl, key)
-  }))
+  await Promise.all(
+    missing.map(async ref => {
+      const key = await ingestOne(ref)
+      if (key) keys.set(ref.sourceUrl, key)
+    }),
+  )
   return keys
 }

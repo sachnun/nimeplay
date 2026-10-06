@@ -29,9 +29,7 @@ export function sourceOf(job: JobRow): string | null {
 
 export function blockedSources(): string[] {
   const now = Date.now()
-  return [...states.entries()]
-    .filter(([, state]) => state.openUntil > now)
-    .map(([id]) => id)
+  return [...states.entries()].filter(([, state]) => state.openUntil > now).map(([id]) => id)
 }
 
 export function recordSuccess(id: string | null): void {

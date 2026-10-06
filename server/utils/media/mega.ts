@@ -1,5 +1,5 @@
-import { fromBase64Url } from './stream'
 import { upstreamHeadersFor } from '../extractors/hosts'
+import { fromBase64Url } from './stream'
 
 const API_HOST = 'g.api.mega.co.nz'
 const CDN_SUFFIX = 'userstorage.mega.co.nz'
@@ -24,8 +24,7 @@ export function megaKeyFromUrl(url: string): string | null {
   let parsed: URL
   try {
     parsed = new URL(url)
-  }
-  catch {
+  } catch {
     return null
   }
   if (!parsed.host.endsWith(CDN_SUFFIX)) return null
@@ -41,11 +40,10 @@ async function resolveMegaDownload(handle: string): Promise<string | null> {
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
-    const data = await res.json() as { g?: string }[]
+    const data = (await res.json()) as { g?: string }[]
     const url = data?.[0]?.g
     return typeof url === 'string' && url.startsWith('http') ? url : null
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -54,8 +52,7 @@ export async function extractMega(embedUrl: string): Promise<string | null> {
   let parsed: URL
   try {
     parsed = new URL(embedUrl)
-  }
-  catch {
+  } catch {
     return null
   }
   const handle = parsed.pathname.match(/\/(?:embed|file|folder)\/([A-Za-z0-9_-]+)/)?.[1]
@@ -84,7 +81,7 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
   return out
 }
 
-function parseRange(range: string | undefined): { start: number, end: number | null } {
+function parseRange(range: string | undefined): { start: number; end: number | null } {
   const match = range?.match(/bytes=(\d+)-(\d*)/)
   if (!match) return { start: 0, end: null }
   return { start: Number(match[1]), end: match[2] ? Number(match[2]) : null }
@@ -118,11 +115,12 @@ export async function streamMega(target: string, megaKey: string, range?: string
   let skipLeft = start - alignedStart
   let remaining = outEnd - start + 1
 
-  const decrypt = (block: Uint8Array) => crypto.subtle.decrypt(
-    { name: 'AES-CTR', counter: ctrCounter(key, cipherOffset / BLOCK) as Uint8Array<ArrayBuffer>, length: 128 },
-    cipher,
-    block as Uint8Array<ArrayBuffer>,
-  )
+  const decrypt = (block: Uint8Array) =>
+    crypto.subtle.decrypt(
+      { name: 'AES-CTR', counter: ctrCounter(key, cipherOffset / BLOCK) as Uint8Array<ArrayBuffer>, length: 128 },
+      cipher,
+      block as Uint8Array<ArrayBuffer>,
+    )
 
   const trim = (plain: Uint8Array): Uint8Array => {
     let chunk = plain
@@ -150,8 +148,7 @@ export async function streamMega(target: string, megaKey: string, range?: string
                 const chunk = trim(plain.subarray(0, realLen))
                 remaining -= chunk.length
                 if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
-              }
-              else {
+              } else {
                 controller.close()
               }
               return
@@ -170,8 +167,7 @@ export async function streamMega(target: string, megaKey: string, range?: string
           return
         }
         controller.close()
-      }
-      catch (error) {
+      } catch (error) {
         controller.error(error)
       }
     },

@@ -1,7 +1,4 @@
 import type { Ref } from 'vue'
-import { useEpisodePlayerDragSeek } from './drag-seek'
-import { useEpisodePlayerSpeedHold } from './speed-hold'
-import { useEpisodePlayerTap } from './tap'
 
 type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null

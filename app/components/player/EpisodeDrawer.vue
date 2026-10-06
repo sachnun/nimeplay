@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue'
-import type { WatchProgressStatus } from '~/utils/storage'
 
 const props = defineProps<{
   malId: number

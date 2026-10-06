@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { preloadHls } from '~/utils/hls'
-import type { WatchProgressStatus } from '~/utils/storage'
-
 const props = defineProps<{
   episodes: number[]
   malId: number

@@ -1,5 +1,4 @@
 import type { ComputedRef, Ref } from 'vue'
-import { hasFiniteDuration } from '~/utils/player'
 
 interface EpisodePlayerProgressOptions {
   videoRef: Ref<HTMLVideoElement | null>

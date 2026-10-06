@@ -1,5 +1,4 @@
 import type { ComputedRef, Ref } from 'vue'
-import { type MirrorCandidate, qualityBitrate } from '~/utils/player'
 
 interface EpisodePlayerQualityOptions {
   videoRef: Ref<HTMLVideoElement | null>

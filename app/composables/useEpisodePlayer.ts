@@ -1,18 +1,4 @@
 import type { EpisodeData, EpisodePageData, SkipTime } from '~/types'
-import { fetchEpisode, toEpisodePageData } from '~/utils/api'
-import { preloadHls } from '~/utils/hls'
-import { bufferedEndAt, listQualityLevels, type MirrorCandidate } from '~/utils/player'
-import { useEpisodePlayerFullscreen } from './player/fullscreen'
-import { useEpisodePlayerGestures } from './player/gestures'
-import { useEpisodePlayerKeyboard } from './player/keyboard'
-import { useEpisodePlayerMediaEvents } from './player/media-events'
-import { useEpisodePlayerMediaSession } from './player/media-session'
-import { useEpisodePlayerProgress } from './player/progress'
-import { pickInitialQuality, useEpisodePlayerQuality } from './player/quality'
-import { useEpisodePlayerResolution } from './player/resolution'
-import { useEpisodePlayerSkip } from './player/skip'
-import { useEpisodePlayerSource } from './player/source'
-import { useEpisodePlayerVolume } from './player/volume'
 
 interface EpisodePlayerProps {
   malId: number

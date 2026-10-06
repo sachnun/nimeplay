@@ -1,6 +1,5 @@
 import type Hls from 'hls.js'
 import type { Ref } from 'vue'
-import { loadHls } from '~/utils/hls'
 
 interface EpisodePlayerSourceOptions {
   videoRef: Ref<HTMLVideoElement | null>

@@ -1,6 +1,5 @@
 import type { Ref } from 'vue'
 import type { SkipTime } from '~/types'
-import { hasFiniteDuration } from '~/utils/player'
 
 interface EpisodePlayerSkipOptions {
   malId: number

@@ -40,6 +40,9 @@ export default defineNuxtConfig({
       },
     },
   },
+  imports: {
+    dirs: ['composables/**', 'utils/**'],
+  },
   modules: ['@nuxt/fonts', '@nuxtjs/device'],
   hooks: {
     'build:manifest': manifest => {

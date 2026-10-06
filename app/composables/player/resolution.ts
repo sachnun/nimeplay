@@ -1,8 +1,5 @@
 import type { Ref } from 'vue'
 import type { EpisodeData } from '~/types'
-import { fetchEpisode } from '~/utils/api'
-import { preloadHls } from '~/utils/hls'
-import type { MirrorCandidate } from '~/utils/player'
 
 interface EpisodePlayerResolutionOptions {
   malId: number

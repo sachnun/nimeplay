@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { AnimeDetail } from '~/types'
-import type { WatchProgress } from '~/utils/storage'
 
 interface HistoryItem extends WatchProgress {
   title: string

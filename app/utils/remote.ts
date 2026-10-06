@@ -1,26 +1,22 @@
 import type { SkipTime } from '~/types'
 
-interface AniskipResponse {
+interface SkipTimesResponse {
   found: boolean
   results: SkipTime[]
 }
 
-const ANISKIP_TIMEOUT_MS = 6000
+const SKIP_TIMES_TIMEOUT_MS = 6000
 
 export async function fetchSkipTimes(malId: number, episode: number, episodeLength: number): Promise<SkipTime[]> {
-  const length = Math.floor(episodeLength)
-  const params = new URLSearchParams()
-  params.append('types', 'op')
-  params.append('types', 'ed')
-  params.append('types', 'mixed-op')
-  params.append('types', 'mixed-ed')
-  params.append('types', 'recap')
-  params.append('episodeLength', length.toString())
-  const url = `https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params.toString()}`
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(ANISKIP_TIMEOUT_MS) })
-    if (!res.ok) return []
-    const data: AniskipResponse = await res.json()
+    const response = await fetch('/api/v1/skip', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ malId, episode, episodeLength: Math.floor(episodeLength) }),
+      signal: AbortSignal.timeout(SKIP_TIMES_TIMEOUT_MS),
+    })
+    if (!response.ok) return []
+    const data: SkipTimesResponse = await response.json()
     return data.found ? data.results : []
   } catch {
     return []

@@ -43,7 +43,7 @@ export default defineNuxtConfig({
   imports: {
     dirs: ['composables/**', 'utils/**'],
   },
-  modules: ['@nuxt/fonts', '@nuxtjs/device'],
+  modules: ['@nuxtjs/device'],
   hooks: {
     'build:manifest': manifest => {
       for (const [id, chunk] of Object.entries(manifest)) {
@@ -57,29 +57,14 @@ export default defineNuxtConfig({
     },
   },
   sourcemap: { server: false, client: false },
-  css: ['~/assets/css/main.css'],
-  fonts: {
-    families: [
-      {
-        name: 'Geist',
-        provider: 'fontsource',
-        weights: ['400', '500', '600', '700'],
-        styles: ['normal'],
-        subsets: ['latin'],
-        global: true,
-        preload: true,
-      },
-      {
-        name: 'Geist Mono',
-        provider: 'fontsource',
-        weights: ['400'],
-        styles: ['normal'],
-        subsets: ['latin'],
-        global: true,
-        preload: false,
-      },
-    ],
-  },
+  css: [
+    '@fontsource/geist-sans/latin-400.css',
+    '@fontsource/geist-sans/latin-500.css',
+    '@fontsource/geist-sans/latin-600.css',
+    '@fontsource/geist-sans/latin-700.css',
+    '@fontsource/geist-mono/latin-400.css',
+    '~/assets/css/main.css',
+  ],
   app: {
     head: {
       htmlAttrs: { lang: 'id', class: 'h-full antialiased notranslate', translate: 'no' },

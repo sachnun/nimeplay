@@ -1,8 +1,29 @@
 import { getSpoofHeaders } from '../net/spoof'
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  apos: "'",
+  gt: '>',
+  lt: '<',
+  nbsp: ' ',
+  quot: '"',
+}
+
+function decodeHtmlEntities(value: string): string {
+  if (!value.includes('&')) return value
+  return value.replace(/&(#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity.startsWith('#')) {
+      const code =
+        entity[1]?.toLowerCase() === 'x' ? Number.parseInt(entity.slice(2), 16) : Number.parseInt(entity.slice(1), 10)
+      return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match
+    }
+    return HTML_ENTITIES[entity] ?? match
+  })
+}
+
 export function asHttpUrl(value: string | null | undefined, base?: string): string | null {
   if (!value) return null
-  const trimmed = value.trim()
+  const trimmed = decodeHtmlEntities(value).trim()
   if (!trimmed) return null
   if (trimmed.startsWith('blob:') || trimmed.startsWith('data:') || trimmed.startsWith('javascript:')) return null
   try {

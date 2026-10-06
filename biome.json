@@ -8,6 +8,13 @@
   "files": {
     "includes": ["**", "!**/.nuxt", "!**/.output", "!**/.wrangler", "!**/dist", "!**/public", "!**/drizzle"]
   },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -32,9 +39,29 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 20
+          }
+        }
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
       "style": {
         "noNonNullAssertion": "off",
+        "noExportedImports": "error",
+        "useConsistentArrayType": "error",
+        "useExportType": "error",
+        "useImportType": "error",
+        "useSingleVarDeclarator": "error",
         "useVueMultiWordComponentNames": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn"
       }
     }
   },

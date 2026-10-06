@@ -52,13 +52,9 @@ export const anime = pgTable(
   },
   table => [
     uniqueIndex('anime_mal_id_key').on(table.malId),
-    index('anime_title_idx').on(table.title),
-    index('anime_updated_at_idx').on(table.updatedAt),
     index('anime_latest_episode_at_idx').on(table.latestEpisodeAt),
-    index('anime_status_idx').on(table.status),
     index('anime_status_mal_id_idx').on(table.status, table.malId),
     index('anime_season_year_idx').on(table.season, table.year),
-    index('anime_fts_idx').using('gin', sql`to_tsvector('simple', ${table.title})`),
     index('anime_title_trgm_idx').using('gin', sql`${table.title} gin_trgm_ops`),
   ],
 )
@@ -121,7 +117,6 @@ export const episodes = pgTable(
   table => [
     uniqueIndex('episodes_source_id_number_key').on(table.sourceId, table.number),
     uniqueIndex('episodes_slug_key').on(table.slug),
-    index('episodes_source_id_idx').on(table.sourceId),
   ],
 )
 
@@ -142,10 +137,7 @@ export const characters = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [
-    uniqueIndex('characters_anime_id_name_key').on(table.animeId, table.name),
-    index('characters_anime_id_idx').on(table.animeId),
-  ],
+  table => [uniqueIndex('characters_anime_id_name_key').on(table.animeId, table.name)],
 )
 
 export const media = pgTable(

@@ -71,7 +71,9 @@ export default defineNuxtConfig({
   },
   experimental: {
     buildCache: true,
-    prefetchPreloadTags: true,
+    defaults: {
+      nuxtLink: { prefetch: false },
+    },
   },
   modules: ['@nuxtjs/device'],
   hooks: {

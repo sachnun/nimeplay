@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { inArray } from 'drizzle-orm'
 import { media } from '../../database/schema'
 import { db } from '../db'
@@ -34,11 +35,16 @@ export async function ingestMedia(refs: MediaRef[]): Promise<Map<string, string>
   for (const row of existing) keys.set(row.sourceUrl, row.key)
 
   const missing = unique.filter(ref => !keys.has(ref.sourceUrl))
-  await Promise.all(
-    missing.map(async ref => {
-      const key = await ingestOne(ref)
-      if (key) keys.set(ref.sourceUrl, key)
-    }),
+  await Effect.runPromise(
+    Effect.forEach(
+      missing,
+      ref =>
+        Effect.promise(async () => {
+          const key = await ingestOne(ref)
+          if (key) keys.set(ref.sourceUrl, key)
+        }),
+      { concurrency: 4, discard: true },
+    ),
   )
   return keys
 }

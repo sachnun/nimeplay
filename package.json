@@ -29,6 +29,7 @@
     "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
+    "effect": "^4.0.1",
     "google-translate-api-x": "10.7.3",
     "hls.js": "^1.7.3",
     "idb": "^8.0.3",

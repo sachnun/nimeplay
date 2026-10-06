@@ -1,6 +1,9 @@
+import { Data, Duration, Effect, Schedule } from 'effect'
+
 const RETRY_ATTEMPTS = 5
 const RETRY_BASE_MS = 500
 const RETRY_MAX_MS = 10_000
+const RETRY_JITTER_MS = 250
 
 type HeaderBag = Headers | Record<string, string>
 
@@ -9,6 +12,8 @@ interface Outcome<T> {
   retry: boolean
   headers?: HeaderBag | null
 }
+
+class RetryNeeded extends Data.TaggedError('RetryNeeded')<{ readonly headers: HeaderBag | null }> {}
 
 function headerValue(headers: HeaderBag, name: string): string | undefined {
   if (headers instanceof Headers) return headers.get(name) ?? undefined
@@ -28,23 +33,28 @@ export function isRetryableStatus(status: number): boolean {
   return status === 403 || status === 408 || status === 425 || status === 429 || status >= 500
 }
 
-function retryDelayMs(headers: HeaderBag | null | undefined, attempt: number): number {
-  const retryAfter = headers ? parseRetryAfter(headers) : null
-  if (retryAfter !== null) return Math.min(retryAfter, RETRY_MAX_MS)
-  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** attempt) + Math.floor(Math.random() * 250)
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+const retryPolicy = Schedule.exponential(Duration.millis(RETRY_BASE_MS), 2).pipe(
+  Schedule.setInputType<RetryNeeded>(),
+  Schedule.modifyDelay(({ duration, input }) => {
+    const retryAfter = input.headers ? parseRetryAfter(input.headers) : null
+    const backoff = Duration.toMillis(duration) + Math.floor(Math.random() * RETRY_JITTER_MS)
+    return Effect.succeed(Duration.millis(Math.min(retryAfter ?? backoff, RETRY_MAX_MS)))
+  }),
+  Schedule.upTo({ times: RETRY_ATTEMPTS - 1 }),
+)
 
 export async function withRetry<T>(run: () => Promise<Outcome<T>>): Promise<T | null> {
   let last: T | null = null
-  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-    const outcome = await run()
+  const attempt = Effect.gen(function* () {
+    const outcome = yield* Effect.promise(() => run())
     if (outcome.value !== null) last = outcome.value
-    if (!outcome.retry) return outcome.value
-    if (attempt < RETRY_ATTEMPTS - 1) await sleep(retryDelayMs(outcome.headers, attempt))
-  }
-  return last
+    if (outcome.retry) return yield* Effect.fail(new RetryNeeded({ headers: outcome.headers ?? null }))
+    return outcome.value
+  })
+  return Effect.runPromise(
+    attempt.pipe(
+      Effect.retry(retryPolicy),
+      Effect.catchTag('RetryNeeded', () => Effect.succeed(last)),
+    ),
+  )
 }

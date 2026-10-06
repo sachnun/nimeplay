@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { animeSources } from '../../../database/schema'
 import { db } from '../../db'
@@ -120,11 +121,16 @@ async function collectOngoing(source: AnimeSource): Promise<OngoingCard[]> {
   if (!first || first.anime.length === 0) return cards
   push(first.anime)
   const pages = Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => index + 2)
-  const rest = await Promise.all(
-    pages.map(page =>
-      attempt(source.ongoingFresh(page), error =>
-        warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: errorMessage(error) }),
-      ),
+  const rest = await Effect.runPromise(
+    Effect.forEach(
+      pages,
+      page =>
+        Effect.promise(() =>
+          attempt(source.ongoingFresh(page), error =>
+            warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: errorMessage(error) }),
+          ),
+        ),
+      { concurrency: 'unbounded' },
     ),
   )
   for (const result of rest) if (result) push(result.anime)

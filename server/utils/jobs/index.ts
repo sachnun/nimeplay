@@ -1,3 +1,4 @@
+import { Data, Effect } from 'effect'
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
@@ -15,20 +16,23 @@ const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill']
 const worker = `task:${process.pid}`
 
-async function handle(job: JobRow): Promise<void> {
+class JobFailure extends Data.TaggedError('JobFailure')<{ readonly message: string }> {}
+
+function toJobFailure(error: unknown): JobFailure {
+  return new JobFailure({ message: error instanceof Error ? error.message : String(error) })
+}
+
+function handle(job: JobRow): Effect.Effect<void, JobFailure> {
   if (job.type === 'anime.refresh') {
-    await refreshSourceBySlug(String(job.payload.slug ?? ''))
-    return
+    return Effect.tryPromise({ try: () => refreshSourceBySlug(String(job.payload.slug ?? '')), catch: toJobFailure })
   }
   if (job.type === 'catalog.ongoing') {
-    await runOngoingSync()
-    return
+    return Effect.tryPromise({ try: () => runOngoingSync(), catch: toJobFailure })
   }
   if (job.type === 'catalog.backfill') {
-    await runBackfill(String(job.payload.sourceId ?? ''))
-    return
+    return Effect.tryPromise({ try: () => runBackfill(String(job.payload.sourceId ?? '')), catch: toJobFailure })
   }
-  throw new Error(`unknown job type: ${job.type}`)
+  return Effect.fail(new JobFailure({ message: `unknown job type: ${job.type}` }))
 }
 
 async function seedRefreshJobs(createdSince: Date): Promise<void> {
@@ -57,32 +61,36 @@ async function seedRefreshJobs(createdSince: Date): Promise<void> {
   `)
 }
 
-async function processJob(job: JobRow): Promise<void> {
+function processJob(job: JobRow): Effect.Effect<void> {
   const sourceId = sourceOf(job)
   const label = String(job.payload.slug ?? job.payload.sourceId ?? job.type)
   const startedAt = Date.now()
-  try {
-    await handle(job)
-    await complete(job.id)
+  const run = Effect.gen(function* () {
+    yield* handle(job)
+    yield* Effect.tryPromise({ try: () => complete(job.id), catch: toJobFailure })
     recordSuccess(sourceId)
     ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: message })
-    if (classifyError(message) === 'transient') {
-      if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
-    } else {
-      recordSuccess(sourceId)
-    }
-    await fail(job.id, message)
-  }
+  })
+  return run.pipe(
+    Effect.catch(error =>
+      Effect.promise(async () => {
+        warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: error.message })
+        if (classifyError(error.message) === 'transient') {
+          if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
+        } else {
+          recordSuccess(sourceId)
+        }
+        await fail(job.id, error.message)
+      }),
+    ),
+  )
 }
 
 async function drain(types: string[] = TASK_TYPES): Promise<void> {
   while (true) {
     const claimed = await claim(worker, BATCH, types, blockedSources())
     if (claimed.length === 0) return
-    await Promise.all(claimed.map(processJob))
+    await Effect.runPromise(Effect.forEach(claimed, processJob, { concurrency: 'unbounded', discard: true }))
   }
 }
 
@@ -91,7 +99,12 @@ export async function runCatalog(): Promise<void> {
   await releaseStale(STALE_MS)
   await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
   await runOngoingSync()
-  await Promise.all(getSources().map(source => runBackfill(source.id)))
+  await Effect.runPromise(
+    Effect.forEach(getSources(), source => Effect.promise(() => runBackfill(source.id)), {
+      concurrency: 'unbounded',
+      discard: true,
+    }),
+  )
   await seedRefreshJobs(startedAt)
   await drain()
 }

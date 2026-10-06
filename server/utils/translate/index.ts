@@ -1,3 +1,4 @@
+import { Data, Duration, Effect, Schedule } from 'effect'
 import translate from 'google-translate-api-x'
 
 const DEFAULT_CHUNK_SIZE = 40
@@ -17,9 +18,9 @@ export interface TranslateOptions {
   onProgress?: (done: number, total: number) => void
 }
 
-type ResolvedOptions = Required<TranslateOptions>
+type ResolvedOptions = Required<Omit<TranslateOptions, 'onProgress'>> & Pick<TranslateOptions, 'onProgress'>
 
-const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+class TranslateFailure extends Data.TaggedError('TranslateFailure')<{ readonly reason: string }> {}
 
 function resolveOptions(options: TranslateOptions): ResolvedOptions {
   return {
@@ -29,6 +30,7 @@ function resolveOptions(options: TranslateOptions): ResolvedOptions {
     concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
     maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
     baseDelayMs: options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS,
+    onProgress: options.onProgress,
   }
 }
 
@@ -45,16 +47,25 @@ async function translateChunk(texts: string[], options: ResolvedOptions): Promis
   })
 }
 
-async function translateChunkWithRetry(texts: string[], options: ResolvedOptions): Promise<(string | null)[]> {
-  for (let attempt = 1; attempt <= options.maxRetries; attempt++) {
-    try {
-      return await translateChunk(texts, options)
-    } catch {
-      if (attempt === options.maxRetries) break
-      await sleep(Math.round(options.baseDelayMs * 2 ** (attempt - 1) * (0.5 + Math.random())))
-    }
-  }
-  return texts.map(() => null)
+function retryPolicy(options: ResolvedOptions): Schedule.Schedule<Duration.Duration, TranslateFailure> {
+  return Schedule.exponential(Duration.millis(options.baseDelayMs), 2).pipe(
+    Schedule.setInputType<TranslateFailure>(),
+    Schedule.modifyDelay(({ duration }) =>
+      Effect.succeed(Duration.millis(Duration.toMillis(duration) * (0.5 + Math.random()))),
+    ),
+    Schedule.upTo({ times: Math.max(0, options.maxRetries - 1) }),
+  )
+}
+
+function translateChunkWithRetry(texts: string[], options: ResolvedOptions): Effect.Effect<(string | null)[]> {
+  if (options.maxRetries <= 0) return Effect.succeed(texts.map(() => null))
+  return Effect.tryPromise({
+    try: () => translateChunk(texts, options),
+    catch: error => new TranslateFailure({ reason: error instanceof Error ? error.message : String(error) }),
+  }).pipe(
+    Effect.retry(retryPolicy(options)),
+    Effect.orElseSucceed(() => texts.map(() => null)),
+  )
 }
 
 export async function translateMany(texts: string[], options: TranslateOptions = {}): Promise<(string | null)[]> {
@@ -64,18 +75,21 @@ export async function translateMany(texts: string[], options: TranslateOptions =
     chunks.push(texts.slice(i, i + resolved.chunkSize))
   }
 
-  const results = Array.from<(string | null)[]>({ length: chunks.length })
-  let next = 0
   let completed = 0
-  const workers = Array.from({ length: Math.min(resolved.concurrency, chunks.length) }, async () => {
-    while (true) {
-      const index = next++
-      if (index >= chunks.length) return
-      results[index] = await translateChunkWithRetry(chunks[index]!, resolved)
-      options.onProgress?.(++completed, chunks.length)
-    }
-  })
-  await Promise.all(workers)
+  const results = await Effect.runPromise(
+    Effect.forEach(
+      chunks,
+      chunk =>
+        translateChunkWithRetry(chunk, resolved).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              options.onProgress?.(++completed, chunks.length)
+            }),
+          ),
+        ),
+      { concurrency: Math.max(1, resolved.concurrency) },
+    ),
+  )
   return results.flat()
 }
 

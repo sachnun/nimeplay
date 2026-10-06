@@ -76,10 +76,12 @@ export default defineEventHandler(async event => {
     res = await fetchUpstream(target, minimal)
   }
 
-  if (!res) throw createError({ status: 502, statusText: 'Failed to fetch stream' })
-
-  if (!res.ok && res.status !== 206) {
-    throw createError({ status: res.status, statusText: 'Failed to fetch stream' })
+  if (!res || (!res.ok && res.status !== 206)) {
+    await res?.body?.cancel().catch(() => {})
+    event.res.headers.set('Cache-Control', 'no-store')
+    event.res.headers.set('Location', target.toString())
+    setResponseStatus(event, 302)
+    return
   }
 
   const contentType = mediaContentType(res.headers.get('content-type'), target)

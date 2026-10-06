@@ -4,7 +4,7 @@ type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
 
 const CENTER_ICON_PX = 64
-const CENTER_MARGIN_PX = 16
+const CENTER_MARGIN_PX = 32
 const CENTER_HIT_PX = CENTER_ICON_PX + CENTER_MARGIN_PX * 2
 
 function getZone(clientX: number, clientY: number, el: HTMLElement): TapZone {

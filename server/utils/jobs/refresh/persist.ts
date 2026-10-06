@@ -4,6 +4,7 @@ import { anime, animeGenres, animeSources, characters, episodes, genres } from '
 import { db, resultRows } from '../../db'
 import { warn } from '../../log'
 import { fetchMalAnime } from '../../mal'
+import { translateSynopsis } from '../../mal/synopsis'
 import { normalizeTitleKey } from '../../mal/title'
 import type { MalAnime } from '../../mal/types'
 import { isValidMediaKey, type MediaRef, mediaRef } from '../../media'
@@ -127,11 +128,13 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
   const imageKey = (ref: MediaRef | null): string | null => (ref ? (mediaKeys.get(ref.sourceUrl) ?? ref.key) : null)
 
   const posterKey = imageKey(posterRef)
+  const synopsisOriginal = mal.synopsis
+  const synopsisTranslated = await translateSynopsis(synopsisOriginal)
   const values: typeof anime.$inferInsert = {
     malId: mal.malId,
     ...(mal.title ? { title: mal.title } : {}),
     ...(mal.type ? { type: mal.type } : {}),
-    synopsis: mal.synopsis,
+    synopsis: synopsisTranslated ?? synopsisOriginal,
     ...(posterKey ? { posterKey } : {}),
     rating: mal.score,
     rank: mal.rank,
@@ -142,7 +145,12 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     day: mal.day,
     trailerId: mal.trailerId,
     studio: mal.studio,
-    extra: { episodeTotal: mal.episodeTotal, titles: mal.titles },
+    extra: {
+      episodeTotal: mal.episodeTotal,
+      titles: mal.titles,
+      synopsisOriginal,
+      ...(synopsisTranslated ? { synopsisLang: 'id' } : {}),
+    },
     metadataSyncedAt: new Date(),
     updatedAt: new Date(),
   }

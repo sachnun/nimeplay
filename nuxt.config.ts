@@ -1,5 +1,4 @@
 import tailwindcss from '@tailwindcss/vite'
-import type { NuxtConfig } from 'nuxt/schema'
 
 export default defineNuxtConfig({
   ssr: true,
@@ -7,6 +6,7 @@ export default defineNuxtConfig({
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   nitro: {
     preset: 'cloudflare_module',
+    devServer: { runner: 'node-worker' },
     experimental: {
       openAPI: true,
     },
@@ -95,6 +95,6 @@ export default defineNuxtConfig({
     },
   },
   vite: {
-    plugins: [tailwindcss()] as NonNullable<NuxtConfig['vite']>['plugins'],
+    plugins: [tailwindcss()],
   },
 })

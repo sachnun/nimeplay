@@ -1,4 +1,4 @@
-import * as cheerio from 'cheerio'
+import * as cheerio from 'cheerio/slim'
 import { sealStreamToken } from '../media/stream'
 import { fetchHTML } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'

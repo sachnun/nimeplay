@@ -1,4 +1,4 @@
-import * as cheerio from 'cheerio'
+import * as cheerio from 'cheerio/slim'
 import { proxyFetch } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
 import { getSpoofHeaders } from '../net/spoof'

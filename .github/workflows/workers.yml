@@ -12,7 +12,7 @@ on:
       - wrangler.jsonc
       - tsconfig.json
       - package.json
-      - pnpm-lock.yaml
+      - bun.lock
       - .github/workflows/workers.yml
   workflow_dispatch:
 
@@ -31,12 +31,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
       - id: schema
         run: |
           if [ "${{ github.event_name }}" != "push" ]; then
@@ -50,12 +48,12 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.schema.outputs.changed == 'true'
-        run: pnpm db:migrate
+        run: bun run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - run: pnpm typecheck
-      - run: pnpm build
-      - run: pnpm exec wrangler deploy
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bunx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

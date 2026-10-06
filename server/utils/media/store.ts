@@ -11,7 +11,7 @@ const AVATAR_SIZE = 112
 
 export async function storeMedia(key: string, data: ArrayBuffer, contentType: string): Promise<void> {
   const poster = key.startsWith('posters/')
-  const encoded = await optimizeImage(data, contentType, poster ? POSTER_WIDTH : AVATAR_SIZE, !poster)
+  const encoded = await optimizeImage(data, contentType, poster ? POSTER_WIDTH : AVATAR_SIZE)
   await putMedia(key, encoded.bytes, encoded.contentType)
 }
 

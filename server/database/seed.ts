@@ -1,9 +1,12 @@
+import { SQL } from 'bun'
 import { eq, inArray, sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/bun-sql'
+import * as schema from './schema'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
-import { db } from '../utils/db'
-import { registerNeonDatabase } from '../utils/db/neon'
+import { db, setNodeDatabase } from '../utils/db'
 
-registerNeonDatabase()
+const client = new SQL({ url: process.env.DATABASE_URL!, max: 4 })
+setNodeDatabase(drizzle({ client, schema }))
 
 const PREFIX = 'seed:'
 const MAL_BASE = 900000
@@ -278,11 +281,6 @@ async function seed(): Promise<void> {
   console.log(`[seed] ${CATALOG.length} anime, ${genreNames.length} genres, ${episodeTotal} episodes, ${characterTotal} characters`)
 }
 
-try {
-  process.loadEnvFile('.env.local')
-}
-catch {}
-
 if (process.env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
   console.error('[seed] refusing to run with NODE_ENV=production; pass --force to override')
   process.exit(1)
@@ -294,7 +292,9 @@ if (process.argv.includes('--dry-run')) {
   process.exit(0)
 }
 
-seed().catch((error) => {
-  console.error('[seed] failed:', error instanceof Error ? error.message : error)
-  process.exit(1)
-})
+seed()
+  .then(() => client.close())
+  .catch((error) => {
+    console.error('[seed] failed:', error instanceof Error ? error.message : error)
+    process.exit(1)
+  })

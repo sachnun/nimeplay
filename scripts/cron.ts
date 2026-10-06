@@ -1,5 +1,5 @@
-import { Pool } from 'pg'
-import { drizzle } from 'drizzle-orm/node-postgres'
+import { SQL } from 'bun'
+import { drizzle } from 'drizzle-orm/bun-sql'
 import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
 import { enableProxy } from '../server/utils/media/proxy'
@@ -9,8 +9,8 @@ import { error as logError, log } from '../server/utils/log'
 
 const POOL_MAX = 32
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: POOL_MAX })
-setNodeDatabase(drizzle(pool, { schema }))
+const client = new SQL({ url: process.env.DATABASE_URL!, max: POOL_MAX })
+setNodeDatabase(drizzle({ client, schema }))
 enableProxy()
 
 const startedAt = Date.now()
@@ -25,5 +25,5 @@ catch (error) {
   process.exitCode = 1
 }
 finally {
-  await pool.end().catch(() => {})
+  await client.close().catch(() => {})
 }

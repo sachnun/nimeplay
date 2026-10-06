@@ -2,21 +2,25 @@
   "name": "nimeplay",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@12.4.2",
+  "packageManager": "bun@1.4.2",
   "engines": {
-    "node": ">=26"
+    "bun": ">=1.4.0"
   },
   "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "typecheck": "nuxt typecheck",
+    "build": "bun --bun nuxt build",
+    "dev": "bun --bun nuxt dev",
+    "generate": "bun --bun nuxt generate",
+    "typecheck": "bun --bun nuxt typecheck",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx server/database/seed.ts"
+    "db:seed": "bun run server/database/seed.ts"
   },
+  "trustedDependencies": [
+    "esbuild",
+    "workerd"
+  ],
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@nuxt/fonts": "^0.14.0",
@@ -27,9 +31,7 @@
     "hls.js": "^1.7.3",
     "idb": "^8.0.3",
     "nuxt": "^4.5.2",
-    "pg": "^8.23.0",
-    "sharp": "^0.35.4",
-    "vue": "^3.5.41"
+    "vue": "3.5.42"
   },
   "overrides": {
     "@bomb.sh/tab": "0.0.22"
@@ -37,12 +39,11 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
     "@tailwindcss/vite": "^4.3.0",
+    "@types/bun": "^1.4.2",
     "@types/node": "^26.5.1",
-    "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
-    "vue-tsc": "^3.3.9",
+    "vue-tsc": "3.3.11",
     "wrangler": "^4.131.1"
   }
 }

@@ -38,7 +38,7 @@ const { data: pageData, pending } = useAsyncData<EpisodePageData | null>(
   async () => {
     try {
       pageError.value = null
-      return await fetchEpisodePage(malId.value, Number(episodeParam.value))
+      return await fetchEpisodePage(malId.value, Number(episodeParam.value), { stream: false })
     } catch (err) {
       pageError.value = err
       return null

@@ -108,6 +108,6 @@ export function toEpisodePageData(response: EpisodeResponse): EpisodePageData {
   }
 }
 
-export function fetchEpisodePage(malId: number, episode: number): Promise<EpisodePageData> {
-  return fetchEpisode(malId, episode).then(toEpisodePageData)
+export function fetchEpisodePage(malId: number, episode: number, pick: EpisodePick = {}): Promise<EpisodePageData> {
+  return fetchEpisode(malId, episode, pick).then(toEpisodePageData)
 }

@@ -2,6 +2,7 @@ import { SQL } from 'bun'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sql'
 import { db, setNodeDatabase } from '../utils/db'
+import { refreshSearchDoc } from '../utils/jobs/refresh/persist'
 import * as schema from './schema'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
 
@@ -399,6 +400,8 @@ async function seed(): Promise<void> {
     await client.delete(characters).where(eq(characters.animeId, animeId))
     const characterRows = characterValues(entry, animeId)
     if (characterRows.length > 0) await client.insert(characters).values(characterRows)
+
+    await refreshSearchDoc(animeId)
   }
 
   const episodeTotal = CATALOG.reduce((total, entry) => total + entry.episodes, 0)

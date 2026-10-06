@@ -179,7 +179,27 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
     await db().insert(characters).values(chunk).onConflictDoNothing()
   }
   await syncGenres(animeId, mal.genres)
+  await refreshSearchDoc(animeId)
   return animeId
+}
+
+export async function refreshSearchDoc(animeId: number): Promise<void> {
+  await db().execute(sql`
+    update anime a set search_doc =
+      setweight(to_tsvector('simple', coalesce(a.title, '')), 'A') ||
+      setweight(to_tsvector('simple', coalesce((
+        select string_agg(t.value, ' ') from jsonb_array_elements_text(a.extra -> 'titles') t(value)
+      ), '')), 'A') ||
+      setweight(to_tsvector('simple', concat_ws(' ', a.studio, a.type)), 'B') ||
+      setweight(to_tsvector('simple', coalesce((
+        select string_agg(g.name, ' ') from anime_genres ag join genres g on g.id = ag.genre_id where ag.anime_id = a.id
+      ), '')), 'C') ||
+      setweight(to_tsvector('simple', coalesce((
+        select string_agg(ch.name || ' ' || coalesce(ch.voice_actor_name, ''), ' ') from characters ch where ch.anime_id = a.id
+      ), '')), 'C') ||
+      setweight(to_tsvector('simple', coalesce(a.synopsis, '')), 'D')
+    where a.id = ${animeId}
+  `)
 }
 
 export async function findAnimeIdByTitle(title: string): Promise<number | null> {

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
+  customType,
   index,
   integer,
   jsonb,
@@ -14,6 +15,8 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import type { EpisodeData } from '../utils/sources/types'
+
+const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' })
 
 export const genres = pgTable('genres', {
   id: serial('id').primaryKey(),
@@ -46,6 +49,7 @@ export const anime = pgTable(
     latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
     metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
     lastNewEpisodeAt: timestamp('last_new_episode_at', { withTimezone: true }),
+    searchDoc: tsvector('search_doc'),
     extra: jsonb('extra').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -56,6 +60,7 @@ export const anime = pgTable(
     index('anime_status_mal_id_idx').on(table.status, table.malId),
     index('anime_season_year_idx').on(table.season, table.year),
     index('anime_title_trgm_idx').using('gin', sql`${table.title} gin_trgm_ops`),
+    index('anime_search_doc_idx').using('gin', table.searchDoc),
   ],
 )
 

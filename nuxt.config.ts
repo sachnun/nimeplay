@@ -4,6 +4,7 @@ export default defineNuxtConfig({
   ssr: true,
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV === 'development' },
+  devServer: { host: 'localhost' },
   nitro: {
     preset: 'cloudflare_module',
     devServer: { runner: 'node-worker' },

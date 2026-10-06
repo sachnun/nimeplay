@@ -54,7 +54,6 @@ export async function prepareMirror(dataContent: string): Promise<PrepareResult>
     return { playUrl: proxiedStreamPath(token), kind: 'file', ok: true }
   }
   const probe = await probeStream(directUrl, hintHeaders)
-  if (!probe.ok && !hintHeaders) return { playUrl: directUrl, kind: probe.kind, ok: true }
   const token = await sealStreamToken(directUrl, undefined, hintHeaders)
   return { playUrl: proxiedStreamPath(token), kind: probe.kind, ok: true }
 }

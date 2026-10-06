@@ -19,7 +19,7 @@ export const sources: Record<string, AnimeSource> = {
 
 const SOURCE_ORDER = ['otakudesu', 'ylnime', 'sokuja', 'animein', 'animexnonton', 'nakanime', 'astronime']
 
-export function sourcePriority(id: string): number {
+export function sourceRank(id: string): number {
   const index = SOURCE_ORDER.indexOf(id)
   return index === -1 ? SOURCE_ORDER.length : index
 }

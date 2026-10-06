@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { anime, animeSources, episodes } from '../../../database/schema'
 import { posterSrc } from '../../media'
-import { sourcePriority } from '../../sources'
+import { sourceRank } from '../../sources'
 import { db } from '../index'
 import { notBlockedGenre } from './shared'
 
@@ -28,7 +28,7 @@ export async function resolveEpisode(
     .where(and(eq(anime.malId, malId), eq(episodes.number, number), notBlockedGenre(sql`${anime.id}`)))
 
   if (rows.length === 0) return null
-  rows.sort((a, b) => sourcePriority(a.source) - sourcePriority(b.source))
+  rows.sort((a, b) => sourceRank(a.source) - sourceRank(b.source))
   const first = rows[0]!
   return {
     animeId: first.animeId,

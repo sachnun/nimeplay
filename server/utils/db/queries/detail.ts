@@ -3,7 +3,7 @@ import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../../../database/schema'
 import { cleanSynopsis } from '../../mal/synopsis'
 import { posterSrc } from '../../media'
-import { sourcePriority } from '../../sources'
+import { sourceRank } from '../../sources'
 import { db } from '../index'
 import { CATALOG_READY, formatSeason } from './shared'
 
@@ -89,7 +89,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
   const episodeByNumber = new Map<number, { number: number; date: string }>()
   const chosenPriority = new Map<number, number>()
   for (const entry of sourceEpisodeRows) {
-    const priority = sourcePriority(entry.source)
+    const priority = sourceRank(entry.source)
     const current = chosenPriority.get(entry.number)
     if (current === undefined || priority < current) {
       chosenPriority.set(entry.number, priority)

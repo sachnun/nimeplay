@@ -38,6 +38,9 @@ export default defineNuxtConfig({
       },
     },
   },
+  imports: {
+    dirs: ['composables/**', 'utils/**'],
+  },
   modules: ['@nuxtjs/device'],
   hooks: {
     'build:manifest': manifest => {

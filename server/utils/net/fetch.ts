@@ -13,27 +13,6 @@ interface PlainOptions {
   proxy?: boolean
 }
 
-interface NodeRequest {
-  on: (event: string, cb: (arg?: unknown) => void) => void
-  setTimeout: (ms: number, cb: () => void) => void
-  end: () => void
-  destroy: () => void
-}
-
-interface NodeResponse {
-  statusCode?: number
-  headers: Record<string, string | string[] | undefined>
-  on: (event: string, cb: (chunk?: unknown) => void) => void
-}
-
-interface NodeHttps {
-  request: (
-    url: string,
-    options: { method: string, headers: Record<string, string> },
-    cb: (res: NodeResponse) => void,
-  ) => NodeRequest
-}
-
 interface PlainBinaryResponse {
   status: number
   contentType: string
@@ -43,8 +22,6 @@ interface PlainBinaryResponse {
 const DEFAULT_UA = 'okhttp/4.9.0'
 const DEFAULT_TIMEOUT_MS = 8000
 
-const modules = new Map<string, Promise<NodeHttps | null>>()
-
 function toHeaderRecord(raw: Record<string, string | string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(raw)) {
@@ -53,81 +30,32 @@ function toHeaderRecord(raw: Record<string, string | string[] | undefined>): Rec
   return out
 }
 
-function loadModule(url: string): Promise<NodeHttps | null> {
-  const specifier = url.startsWith('http://') ? 'node:http' : 'node:https'
-  let loaded = modules.get(specifier)
-  if (!loaded) {
-    loaded = (async () => {
-      try {
-        return await import(/* @vite-ignore */ specifier) as NodeHttps
-      }
-      catch {
-        return null
-      }
-    })()
-    modules.set(specifier, loaded)
-  }
-  return loaded
-}
-
-function nodeGet(target: string, headers: Record<string, string>, timeoutMs: number, https: NodeHttps): Promise<PlainResponse | null> {
-  return new Promise((resolve) => {
-    let settled = false
-    const done = (value: PlainResponse | null) => {
-      if (settled) return
-      settled = true
-      resolve(value)
-    }
-    const req = https.request(target, { method: 'GET', headers }, (res) => {
-      const chunks: Buffer[] = []
-      res.on('data', (chunk) => { chunks.push(chunk as Buffer) })
-      res.on('end', () => done({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8'), headers: toHeaderRecord(res.headers) }))
-    })
-    req.on('error', () => done(null))
-    req.setTimeout(timeoutMs, () => { req.destroy(); done(null) })
-    req.end()
-  })
-}
-
-async function fetchGet(target: string, headers: Record<string, string>, timeoutMs: number): Promise<PlainResponse | null> {
+async function fetchGet(
+  target: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+): Promise<PlainResponse | null> {
   try {
     const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
     return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
-  }
-  catch {
+  } catch {
     return null
   }
 }
 
-function nodeGetBinary(target: string, headers: Record<string, string>, timeoutMs: number, https: NodeHttps): Promise<PlainBinaryResponse | null> {
-  return new Promise((resolve) => {
-    let settled = false
-    const done = (value: PlainBinaryResponse | null) => {
-      if (settled) return
-      settled = true
-      resolve(value)
-    }
-    const req = https.request(target, { method: 'GET', headers }, (res) => {
-      const chunks: Buffer[] = []
-      res.on('data', (chunk) => { chunks.push(chunk as Buffer) })
-      res.on('end', () => {
-        const raw = res.headers['content-type']
-        const contentType = Array.isArray(raw) ? raw[0] ?? 'application/octet-stream' : raw ?? 'application/octet-stream'
-        done({ status: res.statusCode ?? 0, contentType, bytes: new Uint8Array(Buffer.concat(chunks)) })
-      })
-    })
-    req.on('error', () => done(null))
-    req.setTimeout(timeoutMs, () => { req.destroy(); done(null) })
-    req.end()
-  })
-}
-
-async function fetchGetBinary(target: string, headers: Record<string, string>, timeoutMs: number): Promise<PlainBinaryResponse | null> {
+async function fetchGetBinary(
+  target: string,
+  headers: Record<string, string>,
+  timeoutMs: number,
+): Promise<PlainBinaryResponse | null> {
   try {
     const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-    return { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', bytes: new Uint8Array(await res.arrayBuffer()) }
-  }
-  catch {
+    return {
+      status: res.status,
+      contentType: res.headers.get('content-type') ?? 'application/octet-stream',
+      bytes: new Uint8Array(await res.arrayBuffer()),
+    }
+  } catch {
     return null
   }
 }
@@ -136,13 +64,12 @@ export async function plainGet(url: string, options: PlainOptions = {}): Promise
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const headers = {
     'user-agent': DEFAULT_UA,
-    'accept': 'application/json, */*',
+    accept: 'application/json, */*',
     ...options.headers,
   }
   const target = proxyUrl(url, options.proxy)
-  const https = await loadModule(target)
   return withRetry(async () => {
-    const res = await (https ? nodeGet(target, headers, timeoutMs, https) : fetchGet(target, headers, timeoutMs))
+    const res = await fetchGet(target, headers, timeoutMs)
     if (!res) return { value: null, retry: true }
     return { value: res, retry: isRetryableStatus(res.status), headers: res.headers }
   })
@@ -152,13 +79,12 @@ export async function plainGetBinary(url: string, options: PlainOptions = {}): P
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const headers = {
     'user-agent': DEFAULT_UA,
-    'accept': 'image/avif,image/webp,image/*,*/*',
+    accept: 'image/avif,image/webp,image/*,*/*',
     ...options.headers,
   }
   const target = proxyUrl(url, options.proxy)
-  const https = await loadModule(target)
   return withRetry(async () => {
-    const res = await (https ? nodeGetBinary(target, headers, timeoutMs, https) : fetchGetBinary(target, headers, timeoutMs))
+    const res = await fetchGetBinary(target, headers, timeoutMs)
     if (!res) return { value: null, retry: true }
     return { value: res, retry: isRetryableStatus(res.status) }
   })

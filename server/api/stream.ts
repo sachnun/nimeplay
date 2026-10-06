@@ -2,6 +2,12 @@ import { createError, defineEventHandler, getQuery, getRequestHeader, setRespons
 
 const UPSTREAM_TIMEOUT_MS = 10_000
 
+const STRIPPED_ON_RETRY = ['User-Agent', 'Referer', 'Origin', 'Accept', 'Accept-Language']
+
+function fetchUpstream(target: URL, headers: Record<string, string>): Promise<Response | null> {
+  return fetch(target, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }).catch(() => null)
+}
+
 const MEDIA_TYPES: Record<string, string> = {
   mp4: 'video/mp4',
   m4v: 'video/mp4',
@@ -62,10 +68,13 @@ export default defineEventHandler(async event => {
   for (const [key, value] of Object.entries(headers)) {
     if (value === '') delete headers[key]
   }
-  const res = await fetch(target, {
-    headers,
-    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-  }).catch(() => null)
+  let res = await fetchUpstream(target, headers)
+  if (res && !res.ok && res.status !== 206) {
+    await res.body?.cancel().catch(() => {})
+    const minimal = { ...headers }
+    for (const key of STRIPPED_ON_RETRY) delete minimal[key]
+    res = await fetchUpstream(target, minimal)
+  }
 
   if (!res) throw createError({ status: 502, statusText: 'Failed to fetch stream' })
 

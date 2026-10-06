@@ -36,8 +36,8 @@ interface SeedAnime {
   characters: SeedCharacter[]
 }
 
-function mulberry32(seed: number): () => number {
-  let state = seed
+function mulberry32(seedValue: number): () => number {
+  let state = seedValue
   return () => {
     state = (state + 0x6d2b79f5) | 0
     let value = Math.imul(state ^ (state >>> 15), 1 | state)
@@ -203,8 +203,8 @@ function slugify(value: string): string {
     .replace(/(^-|-$)/g, '')
 }
 
-function image(seed: string, width: number, height: number): string {
-  return `https://picsum.photos/seed/nimeplay-${seed}/${width}/${height}`
+function image(seedValue: string, width: number, height: number): string {
+  return `https://picsum.photos/seed/nimeplay-${seedValue}/${width}/${height}`
 }
 
 function episodeDate(start: string, number: number): string {
@@ -270,12 +270,12 @@ function buildCatalog(count: number): SeedAnime[] {
     const day = int(1, 28)
     const year = int(2015, 2025)
     const status: SeedAnime['status'] = rand() < 0.6 ? 'ONGOING' : 'COMPLETED'
-    const genres = pickMany(genrePool, 2, 4)
+    const pickedGenres = pickMany(genrePool, 2, 4)
 
     catalog.push({
       slug,
       title,
-      synopsis: `${title} follows a cast of unlikely allies as they face ${genres.join(' and ').toLowerCase()} trials, uncovering a conspiracy that could reshape their world.`,
+      synopsis: `${title} follows a cast of unlikely allies as they face ${pickedGenres.join(' and ').toLowerCase()} trials, uncovering a conspiracy that could reshape their world.`,
       rating: Number((6 + rand() * 3.5).toFixed(1)),
       season: seasonOf(month),
       year,
@@ -285,7 +285,7 @@ function buildCatalog(count: number): SeedAnime[] {
       studio: pick(studios),
       start: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       episodes: status === 'ONGOING' ? int(6, 24) : int(12, 64),
-      genres,
+      genres: pickedGenres,
       characters: buildCharacters(),
     })
   }
@@ -345,28 +345,28 @@ function characterValues(entry: SeedAnime, animeId: number): (typeof characters.
 }
 
 async function seed(): Promise<void> {
-  const client = db()
+  const dbClient = db()
 
   const genreNames = [...new Set(CATALOG.flatMap(entry => entry.genres))]
   const genreSlugs = genreNames.map(slugify)
-  await client
+  await dbClient
     .insert(genres)
     .values(genreNames.map(name => ({ slug: slugify(name), name })))
     .onConflictDoUpdate({ target: genres.slug, set: { updatedAt: new Date() } })
-  const genreRows = await client
+  const genreRows = await dbClient
     .select({ id: genres.id, slug: genres.slug })
     .from(genres)
     .where(inArray(genres.slug, genreSlugs))
   const genreIds = new Map(genreRows.map(row => [row.slug, row.id]))
 
-  await client.execute(
+  await dbClient.execute(
     sql`delete from anime where id in (select anime_id from anime_sources where source = 'seed' and anime_id is not null)`,
   )
 
   for (const [index, entry] of CATALOG.entries()) {
     const malId = MAL_BASE + index + 1
     const values = animeValues(entry, malId)
-    const [stored] = await client
+    const [stored] = await dbClient
       .insert(anime)
       .values(values)
       .onConflictDoUpdate({ target: anime.malId, set: values })
@@ -374,7 +374,7 @@ async function seed(): Promise<void> {
     if (!stored) throw new Error(`failed to upsert ${entry.slug}`)
     const animeId = stored.id
 
-    const [storedSource] = await client
+    const [storedSource] = await dbClient
       .insert(animeSources)
       .values({
         animeId,
@@ -388,18 +388,18 @@ async function seed(): Promise<void> {
       .returning({ id: animeSources.id })
     const sourceId = storedSource!.id
 
-    await client.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
+    await dbClient.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
     const links = entry.genres
       .map(name => ({ animeId, genreId: genreIds.get(slugify(name)) }))
       .filter((link): link is { animeId: number; genreId: number } => link.genreId !== undefined)
-    if (links.length > 0) await client.insert(animeGenres).values(links).onConflictDoNothing()
+    if (links.length > 0) await dbClient.insert(animeGenres).values(links).onConflictDoNothing()
 
-    await client.delete(episodes).where(eq(episodes.sourceId, sourceId))
-    await client.insert(episodes).values(episodeValues(entry, sourceId))
+    await dbClient.delete(episodes).where(eq(episodes.sourceId, sourceId))
+    await dbClient.insert(episodes).values(episodeValues(entry, sourceId))
 
-    await client.delete(characters).where(eq(characters.animeId, animeId))
+    await dbClient.delete(characters).where(eq(characters.animeId, animeId))
     const characterRows = characterValues(entry, animeId)
-    if (characterRows.length > 0) await client.insert(characters).values(characterRows)
+    if (characterRows.length > 0) await dbClient.insert(characters).values(characterRows)
 
     await refreshSearchDoc(animeId)
   }

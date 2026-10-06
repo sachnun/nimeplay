@@ -91,7 +91,7 @@ export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null>
       episodeByNumber.set(entry.number, { number: entry.number, date: entry.releaseDate ?? '' })
     }
   }
-  const episodeRows = [...episodeByNumber.values()].sort((a, b) => a.number - b.number)
+  const episodeRows = [...episodeByNumber.values()].toSorted((a, b) => a.number - b.number)
 
   return {
     malId: row.malId,

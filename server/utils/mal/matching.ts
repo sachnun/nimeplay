@@ -302,5 +302,5 @@ export function rankMalAnimeMatches(siteTitle: string, entries: MalSearchEntry[]
   if (scored.length === 0) return []
   const content = scored.filter(item => item.hasContent)
   const pool = content.length > 0 ? content : scored
-  return pool.sort((a, b) => b.score - a.score).map(item => item.entry)
+  return pool.toSorted((a, b) => b.score - a.score).map(item => item.entry)
 }

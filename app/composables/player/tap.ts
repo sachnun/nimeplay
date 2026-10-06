@@ -3,6 +3,15 @@ import type { Ref } from 'vue'
 type TapZone = 'left' | 'center' | 'right'
 type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
 
+function getZone(clientX: number, el: HTMLElement): TapZone {
+  const rect = el.getBoundingClientRect()
+  if (!rect || rect.width <= 0) return 'center'
+  const ratio = (clientX - rect.left) / rect.width
+  if (ratio < 0.3) return 'left'
+  if (ratio < 0.7) return 'center'
+  return 'right'
+}
+
 interface EpisodePlayerTapOptions {
   showControls: Ref<boolean>
   controlsVisible: Ref<boolean>
@@ -90,15 +99,6 @@ export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
       return
     }
     handleSeekTap(zone, isDoubleTap)
-  }
-
-  function getZone(clientX: number, el: HTMLElement): TapZone {
-    const rect = el.getBoundingClientRect()
-    if (!rect || rect.width <= 0) return 'center'
-    const ratio = (clientX - rect.left) / rect.width
-    if (ratio < 0.3) return 'left'
-    if (ratio < 0.7) return 'center'
-    return 'right'
   }
 
   return { handleZoneTap, getZone, clearPendingTap, resetFeedback }

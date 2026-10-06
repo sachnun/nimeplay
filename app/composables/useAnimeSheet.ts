@@ -19,11 +19,11 @@ export function useAnimeSheet() {
 
   function open(malId: number, basePath: string, url: string) {
     state.value = { malId, basePath, open: true, closing: false }
-    history.pushState({ ...(history.state || {}), animeSheet: true }, '', url)
+    history.pushState({ ...history.state, animeSheet: true }, '', url)
   }
 
   function dropFakeEntry() {
-    if (hasFakeEntry()) history.replaceState({ ...(history.state || {}), animeSheet: false }, '', state.value.basePath)
+    if (hasFakeEntry()) history.replaceState({ ...history.state, animeSheet: false }, '', state.value.basePath)
   }
 
   function markClosed() {

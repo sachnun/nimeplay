@@ -44,5 +44,5 @@ export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
   for (const entry of rows) {
     numbers.add(entry.number)
   }
-  return [...numbers].sort((a, b) => a - b)
+  return [...numbers].toSorted((a, b) => a - b)
 }

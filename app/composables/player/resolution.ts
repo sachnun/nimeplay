@@ -1,6 +1,10 @@
 import type { Ref } from 'vue'
 import type { EpisodeData } from '~/types'
 
+function resultForCandidate(index: number) {
+  return { nextIndex: index + 1 }
+}
+
 interface EpisodePlayerResolutionOptions {
   malId: number
   currentEpisodeNum: Ref<number>
@@ -36,10 +40,6 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     options.directUrl.value = url
     options.directKind.value = kind
     return true
-  }
-
-  function resultForCandidate(index: number) {
-    return { nextIndex: index + 1 }
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {

@@ -28,11 +28,11 @@ function emptyPrepareResult(): PrepareResult {
 }
 
 export function selectDefaultCandidate(mirrors: MirrorGroup[]): DefaultMirrorCandidate | null {
-  const sorted = [...mirrors].sort((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
+  const sorted = mirrors.toSorted((a, b) => qualityRank(a.quality) - qualityRank(b.quality))
   const startIdx = sorted.findIndex(m => m.quality === '720p')
   const ordered = startIdx > 0 ? [...sorted.slice(startIdx), ...sorted.slice(0, startIdx)] : sorted
   for (const mirror of ordered) {
-    const best = [...mirror.sources].sort((a, b) => sourcePriority(a.name) - sourcePriority(b.name))[0]
+    const best = mirror.sources.toSorted((a, b) => sourcePriority(a.name) - sourcePriority(b.name))[0]
     if (best) return { dataContent: best.dataContent, quality: mirror.quality, name: best.name }
   }
   return null

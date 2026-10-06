@@ -11,8 +11,8 @@ function jaro(a: string, b: string): number {
   if (a === b) return 1
   if (!a.length || !b.length) return 0
   const window = Math.max(0, Math.floor(Math.max(a.length, b.length) / 2) - 1)
-  const aMatch = new Array<boolean>(a.length).fill(false)
-  const bMatch = new Array<boolean>(b.length).fill(false)
+  const aMatch = Array.from({ length: a.length }, () => false)
+  const bMatch = Array.from({ length: b.length }, () => false)
   let matches = 0
   for (let i = 0; i < a.length; i++) {
     const start = Math.max(0, i - window)
@@ -50,7 +50,7 @@ export function jaroWinkler(a: string, b: string, prefixScale = 0.1, maxPrefix =
 function damerauLevenshtein(a: string, b: string): number {
   const rows = a.length + 1
   const cols = b.length + 1
-  const d: number[][] = Array.from({ length: rows }, () => new Array<number>(cols).fill(0))
+  const d: number[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0))
   for (let i = 0; i < rows; i++) d[i]![0] = i
   for (let j = 0; j < cols; j++) d[0]![j] = j
   for (let i = 1; i < rows; i++) {
@@ -77,9 +77,9 @@ export function tokenSetRatio(a: string, b: string): number {
   if (aTokens.length === 0 || bTokens.length === 0) return normalizedDamerau(a, b)
   const aSet = new Set(aTokens)
   const bSet = new Set(bTokens)
-  const inter = [...aSet].filter(token => bSet.has(token)).sort()
-  const aOnly = [...aSet].filter(token => !bSet.has(token)).sort()
-  const bOnly = [...bSet].filter(token => !aSet.has(token)).sort()
+  const inter = [...aSet].filter(token => bSet.has(token)).toSorted()
+  const aOnly = [...aSet].filter(token => !bSet.has(token)).toSorted()
+  const bOnly = [...bSet].filter(token => !aSet.has(token)).toSorted()
   const t0 = inter.join(' ')
   const t1 = [...inter, ...aOnly].join(' ')
   const t2 = [...inter, ...bOnly].join(' ')

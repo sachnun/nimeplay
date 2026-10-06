@@ -69,16 +69,17 @@ function shouldOpenFromKey(event: KeyboardEvent) {
   return isDesktop()
 }
 
-onMounted(() => {
-  const handleKey = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && props.open) {
-      emit('close')
-      return
-    }
-    if (!shouldOpenFromKey(event)) return
-    pendingQuery += event.key
-    emit('open')
+function handleKey(event: KeyboardEvent) {
+  if (event.key === 'Escape' && props.open) {
+    emit('close')
+    return
   }
+  if (!shouldOpenFromKey(event)) return
+  pendingQuery += event.key
+  emit('open')
+}
+
+onMounted(() => {
   window.addEventListener('keydown', handleKey)
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', handleKey)

@@ -10,6 +10,11 @@ interface EpisodePlayerSourceOptions {
   triggerFallback: () => void
 }
 
+function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+  video.src = url
+  video.addEventListener('error', onVideoError, { once: true })
+}
+
 export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
   const { videoRef, directUrl, directKind, videoLoading, loadingMessage, triggerFallback } = options
   let hls: Hls | null = null
@@ -27,12 +32,9 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
     if (hls) hls.config.maxBufferLength = length
   }
 
-  function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    video.src = url
-    video.addEventListener('error', onVideoError, { once: true })
-  }
+  const onVideoError = () => triggerFallback()
 
-  async function attachHlsSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+  async function attachHlsSource(video: HTMLVideoElement, url: string, handleError: () => void) {
     const Hls = (await loadHls()).default
     if (Hls.isSupported()) {
       hls = new Hls({
@@ -46,7 +48,7 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
       })
       return
     }
-    if (video.canPlayType('application/vnd.apple.mpegurl')) return attachNativeSource(video, url, onVideoError)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) return attachNativeSource(video, url, handleError)
     triggerFallback()
   }
 
@@ -64,10 +66,10 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
     video: HTMLVideoElement,
     url: string,
     kind: 'hls' | 'file' | null,
-    onVideoError: () => void,
+    handleError: () => void,
   ) {
-    if (kind === 'hls') return attachHlsSource(video, url, onVideoError)
-    attachNativeSource(video, url, onVideoError)
+    if (kind === 'hls') return attachHlsSource(video, url, handleError)
+    attachNativeSource(video, url, handleError)
   }
 
   watch([directUrl, videoRef], async ([url, video], _, onCleanup) => {
@@ -99,7 +101,6 @@ export function useEpisodePlayerSource(options: EpisodePlayerSourceOptions) {
       videoLoading.value = false
       clearStallTimer()
     }
-    const onVideoError = () => triggerFallback()
     video.addEventListener('canplay', onFirstFrame, { once: true })
     video.addEventListener('loadeddata', onFirstFrame, { once: true })
     video.addEventListener('playing', onFirstFrame, { once: true })

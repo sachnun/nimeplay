@@ -58,7 +58,7 @@ function findStreamingData(value: unknown): BloggerStreamingData | null {
 }
 
 function bestFormatUrl(data: BloggerStreamingData): string | null {
-  const formats = [...(data.streamingData?.formats ?? [])].sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
+  const formats = (data.streamingData?.formats ?? []).toSorted((a, b) => (b.height ?? 0) - (a.height ?? 0))
   for (const format of formats) {
     const url = asHttpUrl(format.url)
     if (url && !isPlaceholderStreamUrl(url)) return url

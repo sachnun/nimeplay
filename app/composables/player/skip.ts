@@ -1,6 +1,10 @@
 import type { Ref } from 'vue'
 import type { SkipTime } from '~/types'
 
+function shouldSkipSegment(skipTime: SkipTime, time: number) {
+  return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
+}
+
 interface EpisodePlayerSkipOptions {
   malId: number
   currentEpisodeNum: Ref<number>
@@ -12,10 +16,6 @@ interface EpisodePlayerSkipOptions {
 export function useEpisodePlayerSkip(options: EpisodePlayerSkipOptions) {
   const { malId, currentEpisodeNum, autoSkip, skipTimes, videoRef } = options
   let fetched = false
-
-  function shouldSkipSegment(skipTime: SkipTime, time: number) {
-    return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
-  }
 
   function autoSkipCurrentSegment(video: HTMLVideoElement) {
     if (!autoSkip.value) return

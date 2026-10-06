@@ -9,9 +9,9 @@ interface DbState {
   http?: Database
 }
 
-const global = globalThis as unknown as { __db_state__?: DbState }
-global.__db_state__ ??= {}
-const state = global.__db_state__
+const global = globalThis as unknown as { nimeplayDbState?: DbState }
+global.nimeplayDbState ??= {}
+const state = global.nimeplayDbState
 
 export function setNodeDatabase(database: unknown): void {
   state.node = database as Database

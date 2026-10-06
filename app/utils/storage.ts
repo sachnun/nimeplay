@@ -98,7 +98,7 @@ async function getAllProgress(): Promise<WatchProgress[]> {
   try {
     const db = await getDb()
     const all = await db.getAll('progress')
-    return all.sort((a, b) => b.updatedAt - a.updatedAt)
+    return all.toSorted((a, b) => b.updatedAt - a.updatedAt)
   } catch {
     return []
   }

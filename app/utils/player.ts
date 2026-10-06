@@ -24,7 +24,7 @@ export function hasFiniteDuration(video: HTMLVideoElement | null | undefined) {
 }
 
 function sortSources(sources: EpisodeSource[]): EpisodeSource[] {
-  return [...sources].sort(
+  return sources.toSorted(
     (a, b) => qualityRank(a.quality) - qualityRank(b.quality) || sourcePriority(a.server) - sourcePriority(b.server),
   )
 }

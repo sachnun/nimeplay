@@ -2,6 +2,16 @@ import type { Ref } from 'vue'
 
 const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
 
+function isInteractiveTarget(target: HTMLElement | null) {
+  return Boolean(
+    target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"], [role="slider"]')),
+  )
+}
+
+function keyboardShortcutKey(event: KeyboardEvent) {
+  return event.key.length === 1 ? event.key.toLowerCase() : event.key
+}
+
 interface EpisodePlayerKeyboardOptions {
   videoRef: Ref<HTMLVideoElement | null>
   togglePlay: () => void
@@ -14,16 +24,6 @@ interface EpisodePlayerKeyboardOptions {
 
 export function useEpisodePlayerKeyboard(options: EpisodePlayerKeyboardOptions) {
   const { videoRef, togglePlay, seekRelative, showSeekFeedback, changeVolume, toggleMute, toggleFullscreen } = options
-
-  function isInteractiveTarget(target: HTMLElement | null) {
-    return Boolean(
-      target && (INTERACTIVE_TAGS.has(target.tagName) || target.closest('a, button, [role="button"], [role="slider"]')),
-    )
-  }
-
-  function keyboardShortcutKey(event: KeyboardEvent) {
-    return event.key.length === 1 ? event.key.toLowerCase() : event.key
-  }
 
   function handleKeyboardShortcut(event: KeyboardEvent) {
     const volume = videoRef.value?.volume ?? 1

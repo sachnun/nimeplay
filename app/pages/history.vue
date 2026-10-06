@@ -43,7 +43,7 @@ async function loadHistory() {
       }
     })
     await Promise.all(workers)
-    items.value = [...loaded.values()].sort((a, b) => b.updatedAt - a.updatedAt)
+    items.value = [...loaded.values()].toSorted((a, b) => b.updatedAt - a.updatedAt)
   } finally {
     loading.value = false
   }

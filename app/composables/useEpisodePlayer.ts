@@ -498,6 +498,34 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     else setTimeout(run, 1500)
   }
 
+  function onFullscreenChange() {
+    isFullscreen.value = !!document.fullscreenElement
+    if (isFullscreen.value) resetIdle()
+    if (!isFullscreen.value) {
+      cancelAutoNext()
+      void fullscreen.lockPlayerOrientation('portrait')
+    }
+  }
+
+  function onKey(event: KeyboardEvent) {
+    if (!showNative.value) return
+    const target = event.target instanceof HTMLElement ? event.target : null
+    if (keyboard.isInteractiveTarget(target)) return
+    keyboard.handleKeyboardShortcut(event)
+  }
+
+  function onPointerActivity() {
+    resetIdle()
+  }
+
+  function onLeave() {
+    if (isSeeking.value) return
+    if (videoRef.value && !videoRef.value.paused) {
+      showControls.value = false
+      showEpisodes.value = false
+    }
+  }
+
   onMounted(() => {
     isTouchDevice.value =
       window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
@@ -510,28 +538,6 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     const video = videoRef.value
     if (video) onBeforeUnmount(registerVideoEvents(video))
 
-    const onFullscreenChange = () => {
-      isFullscreen.value = !!document.fullscreenElement
-      if (isFullscreen.value) resetIdle()
-      if (!isFullscreen.value) {
-        cancelAutoNext()
-        void fullscreen.lockPlayerOrientation('portrait')
-      }
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (!showNative.value) return
-      const target = event.target instanceof HTMLElement ? event.target : null
-      if (keyboard.isInteractiveTarget(target)) return
-      keyboard.handleKeyboardShortcut(event)
-    }
-    const onPointerActivity = () => resetIdle()
-    const onLeave = () => {
-      if (isSeeking.value) return
-      if (videoRef.value && !videoRef.value.paused) {
-        showControls.value = false
-        showEpisodes.value = false
-      }
-    }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('keydown', onKey)
     containerRef.value?.addEventListener('mousemove', onPointerActivity)

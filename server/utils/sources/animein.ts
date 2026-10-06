@@ -151,7 +151,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
   if (!movie) return null
 
   const episodes = await collectEpisodes(String(movie.id))
-  const ordered = [...episodes].sort((a, b) => Number(a.index) - Number(b.index))
+  const ordered = episodes.toSorted((a, b) => Number(a.index) - Number(b.index))
 
   return {
     title: movie.title,

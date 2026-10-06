@@ -204,7 +204,7 @@ async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail 
       }
     })
     .filter((entry): entry is { number: number; title: string; slug: string; date: string } => entry !== null)
-    .sort((a, b) => a.number - b.number)
+    .toSorted((a, b) => a.number - b.number)
     .map(({ title: episodeTitle, slug: episodeSlug, date }) => ({ title: episodeTitle, slug: episodeSlug, date }))
 
   return {

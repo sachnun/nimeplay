@@ -5,7 +5,7 @@ const props = defineProps<{
 }>()
 
 const episodeStatuses = ref<Record<string, WatchProgressStatus>>({})
-const reversedEpisodes = computed(() => [...props.episodes].reverse())
+const reversedEpisodes = computed(() => props.episodes.toReversed())
 const prefetched = new Set<number>()
 let hlsPreloaded = false
 

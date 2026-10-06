@@ -7,18 +7,18 @@ interface EpisodePlayerFullscreenOptions {
   cancelAutoNext: () => void
 }
 
+async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
+  try {
+    if (orientation === 'landscape')
+      await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
+    else (screen.orientation as unknown as { unlock: () => void }).unlock()
+  } catch (error) {
+    console.warn('screen.orientation lock/unlock failed', error)
+  }
+}
+
 export function useEpisodePlayerFullscreen(options: EpisodePlayerFullscreenOptions) {
   const { containerRef, isFullscreen, resetIdle, cancelAutoNext } = options
-
-  async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
-    try {
-      if (orientation === 'landscape')
-        await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
-      else (screen.orientation as unknown as { unlock: () => void }).unlock()
-    } catch (error) {
-      console.warn('screen.orientation lock/unlock failed', error)
-    }
-  }
 
   async function exitPlayerFullscreen() {
     if (document.fullscreenElement) {

@@ -86,7 +86,7 @@ function pickSource(sources: HydraxSource[]): HydraxSource | null {
   return (
     [...sources]
       .filter(source => typeof source.res_id === 'number' && typeof source.size === 'number' && source.sub)
-      .sort((a, b) => qualityRank(b) - qualityRank(a) || (b.size ?? 0) - (a.size ?? 0))[0] ?? null
+      .toSorted((a, b) => qualityRank(b) - qualityRank(a) || (b.size ?? 0) - (a.size ?? 0))[0] ?? null
   )
 }
 

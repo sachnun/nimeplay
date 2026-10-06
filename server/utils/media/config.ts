@@ -1,6 +1,6 @@
 import { useRuntimeConfig } from 'nuxt/server'
 
-export interface MediaConfig {
+interface MediaConfig {
   accessKeyId: string
   secretAccessKey: string
   endpoint: string

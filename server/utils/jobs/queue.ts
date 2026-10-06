@@ -2,31 +2,6 @@ import { eq, sql } from 'drizzle-orm'
 import { type JobRow, jobs } from '../../database/schema'
 import { db, resultRows } from '../db'
 
-interface JobInput {
-  type: string
-  payload?: Record<string, unknown>
-  dedupeKey?: string
-  priority?: number
-  maxAttempts?: number
-}
-
-async function enqueueMany(items: JobInput[]): Promise<void> {
-  for (let i = 0; i < items.length; i += 200) {
-    const chunk = items.slice(i, i + 200).map(item => ({
-      type: item.type,
-      payload: item.payload ?? {},
-      dedupeKey: item.dedupeKey ?? null,
-      priority: item.priority ?? 0,
-      maxAttempts: item.maxAttempts ?? 5,
-    }))
-    await db().insert(jobs).values(chunk).onConflictDoNothing()
-  }
-}
-
-export async function enqueue(item: JobInput): Promise<void> {
-  return enqueueMany([item])
-}
-
 export async function claim(
   worker: string,
   limit: number,

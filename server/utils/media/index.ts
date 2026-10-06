@@ -33,7 +33,7 @@ export function isValidMediaKey(key: string): boolean {
   return /^(posters|characters|voiceactors)\/[a-zA-Z0-9_/.-]+$/i.test(key)
 }
 
-export function mediaKey(value: string): string | null {
+function mediaKey(value: string): string | null {
   mediaClient()
   if (/^(posters|characters|voiceactors)\//.test(value)) return value
   if (value.startsWith('/media/')) return value.slice(7)

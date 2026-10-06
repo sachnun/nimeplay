@@ -7,7 +7,7 @@ import { sokuja } from './sokuja'
 import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
 import { ylnime } from './ylnime'
 
-export const sources: Record<string, AnimeSource> = {
+const sources: Record<string, AnimeSource> = {
   animein,
   animexnonton,
   astronime,

@@ -1,11 +1,6 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import type { AnimeCharacter, AnimeDetail, Genre } from '#shared/types'
 import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../../../database/schema'
-import { cleanSynopsis } from '../../mal/synopsis'
-import { posterSrc } from '../../media'
-import { sourceRank } from '../../sources'
-import { db } from '../index'
-import { CATALOG_READY, formatSeason } from './shared'
 
 async function getGenresForAnime(animeId: number): Promise<Genre[]> {
   return db()

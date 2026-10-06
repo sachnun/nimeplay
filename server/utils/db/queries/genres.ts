@@ -2,9 +2,6 @@ import { and, asc, desc, eq, notInArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Genre, GenreAnimeCard } from '#shared/types'
 import { anime, animeGenres, genres } from '../../../database/schema'
-import { posterSrc } from '../../media'
-import { db } from '../index'
-import { BLOCKED_GENRE_SLUGS, CATALOG_READY, formatSeason, PAGE_SIZE, SEASON_RANK } from './shared'
 
 export async function getGenreList(): Promise<Genre[]> {
   const rows = await db()

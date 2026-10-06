@@ -1,9 +1,6 @@
 import { and, asc, desc, sql } from 'drizzle-orm'
 import type { AnimeCard } from '#shared/types'
 import { anime } from '../../../database/schema'
-import { posterSrc } from '../../media'
-import { db } from '../index'
-import { CATALOG_READY, formatSeason, PAGE_SIZE, SEASON_RANK, statusCondition } from './shared'
 
 const WEEK_DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 

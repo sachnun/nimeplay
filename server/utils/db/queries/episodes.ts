@@ -1,9 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { anime, animeSources, episodes } from '../../../database/schema'
-import { posterSrc } from '../../media'
-import { sourceRank } from '../../sources'
-import { db } from '../index'
-import { notBlockedGenre } from './shared'
 
 interface EpisodeCandidate {
   episodeSlug: string

@@ -28,3 +28,7 @@ export function db(): Database {
   state.http = state.factory()
   return state.http
 }
+
+export function resultRows<T>(result: unknown): T[] {
+  return (Array.isArray(result) ? result : ((result as { rows?: T[] }).rows ?? [])) as T[]
+}

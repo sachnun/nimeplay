@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import { type JobRow, jobs } from '../../database/schema'
-import { db } from '../db'
+import { db, resultRows } from '../db'
 
 interface JobInput {
   type: string
@@ -45,7 +45,7 @@ export async function claim(
         sql`, `,
       )})`
     : sql``
-  const result = (await db().execute(sql`
+  const result = await db().execute(sql`
     update jobs j
     set status = 'active', locked_at = now(), locked_by = ${worker}, attempts = j.attempts + 1, updated_at = now()
     from (
@@ -63,8 +63,8 @@ export async function claim(
     ) picked
     where j.id = picked.id and j.status = 'waiting'
     returning j.*
-  `)) as unknown as { rows: JobRow[] }
-  return result.rows
+  `)
+  return resultRows<JobRow>(result)
 }
 
 export async function complete(id: number): Promise<void> {

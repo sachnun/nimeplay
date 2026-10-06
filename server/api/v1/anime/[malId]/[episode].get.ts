@@ -1,5 +1,5 @@
 import { defineRouteMeta } from 'nitro'
-import { createError, defineEventHandler, getQuery, getRouterParam } from 'nuxt/server'
+import { createError, defineEventHandler, getQuery, getRouterParam, type RequestEvent } from 'nuxt/server'
 
 defineRouteMeta({
   openAPI: {
@@ -85,13 +85,60 @@ defineRouteMeta({
   },
 })
 
-export default defineEventHandler(async event => {
+interface EpisodeCandidate {
+  dataContent: string
+  quality: string
+  name: string
+}
+
+function parseIds(event: RequestEvent): {
+  malId: number
+  episodeNumber: number
+} {
   const malId = Number(getRouterParam(event, 'malId', { decode: true }))
   const episodeNumber = Number(getRouterParam(event, 'episode', { decode: true }))
   if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0) {
     throw createError({ status: 400, statusText: 'Invalid MAL id or episode number' })
   }
+  return { malId, episodeNumber }
+}
 
+function orderCandidates(
+  candidates: EpisodeCandidate[],
+  mirrors: Parameters<typeof selectDefaultCandidate>[0],
+  preferredServer: string,
+  preferredQuality: string,
+): EpisodeCandidate[] {
+  const requested =
+    preferredServer || preferredQuality
+      ? candidates.find(
+          candidate =>
+            (!preferredServer || candidate.name.toLowerCase() === preferredServer) &&
+            (!preferredQuality || candidate.quality === preferredQuality),
+        )
+      : undefined
+  if (requested) return [requested]
+  const best = selectDefaultCandidate(mirrors)
+  const match = best && candidates.find(candidate => candidate.dataContent === best.dataContent)
+  if (!match) return candidates
+  return [match, ...candidates.filter(candidate => candidate.dataContent !== match.dataContent)]
+}
+
+async function resolveFirstStream(order: EpisodeCandidate[], enabled: boolean) {
+  if (!enabled) return null
+  for (const candidate of order.slice(0, 3)) {
+    try {
+      const result = await prepareMirror(candidate.dataContent)
+      if (result.ok && result.playUrl && result.kind) {
+        return { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
+      }
+    } catch {}
+  }
+  return null
+}
+
+export default defineEventHandler(async event => {
+  const { malId, episodeNumber } = parseIds(event)
   const query = getQuery(event)
   const preferredServer = String(query.server || '')
     .toLowerCase()
@@ -111,44 +158,15 @@ export default defineEventHandler(async event => {
   const servers = scraped.mirrors.flatMap(mirror =>
     mirror.sources.map(source => ({ server: source.name, quality: mirror.quality })),
   )
-
-  const candidates = scraped.mirrors.flatMap(mirror =>
+  const candidates: EpisodeCandidate[] = scraped.mirrors.flatMap(mirror =>
     mirror.sources.map(source => ({
       dataContent: source.dataContent,
       quality: mirror.quality,
       name: source.name,
     })),
   )
-
-  let ordered = candidates
-  const requested =
-    preferredServer || preferredQuality
-      ? candidates.find(
-          candidate =>
-            (!preferredServer || candidate.name.toLowerCase() === preferredServer) &&
-            (!preferredQuality || candidate.quality === preferredQuality),
-        )
-      : null
-  if (requested) {
-    ordered = [requested]
-  } else {
-    const best = selectDefaultCandidate(scraped.mirrors)
-    if (best) {
-      const match = candidates.find(candidate => candidate.dataContent === best.dataContent)
-      if (match) ordered = [match, ...candidates.filter(candidate => candidate.dataContent !== match.dataContent)]
-    }
-  }
-
-  let stream: { playUrl: string; kind: 'hls' | 'file'; quality: string; server: string } | null = null
-  for (const candidate of resolveStream ? ordered.slice(0, 3) : []) {
-    try {
-      const result = await prepareMirror(candidate.dataContent)
-      if (result.ok && result.playUrl && result.kind) {
-        stream = { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
-        break
-      }
-    } catch {}
-  }
+  const ordered = orderCandidates(candidates, scraped.mirrors, preferredServer, preferredQuality)
+  const stream = await resolveFirstStream(ordered, resolveStream)
 
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },

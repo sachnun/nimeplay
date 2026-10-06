@@ -101,27 +101,29 @@ async function decrypt(keyHex: string, payload: string): Promise<string | null> 
   }
 }
 
-async function loadConfig(): Promise<{ base: string; auth: string | null }> {
-  if (cachedConfig && Date.now() - cachedConfig.at < BASE_TTL_MS) return cachedConfig
+async function fetchConfig(): Promise<{ base: string; auth: string | null }> {
   let base = API_BASE_FALLBACK
   let auth: string | null = null
   try {
     const res = await fetch(CONFIG_URL, { headers: API_HEADERS, signal: AbortSignal.timeout(8000) })
-    if (res.ok) {
-      const config = (await res.json()) as { hex?: string; server_url?: string; video_pass?: string }
-      if (config.hex) {
-        if (config.server_url) {
-          const resolved = await decrypt(config.hex, config.server_url)
-          if (resolved && /^https?:\/\//.test(resolved)) base = resolved.replace(/\/+$/, '')
-        }
-        if (config.video_pass) {
-          const pass = await decrypt(config.hex, config.video_pass)
-          if (pass?.startsWith('Basic ')) auth = pass
-        }
-      }
+    if (!res.ok) return { base, auth }
+    const config = (await res.json()) as { hex?: string; server_url?: string; video_pass?: string }
+    if (!config.hex) return { base, auth }
+    if (config.server_url) {
+      const resolved = await decrypt(config.hex, config.server_url)
+      if (resolved && /^https?:\/\//.test(resolved)) base = resolved.replace(/\/+$/, '')
+    }
+    if (config.video_pass) {
+      const pass = await decrypt(config.hex, config.video_pass)
+      if (pass?.startsWith('Basic ')) auth = pass
     }
   } catch {}
-  cachedConfig = { base, auth, at: Date.now() }
+  return { base, auth }
+}
+
+async function loadConfig(): Promise<{ base: string; auth: string | null }> {
+  if (cachedConfig && Date.now() - cachedConfig.at < BASE_TTL_MS) return cachedConfig
+  cachedConfig = { ...(await fetchConfig()), at: Date.now() }
   return cachedConfig
 }
 

@@ -15,6 +15,8 @@ const DATASET_URL =
   'https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json'
 const MIN_SCORE = 0.86
 const MIN_MARGIN = 0.03
+const NON_SERIES_TYPES = new Set(['OVA', 'ONA', 'SPECIAL', 'MUSIC'])
+const NON_SERIES_PATTERN = /\b(ova|ona|special|music)\b/i
 
 interface OfflineEntry {
   malId: number
@@ -37,6 +39,31 @@ interface OfflineMatch {
 
 let loading: Promise<OfflineIndex | null> | null = null
 
+function malIdFromSources(sources: string[]): number | null {
+  const match = sources.map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1]).find(Boolean)
+  return match ? Number(match) : null
+}
+
+function indexTitles(
+  exact: Map<string, number[]>,
+  postings: Map<string, number[]>,
+  titles: string[],
+  entryIndex: number,
+): void {
+  for (const title of titles) {
+    const key = normalizeTitleKey(title)
+    if (!key) continue
+    const list = exact.get(key)
+    if (list) list.push(entryIndex)
+    else exact.set(key, [entryIndex])
+    for (const token of new Set(tokenizeTitle(title))) {
+      const posting = postings.get(token)
+      if (posting) posting.push(entryIndex)
+      else postings.set(token, [entryIndex])
+    }
+  }
+}
+
 async function buildIndex(): Promise<OfflineIndex | null> {
   try {
     const res = await fetch(DATASET_URL, { signal: AbortSignal.timeout(180000) })
@@ -48,25 +75,12 @@ async function buildIndex(): Promise<OfflineIndex | null> {
     const exact = new Map<string, number[]>()
     const postings = new Map<string, number[]>()
     for (const item of dataset.data ?? []) {
-      const malId = (item.sources ?? [])
-        .map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1])
-        .find(Boolean)
+      const malId = malIdFromSources(item.sources ?? [])
       if (!malId || !item.title) continue
       const titles = [item.title, ...(item.synonyms ?? [])].filter(Boolean) as string[]
-      const index = entries.length
-      entries.push({ malId: Number(malId), title: item.title, type: (item.type ?? '').toUpperCase(), titles })
-      for (const title of titles) {
-        const key = normalizeTitleKey(title)
-        if (!key) continue
-        const list = exact.get(key)
-        if (list) list.push(index)
-        else exact.set(key, [index])
-        for (const token of new Set(tokenizeTitle(title))) {
-          const posting = postings.get(token)
-          if (posting) posting.push(index)
-          else postings.set(token, [index])
-        }
-      }
+      const entryIndex = entries.length
+      entries.push({ malId, title: item.title, type: (item.type ?? '').toUpperCase(), titles })
+      indexTitles(exact, postings, titles, entryIndex)
     }
     return { exact, postings, entries }
   } catch {
@@ -79,6 +93,20 @@ export function loadOfflineIndex(): Promise<OfflineIndex | null> {
   return loading
 }
 
+function seasonsCompatible(querySeason: number | null, candidateSeason: number | null): boolean {
+  if (querySeason !== null && candidateSeason !== null) return querySeason === candidateSeason
+  if (querySeason === null) return !(candidateSeason !== null && candidateSeason > 1)
+  return !(querySeason > 1 && candidateSeason === null)
+}
+
+function similarityFor(query: string, candidate: string, querySeason: number | null): number {
+  const score = titleSimilarity(query, cleanTitle(candidate))
+  if (querySeason === null || querySeason === 1) {
+    return Math.max(score, titleSimilarity(baseTitle(query), baseTitle(candidate)))
+  }
+  return score
+}
+
 function scoreEntry(entry: OfflineEntry, queries: string[]): number {
   let score = 0
   for (const candidateQuery of queries) {
@@ -86,24 +114,14 @@ function scoreEntry(entry: OfflineEntry, queries: string[]): number {
     const querySeason = seasonNumber(candidateQuery)
     for (const candidate of entry.titles) {
       if (isSpinoffTitle(candidate, candidateQuery)) continue
-      const candidateSeason = seasonNumber(candidate)
-      if (querySeason !== null && candidateSeason !== null && querySeason !== candidateSeason) continue
-      if (querySeason === null && candidateSeason !== null && candidateSeason > 1) continue
-      if (querySeason !== null && querySeason > 1 && candidateSeason === null) continue
-      score = Math.max(score, titleSimilarity(candidateQuery, cleanTitle(candidate)))
-      if (querySeason === null || querySeason === 1)
-        score = Math.max(score, titleSimilarity(baseTitle(candidateQuery), baseTitle(candidate)))
+      if (!seasonsCompatible(querySeason, seasonNumber(candidate))) continue
+      score = Math.max(score, similarityFor(candidateQuery, candidate, querySeason))
     }
   }
   return score
 }
 
-export async function offlineLookup(query: string): Promise<OfflineMatch | null> {
-  const title = query.trim()
-  if (!title) return null
-  const index = await loadOfflineIndex()
-  if (!index) return null
-  const queries = bracketVariants(title)
+function collectCandidates(index: OfflineIndex, queries: string[]): { exact: Set<number>; candidates: Set<number> } {
   const exact = new Set<number>()
   const candidates = new Set<number>()
   for (const candidateQuery of queries) {
@@ -115,23 +133,27 @@ export async function offlineLookup(query: string): Promise<OfflineMatch | null>
       for (const entryIndex of index.postings.get(token) ?? []) candidates.add(entryIndex)
     }
   }
-  if (exact.size === 1) {
-    const entry = index.entries[[...exact][0]!]!
-    if (!movieSeasonClash(title, entry.title)) return { malId: entry.malId, title: entry.title, score: 1 }
-  }
+  return { exact, candidates }
+}
+
+function typePenalty(entry: OfflineEntry, title: string): number {
+  if (entry.type === 'MOVIE' && !isMovieTitle(title)) return 0.05
+  if (NON_SERIES_TYPES.has(entry.type) && !NON_SERIES_PATTERN.test(title)) return 0.15
+  return 0
+}
+
+function bestMatch(
+  index: OfflineIndex,
+  title: string,
+  queries: string[],
+  candidates: Set<number>,
+): { entryIndex: number; score: number; second: number } | null {
   let best: { entryIndex: number; score: number } | null = null
   let second = 0
   for (const entryIndex of candidates) {
     const entry = index.entries[entryIndex]!
     if (movieSeasonClash(title, entry.title)) continue
-    let score = scoreEntry(entry, queries)
-    if (score === 0) continue
-    if (entry.type === 'MOVIE' && !isMovieTitle(title)) score -= 0.05
-    else if (
-      (entry.type === 'OVA' || entry.type === 'ONA' || entry.type === 'SPECIAL' || entry.type === 'MUSIC') &&
-      !/\b(ova|ona|special|music)\b/i.test(title)
-    )
-      score -= 0.15
+    const score = scoreEntry(entry, queries) - typePenalty(entry, title)
     if (score <= 0) continue
     if (!best || score > best.score) {
       second = best?.score ?? 0
@@ -140,7 +162,24 @@ export async function offlineLookup(query: string): Promise<OfflineMatch | null>
       second = score
     }
   }
-  if (!best || best.score < MIN_SCORE || best.score - second < MIN_MARGIN) return null
+  return best ? { entryIndex: best.entryIndex, score: best.score, second } : null
+}
+
+export async function offlineLookup(query: string): Promise<OfflineMatch | null> {
+  const title = query.trim()
+  if (!title) return null
+  const index = await loadOfflineIndex()
+  if (!index) return null
+
+  const queries = bracketVariants(title)
+  const { exact, candidates } = collectCandidates(index, queries)
+  if (exact.size === 1) {
+    const entry = index.entries[[...exact][0]!]!
+    if (!movieSeasonClash(title, entry.title)) return { malId: entry.malId, title: entry.title, score: 1 }
+  }
+
+  const best = bestMatch(index, title, queries, candidates)
+  if (!best || best.score < MIN_SCORE || best.score - best.second < MIN_MARGIN) return null
   const entry = index.entries[best.entryIndex]!
   return { malId: entry.malId, title: entry.title, score: best.score }
 }

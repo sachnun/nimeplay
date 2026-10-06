@@ -33,6 +33,15 @@ function collectCookies(res: Response): string {
     .join('; ')
 }
 
+async function fetchPage(embedUrl: string): Promise<{ html: string; cookies: string } | null> {
+  const res = await fetch(embedUrl, {
+    headers: getSpoofHeaders(embedUrl, 'navigate'),
+    signal: AbortSignal.timeout(AUTHORIZE_TIMEOUT_MS),
+  })
+  if (!res.ok) return null
+  return { html: await res.text(), cookies: collectCookies(res) }
+}
+
 export async function extractNekoclouds(embedUrl: string, html: string): Promise<string | null> {
   try {
     const parsed = new URL(embedUrl)
@@ -41,27 +50,15 @@ export async function extractNekoclouds(embedUrl: string, html: string): Promise
     let csrf = extractCsrf(html)
     let cookies = ''
 
-    if (!mediaId || !csrf) {
-      const res = await fetch(embedUrl, {
-        headers: getSpoofHeaders(embedUrl, 'navigate'),
-        signal: AbortSignal.timeout(AUTHORIZE_TIMEOUT_MS),
-      })
-      if (!res.ok) return null
-      cookies = collectCookies(res)
-      const freshHtml = await res.text()
-      mediaId = mediaId ?? extractMediaId(embedUrl, freshHtml)
-      csrf = csrf ?? extractCsrf(freshHtml)
-      if (!mediaId || !csrf) return null
+    if (mediaId && csrf) {
+      cookies = (await fetchPage(embedUrl).catch(() => null))?.cookies ?? ''
     } else {
-      try {
-        const res = await fetch(embedUrl, {
-          headers: getSpoofHeaders(embedUrl, 'navigate'),
-          signal: AbortSignal.timeout(AUTHORIZE_TIMEOUT_MS),
-        })
-        if (res.ok) cookies = collectCookies(res)
-      } catch {}
+      const page = await fetchPage(embedUrl)
+      if (!page) return null
+      cookies = page.cookies
+      mediaId = mediaId ?? extractMediaId(embedUrl, page.html)
+      csrf = csrf ?? extractCsrf(page.html)
     }
-
     if (!mediaId || !csrf) return null
 
     const headers = getSpoofHeaders(embedUrl, 'cors')

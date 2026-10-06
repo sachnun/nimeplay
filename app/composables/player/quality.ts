@@ -61,6 +61,31 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     options.onSelect(level)
   }
 
+  function handleCritical(levels: MirrorCandidate[], index: number, bandwidth: number | null) {
+    highSamples = 0
+    lowSamples += 1
+    if (lowSamples < DOWNGRADE_SAMPLES) return
+    const active = levels[index]!
+    if (bandwidth !== null && qualityBitrate(active.quality) <= bandwidth * SAFETY_MARGIN) return
+    const lower = levels[index + 1]
+    if (lower) commit(lower)
+  }
+
+  function handleRecovering() {
+    lowSamples = 0
+    highSamples = 0
+  }
+
+  function handleHealthy(levels: MirrorCandidate[], index: number, bandwidth: number | null) {
+    lowSamples = 0
+    highSamples += 1
+    if (highSamples < UPGRADE_SAMPLES) return
+    const higher = levels[index - 1]
+    if (!higher) return
+    if (bandwidth !== null && qualityBitrate(higher.quality) > bandwidth * SAFETY_MARGIN) return
+    commit(higher)
+  }
+
   function evaluate() {
     const video = options.videoRef.value
     if (!video || video.paused || video.seeking || !Number.isFinite(video.duration)) return
@@ -70,30 +95,11 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     if (Date.now() - lastSwitchAt < MIN_SWITCH_INTERVAL_MS) return
     const index = levels.findIndex(level => level.quality === options.activeQuality.value)
     if (index === -1) return
-    const active = levels[index]!
     const ahead = options.bufferAhead()
     const bandwidth = currentBandwidth()
-    if (ahead < BUFFER_CRITICAL) {
-      highSamples = 0
-      lowSamples += 1
-      if (lowSamples < DOWNGRADE_SAMPLES) return
-      if (bandwidth !== null && qualityBitrate(active.quality) <= bandwidth * SAFETY_MARGIN) return
-      const lower = levels[index + 1]
-      if (lower) commit(lower)
-      return
-    }
-    if (ahead < BUFFER_RECOVER) {
-      lowSamples = 0
-      highSamples = 0
-      return
-    }
-    lowSamples = 0
-    highSamples += 1
-    if (highSamples < UPGRADE_SAMPLES) return
-    const higher = levels[index - 1]
-    if (!higher) return
-    if (bandwidth !== null && qualityBitrate(higher.quality) > bandwidth * SAFETY_MARGIN) return
-    commit(higher)
+    if (ahead < BUFFER_CRITICAL) return handleCritical(levels, index, bandwidth)
+    if (ahead < BUFFER_RECOVER) return handleRecovering()
+    handleHealthy(levels, index, bandwidth)
   }
 
   function start() {

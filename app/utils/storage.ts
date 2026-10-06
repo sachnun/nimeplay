@@ -6,25 +6,28 @@ const COMPLETED_PROGRESS_THRESHOLD = 0.87
 
 let dbPromise: Promise<IDBPDatabase> | null = null
 
-function getDb(): Promise<IDBPDatabase> {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
-        for (const store of ['progress', 'prefs']) {
-          if (!db.objectStoreNames.contains(store)) db.createObjectStore(store)
-        }
-        if (oldVersion < 2) {
-          for (const store of ['jikan', 'animeDetail', 'jikanData', 'skipTimes']) {
-            if (db.objectStoreNames.contains(store)) db.deleteObjectStore(store)
-          }
-        }
-        if (oldVersion < 3) {
-          if (db.objectStoreNames.contains('progress')) db.deleteObjectStore('progress')
-          db.createObjectStore('progress')
-        }
-      },
-    })
+const BASE_STORES = ['progress', 'prefs']
+const LEGACY_V2_STORES = ['jikan', 'animeDetail', 'jikanData', 'skipTimes']
+
+function ensureStores(db: IDBPDatabase, stores: string[]): void {
+  for (const store of stores) if (!db.objectStoreNames.contains(store)) db.createObjectStore(store)
+}
+
+function dropStores(db: IDBPDatabase, stores: string[]): void {
+  for (const store of stores) if (db.objectStoreNames.contains(store)) db.deleteObjectStore(store)
+}
+
+function upgrade(db: IDBPDatabase, oldVersion: number): void {
+  ensureStores(db, BASE_STORES)
+  if (oldVersion < 2) dropStores(db, LEGACY_V2_STORES)
+  if (oldVersion < 3) {
+    dropStores(db, ['progress'])
+    db.createObjectStore('progress')
   }
+}
+
+function getDb(): Promise<IDBPDatabase> {
+  if (!dbPromise) dbPromise = openDB(DB_NAME, DB_VERSION, { upgrade })
   return dbPromise
 }
 

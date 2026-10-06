@@ -26,29 +26,33 @@ function chunkFromBatchexecute(text: string): string | null {
   return chunk.match(/^([\s\S]*)\n\d+$/)?.[1] ?? chunk
 }
 
-function findStreamingData(value: unknown): BloggerStreamingData | null {
-  if (typeof value === 'string') {
-    if (!value.includes('streamingData')) return null
-    try {
-      return findStreamingData(JSON.parse(value))
-    } catch {
-      return null
-    }
+function findInItems(
+  items: unknown[],
+  find: (value: unknown) => BloggerStreamingData | null,
+): BloggerStreamingData | null {
+  for (const item of items) {
+    const found = find(item)
+    if (found) return found
   }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findStreamingData(item)
-      if (found) return found
-    }
+  return null
+}
+
+function parseStreamingJson(value: string): unknown {
+  if (!value.includes('streamingData')) return null
+  try {
+    return JSON.parse(value)
+  } catch {
     return null
   }
+}
+
+function findStreamingData(value: unknown): BloggerStreamingData | null {
+  if (typeof value === 'string') return findStreamingData(parseStreamingJson(value))
+  if (Array.isArray(value)) return findInItems(value, findStreamingData)
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
     if (record.streamingData && typeof record.streamingData === 'object') return value as BloggerStreamingData
-    for (const item of Object.values(record)) {
-      const found = findStreamingData(item)
-      if (found) return found
-    }
+    return findInItems(Object.values(record), findStreamingData)
   }
   return null
 }

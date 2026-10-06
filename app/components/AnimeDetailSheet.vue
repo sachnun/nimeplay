@@ -138,45 +138,52 @@ function onContentTouchStart(event: TouchEvent) {
   contentStartY = touch.clientY
 }
 
+function beginContentDrag(clientY: number, now: number): boolean {
+  if ((scrollRef.value?.scrollTop ?? 0) > 0) return false
+  const delta = clientY - contentStartY
+  if (delta < -8 && panelHeightPx.value < fullHeight()) contentMode = 'expand'
+  else if (delta > 8) contentMode = 'down'
+  else return false
+  contentDragging = true
+  dragging.value = true
+  grabStartY = contentStartY
+  grabStartHeight = panelHeightPx.value
+  lastY = contentStartY
+  lastTime = now
+  velocity = 0
+  return true
+}
+
+function applyExpandDrag(up: number) {
+  const el = scrollRef.value
+  const past = up - (fullHeight() - grabStartHeight)
+  if (past > 0) {
+    panelHeightPx.value = fullHeight()
+    isFull.value = true
+    if (el) el.scrollTop = past
+  } else {
+    panelHeightPx.value = Math.min(fullHeight(), Math.max(collapsedHeight(), grabStartHeight + up))
+    isFull.value = false
+    if (el) el.scrollTop = 0
+  }
+  dragY.value = 0
+}
+
 function onContentTouchMove(event: TouchEvent) {
   if (closing.value) return
   const touch = event.touches[0]
   if (!touch) return
   const clientY = touch.clientY
   const now = performance.now()
-  if (!contentDragging) {
-    if ((scrollRef.value?.scrollTop ?? 0) > 0) return
-    const delta = clientY - contentStartY
-    if (delta < -8 && panelHeightPx.value < fullHeight()) contentMode = 'expand'
-    else if (delta > 8) contentMode = 'down'
-    else return
-    contentDragging = true
-    dragging.value = true
-    grabStartY = contentStartY
-    grabStartHeight = panelHeightPx.value
-    lastY = contentStartY
-    lastTime = now
-    velocity = 0
-  }
+  if (!contentDragging && !beginContentDrag(clientY, now)) return
   event.preventDefault()
   const elapsed = now - lastTime
   if (elapsed > 0) velocity = (clientY - lastY) / elapsed
   lastY = clientY
   lastTime = now
-  const el = scrollRef.value
   const up = contentStartY - clientY
   if (contentMode === 'expand') {
-    const past = up - (fullHeight() - grabStartHeight)
-    if (past > 0) {
-      panelHeightPx.value = fullHeight()
-      isFull.value = true
-      if (el) el.scrollTop = past
-    } else {
-      panelHeightPx.value = Math.min(fullHeight(), Math.max(collapsedHeight(), grabStartHeight + up))
-      isFull.value = false
-      if (el) el.scrollTop = 0
-    }
-    dragY.value = 0
+    applyExpandDrag(up)
     return
   }
   dragY.value = up < 0 ? -up : -up * 0.2

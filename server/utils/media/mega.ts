@@ -132,45 +132,47 @@ export async function streamMega(target: string, megaKey: string, range?: string
     return chunk.length > remaining ? chunk.subarray(0, remaining) : chunk
   }
 
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        while (remaining > 0) {
-          if (pending.length < BLOCK) {
-            const { done, value } = await reader.read()
-            if (done) {
-              if (pending.length > 0) {
-                const padded = new Uint8Array(BLOCK)
-                padded.set(pending)
-                const plain = new Uint8Array(await decrypt(padded))
-                const realLen = pending.length
-                pending = new Uint8Array(0)
-                const chunk = trim(plain.subarray(0, realLen))
-                remaining -= chunk.length
-                if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
-              } else {
-                controller.close()
-              }
-              return
-            }
-            pending = concat(pending, value)
-            continue
-          }
-          const usable = pending.length - (pending.length % BLOCK)
-          const block = pending.subarray(0, usable)
-          pending = pending.subarray(usable)
-          const plain = new Uint8Array(await decrypt(block))
-          cipherOffset += usable
-          const chunk = trim(plain)
-          remaining -= chunk.length
-          if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
-          return
+  async function flushTail(controller: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    if (pending.length === 0) {
+      controller.close()
+      return
+    }
+    const padded = new Uint8Array(BLOCK)
+    padded.set(pending)
+    const plain = new Uint8Array(await decrypt(padded))
+    const realLen = pending.length
+    pending = new Uint8Array(0)
+    const chunk = trim(plain.subarray(0, realLen))
+    remaining -= chunk.length
+    if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
+  }
+
+  async function pump(controller: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    while (remaining > 0) {
+      if (pending.length < BLOCK) {
+        const { done, value } = await reader.read()
+        if (!done) {
+          pending = concat(pending, value)
+          continue
         }
-        controller.close()
-      } catch (error) {
-        controller.error(error)
+        await flushTail(controller)
+        return
       }
-    },
+      const usable = pending.length - (pending.length % BLOCK)
+      const block = pending.subarray(0, usable)
+      pending = pending.subarray(usable)
+      const plain = new Uint8Array(await decrypt(block))
+      cipherOffset += usable
+      const chunk = trim(plain)
+      remaining -= chunk.length
+      if (chunk.length > 0) controller.enqueue(chunk as Uint8Array<ArrayBuffer>)
+      return
+    }
+    controller.close()
+  }
+
+  const body = new ReadableStream<Uint8Array>({
+    pull: pump,
     cancel() {
       reader.cancel().catch(() => {})
     },

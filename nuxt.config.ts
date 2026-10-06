@@ -1,15 +1,30 @@
 import tailwindcss from '@tailwindcss/vite'
 
+const apiCors = {
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  maxAge: '86400',
+}
+
 export default defineNuxtConfig({
+  runtimeConfig: {
+    databaseUrl: '',
+    awsAccessKeyId: '',
+    awsSecretAccessKey: '',
+    awsEndpointUrlS3: '',
+    awsRegion: 'us-east-1',
+    mediaBucket: 'nimeplay',
+    streamSecret: '',
+  },
   compatibilityDate: '2025-07-15',
   nitro: {
     preset: 'cloudflare_module',
     devServer: { runner: 'node-worker' },
+    imports: {
+      dirs: ['server/utils/**'],
+    },
     experimental: {
       openAPI: true,
-    },
-    imports: {
-      dirs: ['server/utils/**', 'server/types/**', 'shared/utils/**', 'shared/types/**'],
     },
     cloudflare: {
       deployConfig: true,
@@ -21,7 +36,7 @@ export default defineNuxtConfig({
           region: 'gcp:asia-southeast2',
         },
         vars: {
-          MEDIA_BUCKET: 'nimeplay',
+          NUXT_MEDIA_BUCKET: 'nimeplay',
         },
       },
     },
@@ -39,7 +54,25 @@ export default defineNuxtConfig({
     },
   },
   imports: {
-    dirs: ['composables/**', 'utils/**'],
+    dirs: ['composables/**'],
+  },
+  routeRules: {
+    '/': { swr: 120 },
+    '/anime/:malId': { swr: 300 },
+    '/media/**': { swr: 86400 },
+    '/api/**': { cors: { ...apiCors } },
+    '/api/stream': { headers: { 'cache-control': 'no-store' } },
+    '/api/v1/anime': { cache: { maxAge: 60, swr: true, allowQuery: ['type', 'page', 'q'] } },
+    '/api/v1/anime/:malId': { swr: 60 },
+    '/api/v1/genres': { swr: 3600 },
+    '/api/v1/genre/**': { cache: { maxAge: 300, swr: true, allowQuery: ['page'] } },
+    '/openapi.json': { cors: { ...apiCors } },
+    '/docs': { cors: { ...apiCors }, headers: { 'content-type': 'text/html; charset=utf-8' } },
+  },
+  experimental: {
+    buildCache: true,
+    extractAsyncDataHandlers: true,
+    prefetchPreloadTags: true,
   },
   modules: ['@nuxtjs/device'],
   hooks: {

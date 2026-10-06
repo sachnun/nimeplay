@@ -49,7 +49,7 @@ jobs:
       - if: steps.schema.outputs.changed == 'true'
         run: bun run db:migrate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - run: bun run check
       - run: bun run build
       - run: bunx wrangler deploy

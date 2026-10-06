@@ -1,30 +1,23 @@
 import { AwsClient } from 'aws4fetch'
-import { cloudflareEnv } from '../env'
+import { mediaConfig } from './config'
 
 const FETCH_TIMEOUT_MS = 15000
 const KEY_BYTES = 16
 
 type MediaType = 'posters' | 'characters' | 'voiceactors'
 
-let s3: AwsClient | null | undefined
-let base: string | null | undefined
+let s3: AwsClient | null = null
+let base: string | null = null
 
 function mediaClient(): AwsClient | null {
-  if (s3 !== undefined) return s3
-  const env = cloudflareEnv()
-  const accessKeyId = env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY
-  const endpoint = env.AWS_ENDPOINT_URL_S3
-  if (typeof accessKeyId !== 'string' || typeof secretAccessKey !== 'string' || typeof endpoint !== 'string') {
-    s3 = null
-    return s3
-  }
-  const bucket = typeof env.MEDIA_BUCKET === 'string' ? env.MEDIA_BUCKET : 'nimeplay'
-  base = `${endpoint.replace(/\/$/, '')}/${bucket}`
+  if (s3) return s3
+  const config = mediaConfig()
+  if (!config.accessKeyId || !config.secretAccessKey || !config.endpoint) return null
+  base = `${config.endpoint.replace(/\/$/, '')}/${config.bucket}`
   s3 = new AwsClient({
-    accessKeyId,
-    secretAccessKey,
-    region: typeof env.AWS_REGION === 'string' ? env.AWS_REGION : 'us-east-1',
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: config.region || 'us-east-1',
     service: 's3',
   })
   return s3

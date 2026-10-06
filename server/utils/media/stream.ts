@@ -1,4 +1,4 @@
-import { cloudflareEnv } from '../env'
+import { readStreamSecret } from './config'
 
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
 const IV_LENGTH = 12
@@ -8,8 +8,8 @@ type TokenPayload = { u: string; e: number; h?: Record<string, string>; k?: stri
 let cachedKey: Promise<CryptoKey> | null = null
 
 function streamSecret(): string {
-  const value = cloudflareEnv().STREAM_SECRET
-  if (typeof value !== 'string' || value.length < 32) throw new Error('STREAM_SECRET is not configured')
+  const value = readStreamSecret()
+  if (value.length < 32) throw new Error('NUXT_STREAM_SECRET is not configured')
   return value
 }
 

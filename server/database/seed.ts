@@ -6,7 +6,7 @@ import { refreshSearchDoc } from '../utils/jobs/refresh/persist'
 import * as schema from './schema'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
 
-const client = new SQL({ url: process.env.DATABASE_URL!, max: 4 })
+const client = new SQL({ url: process.env.NUXT_DATABASE_URL!, max: 4 })
 setNodeDatabase(drizzle({ client, schema }))
 
 const PREFIX = 'seed:'

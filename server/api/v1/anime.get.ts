@@ -278,7 +278,6 @@ export default defineEventHandler(async event => {
   const query = getQuery(event)
   const q = String(query.q ?? '').trim()
   if (q) {
-    event.res.headers.set('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
     const rows = await searchAnime(q)
     return {
       data: rows,
@@ -291,7 +290,6 @@ export default defineEventHandler(async event => {
   const status = rawType === 'COMPLETED' ? 'COMPLETED' : 'ONGOING'
   const page = Math.max(1, Number(query.page) || 1)
 
-  event.res.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   const result = await listAnimePage(status, page)
   return {
     data: result.anime,

@@ -9,7 +9,7 @@ import { enableProxy } from '../server/utils/media/proxy'
 
 const POOL_MAX = 32
 
-const client = new SQL({ url: process.env.DATABASE_URL!, max: POOL_MAX })
+const client = new SQL({ url: process.env.NUXT_DATABASE_URL!, max: POOL_MAX })
 setNodeDatabase(drizzle({ client, schema }))
 enableProxy()
 

@@ -20,9 +20,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run scripts/cron.ts
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_ENDPOINT_URL_S3: ${{ secrets.AWS_ENDPOINT_URL_S3 }}
-          AWS_REGION: ap-southeast-1
-          MEDIA_BUCKET: nimeplay
+          NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NUXT_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          NUXT_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          NUXT_AWS_ENDPOINT_URL_S3: ${{ secrets.AWS_ENDPOINT_URL_S3 }}
+          NUXT_AWS_REGION: ap-southeast-1
+          NUXT_MEDIA_BUCKET: nimeplay

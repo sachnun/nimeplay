@@ -9,9 +9,9 @@ interface DbState {
   http?: Database
 }
 
-const holder = globalThis as unknown as { __db_state__?: DbState }
-if (!holder.__db_state__) holder.__db_state__ = {}
-const state = holder.__db_state__
+const global = globalThis as unknown as { __db_state__?: DbState }
+global.__db_state__ ??= {}
+const state = global.__db_state__
 
 export function setNodeDatabase(database: unknown): void {
   state.node = database as Database
@@ -23,9 +23,10 @@ export function setDatabaseFactory(create: () => Database): void {
 
 export function db(): Database {
   if (state.node) return state.node
-  if (state.http) return state.http
-  if (!state.factory) throw new Error('database driver is not configured')
-  state.http = state.factory()
+  if (!state.http) {
+    if (!state.factory) throw new Error('database driver is not configured')
+    state.http = state.factory()
+  }
   return state.http
 }
 

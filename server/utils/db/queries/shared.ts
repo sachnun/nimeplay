@@ -3,9 +3,12 @@ import { anime } from '../../../database/schema'
 
 export const PAGE_SIZE = 24
 
-const BLOCKED_GENRE_SLUGS = ['hentai']
+export const BLOCKED_GENRE_SLUGS = ['hentai']
 
-export const BLOCKED_GENRE_SLUGS_SQL = sql.raw(BLOCKED_GENRE_SLUGS.map(slug => `'${slug}'`).join(', '))
+const BLOCKED_GENRE_SLUGS_SQL = sql.join(
+  BLOCKED_GENRE_SLUGS.map(slug => sql`${slug}`),
+  sql`, `,
+)
 
 export function playableEpisodeExists(id: SQL): SQL {
   return sql`exists (select 1 from episodes e join anime_sources s on s.id = e.source_id where s.anime_id = ${id})`

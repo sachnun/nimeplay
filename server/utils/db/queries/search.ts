@@ -2,35 +2,52 @@ import { sql } from 'drizzle-orm'
 import type { SearchResult } from '#shared/types'
 import { anime } from '../../../database/schema'
 import { posterSrc } from '../../media'
-import { toFtsQuery } from '../fts'
-import { db } from '../index'
+import { db, resultRows } from '../index'
 import { notBlockedGenre, playableEpisodeExists } from './shared'
 
-function toSearchResult(row: Record<string, unknown>): SearchResult {
+interface SearchRow {
+  malId: number
+  title: string
+  posterKey: string | null
+  status: string
+  rating: string
+  genres: string
+}
+
+const SEARCH_COLUMNS = sql`
+  a.mal_id as "malId",
+  coalesce(a.title, '') as title,
+  a.poster_key as "posterKey",
+  coalesce(a.status, '') as status,
+  coalesce(cast(a.rating as text), '') as rating,
+  coalesce((
+    select string_agg(g.name, ', ' order by g.name)
+    from anime_genres ag
+    join genres g on g.id = ag.genre_id
+    where ag.anime_id = a.id
+  ), '') as genres
+`
+
+function toFtsQuery(query: string): string | null {
+  const tokens = query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 5) ?? []
+  if (tokens.length === 0) return null
+  return tokens.map(token => `${token}:*`).join(' & ')
+}
+
+function toSearchResult(row: SearchRow): SearchResult {
   return {
-    malId: Number(row.malId),
-    title: String(row.title),
-    thumbnail: posterSrc(row.posterKey as string | null),
-    status: String(row.status),
-    rating: String(row.rating),
-    genres: String(row.genres),
+    malId: row.malId,
+    title: row.title,
+    thumbnail: posterSrc(row.posterKey),
+    status: row.status,
+    rating: row.rating,
+    genres: row.genres,
   }
 }
 
 async function searchByFullText(match: string): Promise<SearchResult[]> {
   const result = await db().execute(sql`
-    select
-      a.mal_id as "malId",
-      coalesce(a.title, '') as title,
-      a.poster_key as "posterKey",
-      coalesce(a.status, '') as status,
-      coalesce(cast(a.rating as text), '') as rating,
-      coalesce((
-        select string_agg(g.name, ', ' order by g.name)
-        from anime_genres ag
-        join genres g on g.id = ag.genre_id
-        where ag.anime_id = a.id
-      ), '') as genres
+    select ${SEARCH_COLUMNS}
     from (
       select
         anime.id,
@@ -67,23 +84,13 @@ async function searchByFullText(match: string): Promise<SearchResult[]> {
     order by ts_rank(a.doc, to_tsquery('simple', ${match})) desc, a.rating desc nulls last
     limit 20
   `)
-  return result.rows.map(toSearchResult)
+  return resultRows<SearchRow>(result).map(toSearchResult)
 }
 
 async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
   const result = await db().execute(sql`
     select
-      a.mal_id as "malId",
-      coalesce(a.title, '') as title,
-      a.poster_key as "posterKey",
-      coalesce(a.status, '') as status,
-      coalesce(cast(a.rating as text), '') as rating,
-      coalesce((
-        select string_agg(g.name, ', ' order by g.name)
-        from anime_genres ag
-        join genres g on g.id = ag.genre_id
-        where ag.anime_id = a.id
-      ), '') as genres,
+      ${SEARCH_COLUMNS},
       greatest(similarity(coalesce(a.title, ''), ${raw}), coalesce(alt.sim, 0)) as sim
     from anime a
     left join lateral (
@@ -98,7 +105,7 @@ async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
     order by sim desc, a.rating desc nulls last
     limit 20
   `)
-  return result.rows.map(toSearchResult)
+  return resultRows<SearchRow>(result).map(toSearchResult)
 }
 
 export async function searchAnime(query: string): Promise<SearchResult[]> {

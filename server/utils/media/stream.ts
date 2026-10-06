@@ -1,15 +1,21 @@
+import { cloudflareEnv } from '../env'
+
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
 const IV_LENGTH = 12
-const STREAM_SECRET = 'nimeplay::v1::7Kp3wQz9rXe2VmYs8NbT4cHd6FjUgLa0'
 
 type TokenPayload = { u: string; e: number; h?: Record<string, string>; k?: string }
 
 let cachedKey: Promise<CryptoKey> | null = null
 
+function streamSecret(): string {
+  const value = cloudflareEnv().STREAM_SECRET
+  if (typeof value !== 'string' || value.length < 32) throw new Error('STREAM_SECRET is not configured')
+  return value
+}
+
 function getKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey
-  const secret = STREAM_SECRET
-  const encoded = new TextEncoder().encode(secret)
+  const encoded = new TextEncoder().encode(streamSecret())
   cachedKey = crypto.subtle
     .digest('SHA-256', encoded)
     .then(digest => crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']))

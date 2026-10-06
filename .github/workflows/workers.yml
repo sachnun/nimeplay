@@ -41,7 +41,7 @@ jobs:
             exit 0
           fi
           files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
-          if [ -z "$files" ] || printf '%s\n' "$files" | grep -qE '^(server/database/migrations/|drizzle\.config\.ts)'; then
+          if [ -z "$files" ] || printf '%s\n' "$files" | grep -qE '^(drizzle/|drizzle\.config\.ts)'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"

@@ -6,15 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": [
-      "**",
-      "!**/.nuxt",
-      "!**/.output",
-      "!**/.wrangler",
-      "!**/dist",
-      "!**/public",
-      "!**/server/database/migrations"
-    ]
+    "includes": ["**", "!**/.nuxt", "!**/.output", "!**/.wrangler", "!**/dist", "!**/public", "!**/drizzle"]
   },
   "formatter": {
     "enabled": true,

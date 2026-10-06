@@ -1,4 +1,4 @@
-import { qualityRank, sourcePriority } from '#shared/mirror'
+import { qualityRank, sourcePriority } from '#shared/utils/mirror'
 import { isPlaceholderStreamUrl } from '../extractors/hosts'
 
 interface PrepareResult {

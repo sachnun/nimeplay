@@ -10,13 +10,13 @@
     "build": "bun --bun nuxt build",
     "dev": "bun --env-file=.env.local --bun nuxt dev",
     "generate": "bun --bun nuxt generate",
-    "lint": "oxlint .",
+    "lint": "bun --bun oxlint .",
     "preview": "bun --bun nuxt preview",
     "test": "bun test",
     "typecheck": "bun check",
-    "postinstall": "nuxt prepare",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "postinstall": "bun --bun nuxt prepare",
+    "db:generate": "bun --bun drizzle-kit generate",
+    "db:migrate": "bun --bun drizzle-kit migrate",
     "db:seed": "bun run server/database/seed.ts"
   },
   "trustedDependencies": [

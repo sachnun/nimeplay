@@ -2,7 +2,7 @@ import type { Genre } from '~/types'
 
 export function useGenres() {
   const nuxtApp = useNuxtApp()
-  const route = useRoute()
+  const route = useRoute('genreSlug')
 
   const list = useAsyncData<Genre[]>('genres', () => fetchGenres(), {
     default: () => [],

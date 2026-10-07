@@ -9,7 +9,8 @@ export default defineNuxtPlugin(nuxtApp => {
     if (!from.meta.browse) return
     if (!ANIME_SHEET_DETAIL_RE.test(to.path)) return
     if (!nuxtApp.$device.isMobileOrTablet || !isAnimeSheetViewport()) return
-    sheet.open(Number(to.params.malId), from.fullPath, to.fullPath)
+    const { malId } = to.params as { malId: string }
+    sheet.open(Number(malId), from.fullPath, to.fullPath)
     return false
   })
 

@@ -1,4 +1,5 @@
 import type { EpisodeData, EpisodeSource } from '~/types'
+import { qualityRank, sourcePriority } from '#shared/utils/mirror'
 
 export type MirrorCandidate = {
   server: string

@@ -6,16 +6,23 @@ type SeekIndicator = { side: 'left' | 'right'; seconds: number } | null
 const CENTER_ICON_PX = 64
 const CENTER_MARGIN_PX = 32
 const CENTER_HIT_PX = CENTER_ICON_PX + CENTER_MARGIN_PX * 2
+const CENTER_BAND_RATIO = 0.3
 
-function getZone(clientX: number, clientY: number, el: HTMLElement): TapZone {
+function getZone(clientX: number, el: HTMLElement): TapZone {
   const box = el.getBoundingClientRect()
   if (!box || box.width <= 0 || box.height <= 0) return 'center'
+  const ratio = (clientX - box.left) / box.width
+  if (ratio < CENTER_BAND_RATIO) return 'left'
+  if (ratio < 1 - CENTER_BAND_RATIO) return 'center'
+  return 'right'
+}
+
+function isInCenterHitbox(clientX: number, clientY: number, el: HTMLElement): boolean {
+  const box = el.getBoundingClientRect()
+  if (!box || box.width <= 0 || box.height <= 0) return false
   const dx = clientX - (box.left + box.width / 2)
   const dy = clientY - (box.top + box.height / 2)
-  if (Math.abs(dx) <= CENTER_HIT_PX / 2 && Math.abs(dy) <= CENTER_HIT_PX / 2) return 'center'
-  if (dx < 0) return 'left'
-  if (dx > 0) return 'right'
-  return 'center'
+  return Math.abs(dx) <= CENTER_HIT_PX / 2 && Math.abs(dy) <= CENTER_HIT_PX / 2
 }
 
 interface EpisodePlayerTapOptions {
@@ -90,7 +97,7 @@ export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
     }, 300)
   }
 
-  function handleZoneTap(zone: TapZone) {
+  function handleZoneTap(zone: TapZone, withinCenterHitbox = false) {
     const now = Date.now()
     const isDoubleTap = now - lastTap[zone] < 300
     lastTap[zone] = now
@@ -100,12 +107,12 @@ export function useEpisodePlayerTap(options: EpisodePlayerTapOptions) {
         void options.toggleFullscreen()
         return
       }
-      if (options.controlsVisible.value) schedulePlayPause()
+      if (withinCenterHitbox && options.controlsVisible.value) schedulePlayPause()
       else scheduleSingleToggle()
       return
     }
     handleSeekTap(zone, isDoubleTap)
   }
 
-  return { handleZoneTap, getZone, clearPendingTap, resetFeedback }
+  return { handleZoneTap, getZone, isInCenterHitbox, clearPendingTap, resetFeedback }
 }

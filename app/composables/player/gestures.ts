@@ -61,11 +61,13 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
 
   let touchTracking = false
   let touchDownZone: TapZone = 'center'
+  let touchInCenterHitbox = false
   let touchStartX = 0
   let touchStartY = 0
   let touchMoved = false
   let mouseDown = false
   let mouseDownZone: TapZone = 'center'
+  let mouseDownInCenterHitbox = false
   let mouseDownX = 0
   let mouseDownY = 0
   let mousePointerId: number | null = null
@@ -79,7 +81,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     const touch = event.touches[0]
     if (!touch) return
     const el = event.currentTarget as HTMLElement | null
-    touchDownZone = el ? tap.getZone(touch.clientX, touch.clientY, el) : 'center'
+    touchDownZone = el ? tap.getZone(touch.clientX, el) : 'center'
+    touchInCenterHitbox = el ? tap.isInCenterHitbox(touch.clientX, touch.clientY, el) : false
     touchStartX = touch.clientX
     touchStartY = touch.clientY
     touchMoved = false
@@ -113,7 +116,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     speed.cancelTimer()
     if (touchMoved) return
     if (event.cancelable) event.preventDefault()
-    tap.handleZoneTap(touchDownZone)
+    tap.handleZoneTap(touchDownZone, touchInCenterHitbox)
   }
 
   function handleVideoTouchCancel() {
@@ -126,7 +129,8 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     if (event.pointerType === 'touch') return
     if (event.button !== 0) return
     const el = event.currentTarget as HTMLElement | null
-    mouseDownZone = el ? tap.getZone(event.clientX, event.clientY, el) : 'center'
+    mouseDownZone = el ? tap.getZone(event.clientX, el) : 'center'
+    mouseDownInCenterHitbox = el ? tap.isInCenterHitbox(event.clientX, event.clientY, el) : false
     mouseDownX = event.clientX
     mouseDownY = event.clientY
     mouseDown = true
@@ -165,7 +169,7 @@ export function useEpisodePlayerGestures(options: EpisodePlayerGestureOptions) {
     speed.cancelTimer()
     if (Math.hypot(event.clientX - mouseDownX, event.clientY - mouseDownY) > 10) return
     event.preventDefault()
-    tap.handleZoneTap(mouseDownZone)
+    tap.handleZoneTap(mouseDownZone, mouseDownInCenterHitbox)
   }
 
   function handleVideoPointerCancel(event: PointerEvent) {

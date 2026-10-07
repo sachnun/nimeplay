@@ -51,7 +51,7 @@ jobs:
         run: bun run db:migrate
         env:
           NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - run: bun run lint
+      - run: bun run test
       - run: bun run build
       - run: bunx wrangler deploy
         env:

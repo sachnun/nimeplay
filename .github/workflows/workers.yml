@@ -53,7 +53,7 @@ jobs:
           NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - run: bun run test
       - run: bun run build
-      - run: bunx --bun wrangler deploy
+      - run: bunx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

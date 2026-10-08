@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { createHash } from 'node:crypto'
 import { md5Hex } from './md5'
 
 function reference(input: string): string {
-  return createHash('md5').update(input).digest('hex')
+  return new Bun.CryptoHasher('md5').update(input).digest('hex')
 }
 
 describe('md5Hex', () => {
@@ -17,7 +16,7 @@ describe('md5Hex', () => {
     )
   })
 
-  test('agrees with node crypto for varied inputs', () => {
+  test('agrees with Bun crypto for varied inputs', () => {
     const encoder = new TextEncoder()
     const samples = [
       'a',

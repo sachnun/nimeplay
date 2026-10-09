@@ -16,7 +16,7 @@ export default defineNuxtConfig({
     mediaBucket: 'nimeplay',
     streamSecret: '',
   },
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: '2026-09-11',
   nitro: {
     preset: 'cloudflare_module',
     devServer: { runner: 'node-worker' },
@@ -30,13 +30,9 @@ export default defineNuxtConfig({
       deployConfig: true,
       wrangler: {
         name: 'nimeplay',
-        compatibility_date: '2026-09-11',
         placement: {
           mode: 'targeted',
           region: 'gcp:asia-southeast2',
-        },
-        vars: {
-          NUXT_MEDIA_BUCKET: 'nimeplay',
         },
       },
     },
@@ -81,11 +77,6 @@ export default defineNuxtConfig({
       for (const [id, chunk] of Object.entries(manifest)) {
         if (id.includes('hls.js')) (chunk as { prefetch?: boolean }).prefetch = false
       }
-    },
-    'prepare:types': ({ tsConfig }) => {
-      if (!tsConfig.compilerOptions) tsConfig.compilerOptions = {}
-      const compilerOptions = tsConfig.compilerOptions
-      compilerOptions.lib = ['ESNext', 'DOM', 'DOM.Iterable']
     },
   },
   sourcemap: { server: false, client: false },

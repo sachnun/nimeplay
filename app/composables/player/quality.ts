@@ -18,12 +18,12 @@ const NETWORK_RATES: Record<string, number> = {
 }
 
 const SAFETY_MARGIN = 0.7
-const CHECK_INTERVAL_MS = 5_000
-const MIN_SWITCH_INTERVAL_MS = 60_000
-const BUFFER_CRITICAL = 4
-const BUFFER_RECOVER = 12
-const DOWNGRADE_SAMPLES = 6
-const UPGRADE_SAMPLES = 1
+const CHECK_INTERVAL_MS = 1_000
+const STALL_THRESHOLD_MS = 5_000
+const DOWNGRADE_COOLDOWN_MS = 30_000
+const UPGRADE_COOLDOWN_MS = 60_000
+const SMOOTH_UPGRADE_MS = 20_000
+const BUFFER_HEALTHY = 12
 
 function networkBandwidth(): number | null {
   if (!import.meta.client) return null
@@ -42,11 +42,28 @@ export function pickInitialQuality(levels: MirrorCandidate[]): MirrorCandidate |
   return levels[0] ?? null
 }
 
+function addBufferingListeners(video: HTMLVideoElement, onStart: () => void, onEnd: () => void) {
+  video.addEventListener('waiting', onStart)
+  video.addEventListener('stalled', onStart)
+  video.addEventListener('playing', onEnd)
+  video.addEventListener('canplay', onEnd)
+  return () => {
+    video.removeEventListener('waiting', onStart)
+    video.removeEventListener('stalled', onStart)
+    video.removeEventListener('playing', onEnd)
+    video.removeEventListener('canplay', onEnd)
+  }
+}
+
 export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
   let timer: ReturnType<typeof setInterval> | null = null
-  let lastSwitchAt = 0
-  let lowSamples = 0
-  let highSamples = 0
+  let lastDowngradeAt = 0
+  let lastUpgradeAt = 0
+  let bufferingSince: number | null = null
+  let stalled = false
+  let smoothSince = Date.now()
+  let attached: HTMLVideoElement | null = null
+  let detach: (() => void) | null = null
 
   function currentBandwidth(): number | null {
     const external = options.bandwidthEstimate?.()
@@ -54,36 +71,65 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     return networkBandwidth()
   }
 
-  function commit(level: MirrorCandidate) {
-    lastSwitchAt = Date.now()
-    lowSamples = 0
-    highSamples = 0
+  function onBufferingStart() {
+    if (bufferingSince === null) bufferingSince = Date.now()
+    smoothSince = 0
+  }
+
+  function onBufferingEnd() {
+    if (bufferingSince !== null && Date.now() - bufferingSince >= STALL_THRESHOLD_MS) stalled = true
+    bufferingSince = null
+    smoothSince = Date.now()
+  }
+
+  function detachVideo() {
+    detach?.()
+    detach = null
+    attached = null
+    bufferingSince = null
+    stalled = false
+  }
+
+  function attachVideo(video: HTMLVideoElement | null) {
+    if (attached === video) return
+    detachVideo()
+    attached = video
+    smoothSince = Date.now()
+    if (!video) return
+    detach = addBufferingListeners(video, onBufferingStart, onBufferingEnd)
+  }
+
+  watch(options.videoRef, video => attachVideo(video), { immediate: true })
+
+  function commit(level: MirrorCandidate, now: number) {
+    lastDowngradeAt = now
+    lastUpgradeAt = now
+    bufferingSince = null
+    stalled = false
+    smoothSince = now
     options.onSelect(level)
   }
 
-  function handleCritical(levels: MirrorCandidate[], index: number, bandwidth: number | null) {
-    highSamples = 0
-    lowSamples += 1
-    if (lowSamples < DOWNGRADE_SAMPLES) return
-    const active = levels[index]!
-    if (bandwidth !== null && qualityBitrate(active.quality) <= bandwidth * SAFETY_MARGIN) return
+  function isStalling(now: number) {
+    return stalled || (bufferingSince !== null && now - bufferingSince >= STALL_THRESHOLD_MS)
+  }
+
+  function downgrade(levels: MirrorCandidate[], index: number, now: number) {
+    stalled = false
+    if (lastDowngradeAt && now - lastDowngradeAt < DOWNGRADE_COOLDOWN_MS) return
     const lower = levels[index + 1]
-    if (lower) commit(lower)
+    if (lower) commit(lower, now)
   }
 
-  function handleRecovering() {
-    lowSamples = 0
-    highSamples = 0
-  }
-
-  function handleHealthy(levels: MirrorCandidate[], index: number, bandwidth: number | null) {
-    lowSamples = 0
-    highSamples += 1
-    if (highSamples < UPGRADE_SAMPLES) return
+  function upgrade(levels: MirrorCandidate[], index: number, now: number) {
+    if (lastUpgradeAt && now - lastUpgradeAt < UPGRADE_COOLDOWN_MS) return
+    if (!smoothSince || now - smoothSince < SMOOTH_UPGRADE_MS) return
+    if (options.bufferAhead() < BUFFER_HEALTHY) return
     const higher = levels[index - 1]
     if (!higher) return
+    const bandwidth = currentBandwidth()
     if (bandwidth !== null && qualityBitrate(higher.quality) > bandwidth * SAFETY_MARGIN) return
-    commit(higher)
+    commit(higher, now)
   }
 
   function evaluate() {
@@ -92,31 +138,32 @@ export function useEpisodePlayerQuality(options: EpisodePlayerQualityOptions) {
     if (options.isSwitching()) return
     const levels = options.levels.value
     if (levels.length < 2) return
-    if (Date.now() - lastSwitchAt < MIN_SWITCH_INTERVAL_MS) return
     const index = levels.findIndex(level => level.quality === options.activeQuality.value)
     if (index === -1) return
-    const ahead = options.bufferAhead()
-    const bandwidth = currentBandwidth()
-    if (ahead < BUFFER_CRITICAL) return handleCritical(levels, index, bandwidth)
-    if (ahead < BUFFER_RECOVER) return handleRecovering()
-    handleHealthy(levels, index, bandwidth)
+    const now = Date.now()
+    if (isStalling(now)) return downgrade(levels, index, now)
+    upgrade(levels, index, now)
   }
 
   function start() {
+    attachVideo(options.videoRef.value)
     if (timer) return
-    lastSwitchAt = Date.now()
+    smoothSince = Date.now()
     timer = setInterval(evaluate, CHECK_INTERVAL_MS)
   }
 
   function stop() {
     if (timer) clearInterval(timer)
     timer = null
+    detachVideo()
   }
 
   function reset() {
-    lastSwitchAt = Date.now()
-    lowSamples = 0
-    highSamples = 0
+    lastDowngradeAt = 0
+    lastUpgradeAt = 0
+    bufferingSince = null
+    stalled = false
+    smoothSince = Date.now()
   }
 
   return { reset, start, stop }

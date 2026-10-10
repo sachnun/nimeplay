@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
+  import { previousPath } from '#lib/back-navigation'
   import { MediaQuery } from 'svelte/reactivity'
 
   let {
@@ -27,8 +28,7 @@
 
   function goBack() {
     const detailPath = `/anime/${malId}`
-    const back = (window.history.state as { back?: string } | null)?.back
-    if (back === detailPath) history.back()
+    if (previousPath() === detailPath) history.back()
     else void goto(detailPath, { replaceState: true })
   }
 </script>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { AnimeCharacter, OtakudesuInfo } from '#lib/types'
   import { goto } from '$app/navigation'
+  import { previousPath } from '#lib/back-navigation'
   import CharacterList from './CharacterList.svelte'
   import EpisodeList from './EpisodeList.svelte'
   import SynopsisSection from './SynopsisSection.svelte'
@@ -69,7 +70,7 @@
   }
 
   function goBack() {
-    if (window.history.state?.back) history.back()
+    if (previousPath()) history.back()
     else void goto('/')
   }
 

@@ -10,8 +10,11 @@
     requestAnimeSheetClosing,
   } from '#lib/anime-sheet.svelte'
   import { beforeNavigate } from '$app/navigation'
+  import { trackNavigation } from '#lib/back-navigation'
   import { onMount } from 'svelte'
   let { children } = $props()
+
+  trackNavigation()
 
   beforeNavigate(navigation => {
     if (animeSheet.open) {

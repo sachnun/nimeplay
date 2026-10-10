@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
+  import { previousPath } from '#lib/back-navigation'
   import { SvelteSet } from 'svelte/reactivity'
   import { onMount } from 'svelte'
 
@@ -20,7 +21,7 @@
   } = $props()
 
   function goBack() {
-    if (window.history.state?.back) {
+    if (previousPath()) {
       history.back()
       return
     }

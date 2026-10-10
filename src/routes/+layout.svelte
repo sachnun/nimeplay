@@ -1,35 +1,12 @@
 <script lang="ts">
   import '../app.css'
   import AnimeSheetHost from '#lib/components/AnimeSheetHost.svelte'
-  import { ANIME_SHEET_DETAIL_RE, isAnimeSheetDevice } from '#lib/anime-sheet'
-  import {
-    animeSheet,
-    dropFakeEntry,
-    markAnimeSheetClosed,
-    openAnimeSheet,
-    requestAnimeSheetClosing,
-  } from '#lib/anime-sheet.svelte'
-  import { beforeNavigate } from '$app/navigation'
+  import { animeSheet, requestAnimeSheetClosing } from '#lib/anime-sheet.svelte'
   import { trackNavigation } from '#lib/back-navigation'
   import { onMount } from 'svelte'
   let { children } = $props()
 
   trackNavigation()
-
-  beforeNavigate(navigation => {
-    if (animeSheet.open) {
-      markAnimeSheetClosed()
-      dropFakeEntry()
-    }
-    const from = navigation.from
-    if (!from?.route.id?.includes('(browse)')) return
-    if (!navigation.to) return
-    if (!ANIME_SHEET_DETAIL_RE.test(navigation.to.url.pathname)) return
-    if (!isAnimeSheetDevice()) return
-    const malId = Number(navigation.to.params?.malId)
-    openAnimeSheet(malId, from.url.pathname + from.url.search, navigation.to.url.pathname)
-    navigation.cancel()
-  })
 
   function onPopstate() {
     if (animeSheet.open) requestAnimeSheetClosing()

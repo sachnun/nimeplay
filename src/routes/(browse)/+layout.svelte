@@ -2,12 +2,13 @@
   import { page } from '$app/state'
   import GenreFilter from '#lib/components/GenreFilter.svelte'
   import SearchBar from '#lib/components/SearchBar.svelte'
-  import type { Snippet } from 'svelte'
+  import type { LayoutProps } from './$types'
 
-  let { children, genres = [] }: { children: Snippet; genres?: import('#lib/shared/types').Genre[] } = $props()
+  let { children, data }: LayoutProps = $props()
 
   let searchOpen = $state(false)
 
+  const genres = $derived(data.genres)
   const selectedGenre = $derived(genres.find(g => g.slug === page.params.genreSlug?.toLowerCase()) ?? null)
 </script>
 

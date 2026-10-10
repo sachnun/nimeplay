@@ -1,4 +1,4 @@
-import { Data, Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
@@ -10,16 +10,20 @@ import { claim, classifyError, complete, fail, prune, releaseStale } from './que
 import { refreshSourceBySlug, runBackfill, runOngoingSync } from './refresh'
 
 const BATCH = 64
+const JOB_CONCURRENCY = Math.max(1, Number(process.env.JOB_CONCURRENCY ?? 8))
 const STALE_MS = 15 * 60 * 1000
 const DONE_TTL_MS = 24 * 60 * 60 * 1000
 const DEAD_TTL_MS = 14 * 24 * 60 * 60 * 1000
 const TASK_TYPES = ['anime.refresh', 'catalog.ongoing', 'catalog.backfill']
 const worker = `task:${process.pid}`
 
-class JobFailure extends Data.TaggedError('JobFailure')<{ readonly message: string }> {}
+class JobFailure extends Schema.TaggedError<JobFailure>()('JobFailure', {
+  message: Schema.String,
+  cause: Schema.optional(Schema.Unknown),
+}) {}
 
 function toJobFailure(error: unknown): JobFailure {
-  return new JobFailure({ message: error instanceof Error ? error.message : String(error) })
+  return new JobFailure({ message: error instanceof Error ? error.message : String(error), cause: error })
 }
 
 function handle(job: JobRow): Effect.Effect<void, JobFailure> {
@@ -49,6 +53,11 @@ async function seedRefreshJobs(createdSince: Date): Promise<void> {
           else interval '1 day'
         end
       ))
+    and not (
+      s.metadata_state = 'unresolved'
+      and s.metadata_attempts >= 3
+      and s.metadata_checked_at > now() - interval '14 days'
+    )
     and not exists (
       select 1 from jobs j
       where j.dedupe_key = 'anime.refresh:' || s.source || ':' || s.slug
@@ -75,12 +84,12 @@ function processJob(job: JobRow): Effect.Effect<void> {
     Effect.catch(error =>
       Effect.promise(async () => {
         warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: error.message })
-        if (classifyError(error.message) === 'transient') {
+        if (classifyError(error.cause) === 'transient') {
           if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
         } else {
           recordSuccess(sourceId)
         }
-        await fail(job.id, error.message)
+        await fail(job.id, error.cause)
       }),
     ),
   )
@@ -90,7 +99,7 @@ async function drain(types: string[] = TASK_TYPES): Promise<void> {
   while (true) {
     const claimed = await claim(worker, BATCH, types, blockedSources())
     if (claimed.length === 0) return
-    await Effect.runPromise(Effect.forEach(claimed, processJob, { concurrency: 'unbounded', discard: true }))
+    await Effect.runPromise(Effect.forEach(claimed, processJob, { concurrency: JOB_CONCURRENCY, discard: true }))
   }
 }
 
@@ -101,7 +110,7 @@ export async function runCatalog(): Promise<void> {
   await runOngoingSync()
   await Effect.runPromise(
     Effect.forEach(getSources(), source => Effect.promise(() => runBackfill(source.id)), {
-      concurrency: 'unbounded',
+      concurrency: 2,
       discard: true,
     }),
   )

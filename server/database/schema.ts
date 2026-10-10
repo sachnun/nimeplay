@@ -73,6 +73,9 @@ export const animeSources = pgTable(
     slug: text('slug').notNull(),
     status: text('status'),
     ongoingRank: integer('ongoing_rank'),
+    metadataState: text('metadata_state'),
+    metadataAttempts: integer('metadata_attempts').notNull().default(0),
+    metadataCheckedAt: timestamp('metadata_checked_at', { withTimezone: true }),
     latestEpisodeAt: timestamp('latest_episode_at', { withTimezone: true }),
     metadataSyncedAt: timestamp('metadata_synced_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -82,6 +85,7 @@ export const animeSources = pgTable(
     uniqueIndex('anime_sources_source_slug_key').on(table.source, table.slug),
     index('anime_sources_anime_id_idx').on(table.animeId),
     index('anime_sources_status_idx').on(table.status),
+    index('anime_sources_metadata_state_idx').on(table.metadataState),
     index('anime_sources_updated_at_idx').on(table.updatedAt),
   ],
 )

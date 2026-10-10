@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { type JobRow, jobs } from '../../database/schema'
 import { db, resultRows } from '../db'
+import { NetError } from '../net/rate'
 
 export async function claim(
   worker: string,
@@ -57,15 +58,16 @@ const PERMANENT_COOLDOWN_S = 7 * 24 * 60 * 60
 
 type FailureKind = 'transient' | 'permanent'
 
-export function classifyError(message: string): FailureKind {
-  const status = Number(message.match(/Failed to fetch .*?: (\d{3})\b/)?.[1])
+export function classifyError(error: unknown): FailureKind {
+  if (error instanceof NetError) return error.retryable ? 'transient' : 'permanent'
+  const status = Number(String(error).match(/Failed to fetch .*?: (\d{3})\b/)?.[1])
   if (!status) return 'transient'
   if (status === 403 || status === 408 || status === 425 || status === 429) return 'transient'
   return status >= 400 && status < 500 ? 'permanent' : 'transient'
 }
 
-export async function fail(id: number, error: string): Promise<void> {
-  const message = error.slice(0, 500)
+export async function fail(id: number, error: unknown): Promise<void> {
+  const message = (error instanceof Error ? error.message : String(error)).slice(0, 500)
   const permanent = classifyError(error) === 'permanent'
   const backoff = sql`least(${RETRY_BASE_S}::double precision * power(2, greatest(attempts - 1, 0)), ${RETRY_CAP_S}::double precision) + random() * ${RETRY_JITTER_S}::double precision`
   await db().execute(sql`

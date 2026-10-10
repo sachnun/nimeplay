@@ -4,17 +4,13 @@ import { fetchMalAnime, searchMalAnimeEntries } from '../../mal'
 import { rankMalAnimeMatches } from '../../mal/matching'
 import { offlineLookup } from '../../mal/offline'
 import { malSearchVariants, seasonNumber } from '../../mal/season'
+import { normalizeSlugTitle } from '../../mal/slug'
 import type { MalAnime, MalSearchEntry } from '../../mal/types'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
 import { findAnimeIdByTitle, linkSource, recordMetadataFailure, upsertCanonicalAnime } from './persist'
 
 function slugTitle(slug: string): string {
-  return slug
-    .replace(/-subtitle-indonesia$/i, '')
-    .replace(/-sub-indo$/i, '')
-    .replace(/-sub$/i, '')
-    .replace(/[-_]+/g, ' ')
-    .trim()
+  return normalizeSlugTitle(slug)
 }
 
 function parseOdYear(value: string | null | undefined): number | null {
@@ -28,7 +24,7 @@ function parseOdYear(value: string | null | undefined): number | null {
 async function linkViaOffline(sourceRow: AnimeSourceRow, slug: string, title: string): Promise<number | null> {
   const offline = await offlineLookup(title)
   if (!offline || offline.score < 0.9) return null
-  const mal = await fetchMalAnime(offline.malId)
+  const mal = await fetchMalAnime(offline.malId, title)
   if (!mal) return null
   const animeId = await upsertCanonicalAnime(mal)
   await linkSource(sourceRow.id, animeId)
@@ -83,7 +79,7 @@ async function linkBestCandidate(
 ): Promise<number | null> {
   let yearFallback: { mal: MalAnime; diff: number } | null = null
   for (const candidate of candidates.slice(0, 3)) {
-    const mal = await fetchMalAnime(candidate.id)
+    const mal = await fetchMalAnime(candidate.id, candidate.title)
     if (!mal) continue
     const diff = seasonMismatch(title, candidate.title, detailYear, mal.year)
     if (diff !== null) {
@@ -111,7 +107,7 @@ export async function resolveSourceMetadata(
   const scraped = (detail?.title || '').trim()
   const title = scraped || slugTitle(sourceRow.slug)
   if (!title) {
-    await recordMetadataFailure(slug, 'no scraped title')
+    await recordMetadataFailure(sourceRow.id, slug, 'no scraped title')
     return null
   }
   if (!scraped) log(`[metadata] slug fallback ${slug}`, { title })
@@ -130,7 +126,7 @@ export async function resolveSourceMetadata(
   const ranked = await collectMatches(title, japanese)
   if (ranked.length === 0) {
     log(`[metadata] miss ${slug}`, { title, japanese: Boolean(japanese) })
-    await recordMetadataFailure(slug, `no MAL title matches "${title}"`)
+    await recordMetadataFailure(sourceRow.id, slug, `no MAL title matches "${title}"`)
     return null
   }
 
@@ -138,7 +134,7 @@ export async function resolveSourceMetadata(
   const candidates = ranked.filter(entry => !(entry.format === 'MOVIE' && episodeCount > 2))
   if (candidates.length === 0) {
     log(`[metadata] miss ${slug}`, { title, episodes: episodeCount, top: ranked[0]?.title })
-    await recordMetadataFailure(slug, `only movie candidates for ${episodeCount}-episode source "${title}"`)
+    await recordMetadataFailure(sourceRow.id, slug, `only movie candidates for ${episodeCount}-episode source "${title}"`)
     return null
   }
   log(`[metadata] match ${slug}`, { title, ranked: ranked.length, top: candidates[0]?.title })
@@ -146,6 +142,6 @@ export async function resolveSourceMetadata(
   const animeId = await linkBestCandidate(sourceRow, slug, candidates, parseOdYear(detail?.releaseDate ?? null), title)
   if (animeId) return animeId
 
-  await recordMetadataFailure(slug, `no usable MAL candidate for "${title}"`)
+  await recordMetadataFailure(sourceRow.id, slug, `no usable MAL candidate for "${title}"`)
   return null
 }

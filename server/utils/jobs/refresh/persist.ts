@@ -20,9 +20,17 @@ function slugify(value: string): string {
     .replace(/(^-|-$)/g, '')
 }
 
-export function recordMetadataFailure(slug: string, message: string): Promise<void> {
+export async function recordMetadataFailure(sourceRowId: number, slug: string, message: string): Promise<void> {
   warn(`[metadata] failed ${slug}`, { error: message })
-  return Promise.resolve()
+  await db()
+    .update(animeSources)
+    .set({
+      metadataState: 'unresolved',
+      metadataAttempts: sql`${animeSources.metadataAttempts} + 1`,
+      metadataCheckedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(animeSources.id, sourceRowId))
 }
 
 export async function getSourceRow(sourceId: string, vendorSlug: string): Promise<AnimeSourceRow | null> {
@@ -227,7 +235,13 @@ export async function findAnimeIdByTitle(title: string): Promise<number | null> 
 export async function linkSource(sourceRowId: number, animeId: number): Promise<void> {
   await db()
     .update(animeSources)
-    .set({ animeId, metadataSyncedAt: new Date(), updatedAt: new Date() })
+    .set({
+      animeId,
+      metadataState: 'linked',
+      metadataCheckedAt: new Date(),
+      metadataSyncedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(animeSources.id, sourceRowId))
 }
 

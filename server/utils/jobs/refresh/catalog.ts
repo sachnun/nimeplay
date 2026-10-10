@@ -130,7 +130,7 @@ async function collectOngoing(source: AnimeSource): Promise<OngoingCard[]> {
             warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: errorMessage(error) }),
           ),
         ),
-      { concurrency: 'unbounded' },
+      { concurrency: 3 },
     ),
   )
   for (const result of rest) if (result) push(result.anime)

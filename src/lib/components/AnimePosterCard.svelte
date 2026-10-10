@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { slide } from 'svelte/transition'
   import { goto } from '$app/navigation'
 
   let {
@@ -84,6 +85,7 @@
       <button
         type="button"
         aria-label="Lanjutkan menonton"
+        transition:slide={{ axis: 'x', duration: 250 }}
         class="absolute bottom-2 left-3 right-3 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer"
         onclick={openResume}
       >

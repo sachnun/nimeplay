@@ -2,6 +2,7 @@
   import type { Genre } from '#lib/shared/types'
   import { getContinueWatching } from '#lib/storage'
   import { onMount } from 'svelte'
+  import { slide } from 'svelte/transition'
 
   let { genres, selectedGenre, onsearch, onsignin }: {
     genres: Genre[]
@@ -193,6 +194,7 @@
           title="History"
           aria-label="History"
           draggable="false"
+          transition:slide={{ axis: 'x', duration: 250 }}
           class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center [-webkit-user-drag:none]"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -2,13 +2,25 @@ import { Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import { episodes } from '../../database/schema'
 import { db } from '../db'
+import { openStreamToken } from '../media/stream'
 import type { Http } from '../net/http'
 import { scrapeEpisode } from '../sources'
 import type { EpisodeData } from '../sources/types'
 
+export async function mirrorsArePlayable(mirrors: EpisodeData['mirrors']): Promise<boolean> {
+  for (const mirror of mirrors) {
+    for (const source of mirror.sources) {
+      if (await openStreamToken(source.dataContent)) return true
+    }
+  }
+  return false
+}
+
 async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
   const [row] = await db().select({ cache: episodes.cache }).from(episodes).where(eq(episodes.slug, slug)).limit(1)
-  return row?.cache ?? null
+  const cache = row?.cache ?? null
+  if (!cache || cache.mirrors.length === 0) return cache
+  return (await mirrorsArePlayable(cache.mirrors)) ? cache : null
 }
 
 async function putEpisodeData(slug: string, data: EpisodeData): Promise<void> {

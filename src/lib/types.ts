@@ -1,5 +1,3 @@
-import type { AnimeCard, Genre } from '#lib/shared/types'
-
 export type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, SearchResult } from '#lib/shared/types'
 
 export interface EpisodeSource {
@@ -59,12 +57,6 @@ export interface OtakudesuInfo {
 export interface PageData<T> {
   anime: T[]
   totalPages: number
-}
-
-export interface HomeData {
-  ongoingData: PageData<AnimeCard>
-  completedData: PageData<AnimeCard>
-  genres: Genre[]
 }
 
 export interface EpisodeResponse {

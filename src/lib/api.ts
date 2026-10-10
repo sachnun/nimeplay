@@ -4,9 +4,7 @@ import type {
   AnimeDetail,
   EpisodePageData,
   EpisodeResponse,
-  Genre,
   GenreAnimeCard,
-  HomeData,
   PageData,
   SearchResult,
 } from '#lib/types'
@@ -31,18 +29,6 @@ async function getJson<T>(fetchFn: FetchLike, url: string): Promise<T> {
   return (await response.json()) as T
 }
 
-export function fetchHome(fetchFn: FetchLike): Promise<HomeData> {
-  return Promise.all([
-    getJson<ListResponse<AnimeCard>>(fetchFn, `${BASE}/anime?type=ongoing`),
-    getJson<ListResponse<AnimeCard>>(fetchFn, `${BASE}/anime?type=completed`),
-    getJson<{ data: Genre[] }>(fetchFn, `${BASE}/genres`),
-  ]).then(([ongoing, completed, genres]) => ({
-    ongoingData: asPage(ongoing),
-    completedData: asPage(completed),
-    genres: genres.data,
-  }))
-}
-
 export function fetchAnimePage(
   fetchFn: FetchLike,
   type: 'ONGOING' | 'COMPLETED',
@@ -60,10 +46,6 @@ export function fetchGenrePage(
     fetchFn,
     `${BASE}/genre/${encodeURIComponent(slug)}?page=${page}`,
   ).then(asPage)
-}
-
-export function fetchGenres(fetchFn: FetchLike): Promise<Genre[]> {
-  return getJson<{ data: Genre[] }>(fetchFn, `${BASE}/genres`).then(response => response.data)
 }
 
 export function fetchSearch(fetchFn: FetchLike, query: string): Promise<SearchResult[]> {
@@ -108,14 +90,5 @@ export function toEpisodePageData(response: EpisodeResponse): EpisodePageData {
     },
     episodes: response.episodes,
   }
-}
-
-export function fetchEpisodePage(
-  fetchFn: FetchLike,
-  malId: number,
-  episode: number,
-  pick: EpisodePick = {},
-): Promise<EpisodePageData> {
-  return fetchEpisode(fetchFn, malId, episode, pick).then(toEpisodePageData)
 }
 

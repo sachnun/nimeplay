@@ -1,9 +1,9 @@
-import { fetchGenres } from '#lib/api'
+import { getGenreList } from '#lib/server/utils/db/queries/genres'
 import type { LayoutServerLoad } from './$types'
 
-export const load: LayoutServerLoad = async ({ fetch }) => {
+export const load: LayoutServerLoad = async () => {
   try {
-    const genres = await fetchGenres(fetch)
+    const genres = await getGenreList()
     return { genres }
   } catch {
     return { genres: [] }

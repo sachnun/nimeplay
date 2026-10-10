@@ -1,6 +1,7 @@
+import { Effect, Result } from 'effect'
 import { proxyFetch } from '../media/proxy'
-import { isRetryableStatus, withRetry } from '../net/retry'
 import { getSpoofHeaders } from '../net/spoof'
+import { NetError, runGuarded } from '../net/rate'
 
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
@@ -17,40 +18,45 @@ const HTML_TIMEOUT_MS = 8000
 const POST_TIMEOUT_MS = 8000
 
 export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promise<string> {
-  const res = await withRetry(async () => {
-    try {
-      const response = await proxyFetch(url, {
-        headers: getSpoofHeaders(url, 'navigate'),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-      return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
-    } catch {
-      return { value: null, retry: true }
-    }
-  })
-  if (!res) throw new Error(`Failed to fetch ${url}`)
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
-  return await res.text()
+  const result = await Effect.runPromise(
+    Effect.result(
+      runGuarded({
+        url,
+        task: signal => proxyFetch(url, { headers: getSpoofHeaders(url, 'navigate'), signal }),
+        timeoutMs,
+        status: response => response.status,
+      }),
+    ),
+  )
+  if (Result.isFailure(result)) throw result.failure
+  const response = result.success
+  if (!response.ok) throw new NetError({ host: new URL(url).hostname, status: response.status, message: `HTTP ${response.status}`, retryAfterMs: 0 })
+  return await response.text()
 }
 
 export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
   const headers = getSpoofHeaders(referer, 'cors')
   headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const res = await withRetry(async () => {
-    try {
-      const response = await proxyFetch(url, {
-        method: 'POST',
-        headers,
-        body,
-        signal: AbortSignal.timeout(POST_TIMEOUT_MS),
-      })
-      return { value: response, retry: isRetryableStatus(response.status), headers: response.headers }
-    } catch {
-      return { value: null, retry: true }
-    }
-  })
-  if (!res?.ok) throw new Error(`Failed to fetch ${url}: ${res?.status ?? 0}`)
-  return res.json()
+  const result = await Effect.runPromise(
+    Effect.result(
+      runGuarded({
+        url,
+        task: signal => proxyFetch(url, { method: 'POST', headers, body, signal }),
+        timeoutMs: POST_TIMEOUT_MS,
+        status: response => response.status,
+      }),
+    ),
+  )
+  if (Result.isFailure(result)) throw result.failure
+  if (!result.success.ok) {
+    throw new NetError({
+      host: new URL(url).hostname,
+      status: result.success.status,
+      message: `HTTP ${result.success.status}`,
+      retryAfterMs: 0,
+    })
+  }
+  return result.success.json()
 }
 
 const ID_MONTHS: Record<string, number> = {

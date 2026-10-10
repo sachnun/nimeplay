@@ -7,6 +7,7 @@ export interface MalCharacter {
 
 export interface MalSearchEntry {
   id: number
+  anilistId?: number
   title: string
   titles: string[]
   format?: string | null

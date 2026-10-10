@@ -1,4 +1,5 @@
-import { type AniListMedia, fetchAniListMedia, fetchAniListSearch } from './anilist'
+import { Effect } from 'effect'
+import { AniList, runAniList, type AniListMedia } from './anilist'
 import { decodeEntities, matchTitleOf, stripHtml, titleOf, titlesOf } from './matching'
 import { cleanSynopsis } from './synopsis'
 import type { MalAnime, MalCharacter, MalSearchEntry } from './types'
@@ -27,13 +28,14 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
     .replace(/\s+/g, ' ')
     .trim()
   if (!cleaned) return []
-  const media = await fetchAniListSearch(cleaned)
+  const media = await runAniList(Effect.flatMap(AniList, api => api.search(cleaned)))
   const entries = new Map<number, MalSearchEntry>()
   for (const item of media) {
     if (item.idMal == null) continue
     if (!entries.has(item.idMal)) {
       entries.set(item.idMal, {
         id: item.idMal,
+        anilistId: item.id,
         title: matchTitleOf(item.title),
         titles: [
           ...new Set(
@@ -55,6 +57,15 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
   return [...entries.values()]
 }
 
+async function mediaByTitle(malId: number, title: string | undefined): Promise<AniListMedia | null> {
+  if (!title) return null
+  const matches = await searchMalAnimeEntries(title)
+  const candidate = matches.find(entry => entry.id === malId)
+  if (!candidate?.anilistId) return null
+  const media = await runAniList(Effect.flatMap(AniList, api => api.mediaById(candidate.anilistId!)))
+  return media
+}
+
 function parseCharacters(media: AniListMedia): MalCharacter[] {
   const edges = media.characters?.edges ?? []
   return edges
@@ -72,8 +83,9 @@ function parseCharacters(media: AniListMedia): MalCharacter[] {
     .filter(character => character.name && character.imageUrl)
 }
 
-export async function fetchMalAnime(malId: number): Promise<MalAnime | null> {
-  const media = await fetchAniListMedia(malId)
+export async function fetchMalAnime(malId: number, fallbackTitle?: string): Promise<MalAnime | null> {
+  const media =
+    (await runAniList(Effect.flatMap(AniList, api => api.media(malId)))) ?? (await mediaByTitle(malId, fallbackTitle))
   if (!media) return null
 
   const trailer = media.trailer && media.trailer.site === 'youtube' ? (media.trailer.id ?? null) : null

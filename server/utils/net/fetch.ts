@@ -1,5 +1,6 @@
+import { Effect } from 'effect'
 import { proxyUrl } from '../media/proxy'
-import { isRetryableStatus, withRetry } from './retry'
+import { runGuarded } from './rate'
 
 interface PlainResponse {
   status: number
@@ -30,62 +31,53 @@ function toHeaderRecord(raw: Record<string, string | string[] | undefined>): Rec
   return out
 }
 
-async function fetchGet(
-  target: string,
-  headers: Record<string, string>,
-  timeoutMs: number,
-): Promise<PlainResponse | null> {
-  try {
-    const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-    return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
-  } catch {
-    return null
+function buildHeaders(options: PlainOptions): Record<string, string> {
+  return {
+    'user-agent': DEFAULT_UA,
+    accept: 'application/json, */*',
+    ...options.headers,
   }
 }
 
-async function fetchGetBinary(
+async function readText(target: string, headers: Record<string, string>, signal: AbortSignal): Promise<PlainResponse> {
+  const res = await fetch(target, { headers, signal })
+  return { status: res.status, text: await res.text(), headers: toHeaderRecord(Object.fromEntries(res.headers)) }
+}
+
+async function readBinary(
   target: string,
   headers: Record<string, string>,
-  timeoutMs: number,
-): Promise<PlainBinaryResponse | null> {
-  try {
-    const res = await fetch(target, { headers, signal: AbortSignal.timeout(timeoutMs) })
-    return {
-      status: res.status,
-      contentType: res.headers.get('content-type') ?? 'application/octet-stream',
-      bytes: new Uint8Array(await res.arrayBuffer()),
-    }
-  } catch {
-    return null
+  signal: AbortSignal,
+): Promise<PlainBinaryResponse> {
+  const res = await fetch(target, { headers, signal })
+  return {
+    status: res.status,
+    contentType: res.headers.get('content-type') ?? 'application/octet-stream',
+    bytes: new Uint8Array(await res.arrayBuffer()),
   }
 }
 
 export async function plainGet(url: string, options: PlainOptions = {}): Promise<PlainResponse | null> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const headers = {
-    'user-agent': DEFAULT_UA,
-    accept: 'application/json, */*',
-    ...options.headers,
-  }
   const target = proxyUrl(url, options.proxy)
-  return withRetry(async () => {
-    const res = await fetchGet(target, headers, timeoutMs)
-    if (!res) return { value: null, retry: true }
-    return { value: res, retry: isRetryableStatus(res.status), headers: res.headers }
-  })
+  const effect = runGuarded({
+    url,
+    task: signal => readText(target, buildHeaders(options), signal),
+    timeoutMs,
+    status: value => value.status,
+  }).pipe(Effect.catchTag('NetError', () => Effect.succeed(null)))
+  return Effect.runPromise(effect)
 }
 
 export async function plainGetBinary(url: string, options: PlainOptions = {}): Promise<PlainBinaryResponse | null> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const headers = {
-    'user-agent': DEFAULT_UA,
-    accept: 'image/avif,image/webp,image/*,*/*',
-    ...options.headers,
-  }
   const target = proxyUrl(url, options.proxy)
-  return withRetry(async () => {
-    const res = await fetchGetBinary(target, headers, timeoutMs)
-    if (!res) return { value: null, retry: true }
-    return { value: res, retry: isRetryableStatus(res.status) }
-  })
+  const headers = { 'user-agent': DEFAULT_UA, accept: 'image/avif,image/webp,image/*,*/*', ...options.headers }
+  const effect = runGuarded({
+    url,
+    task: signal => readBinary(target, headers, signal),
+    timeoutMs,
+    status: value => value.status,
+  }).pipe(Effect.catchTag('NetError', () => Effect.succeed(null)))
+  return Effect.runPromise(effect)
 }

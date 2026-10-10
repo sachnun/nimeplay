@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import type { JobRow } from '../../database/schema'
-import { blockedSources, recordFailure, recordSuccess, sourceOf } from './guard'
+import { blockedSources, recordFailure, recordSuccess, resetSources, sourceOf } from './guard'
 
 function job(payload: Record<string, unknown>): JobRow {
   return { payload } as unknown as JobRow
@@ -24,6 +24,10 @@ describe('sourceOf', () => {
 })
 
 describe('circuit breaker', () => {
+  beforeEach(() => {
+    resetSources()
+  })
+
   test('opens only after the failure threshold and resets on success', () => {
     const id = 'breaker-open'
     for (let i = 1; i < 8; i++) {

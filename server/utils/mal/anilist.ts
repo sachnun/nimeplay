@@ -1,9 +1,15 @@
-import { warn } from '../log'
+import { Cache, Context, Duration, Effect, Exit, Layer, Request, RequestResolver } from 'effect'
+import { ManagedRuntime } from 'effect'
 import { proxyFetch } from '../media/proxy'
+import { runGuarded, retryAfterMs } from '../net/rate'
 
 const ANILIST_URL = 'https://graphql.anilist.co'
-const FETCH_TIMEOUT_MS = 15000
-const MIN_INTERVAL_MS = 700
+const FETCH_TIMEOUT_MS = 20000
+const CACHE_CAPACITY = 10_000
+const SEARCH_TTL = Duration.hours(6)
+const MEDIA_TTL = Duration.hours(24)
+const BATCH_DELAY = '15 millis'
+const MAX_ALIASES = 25
 
 export interface TitleNames {
   romaji?: string | null
@@ -11,7 +17,7 @@ export interface TitleNames {
   native?: string | null
 }
 
-interface AniListSearchMedia {
+export interface AniListSearchMedia {
   id: number
   idMal: number | null
   format?: string | null
@@ -54,105 +60,198 @@ export interface AniListMedia {
   } | null
 }
 
-const SEARCH_QUERY = `query ($search: String) {
-  Page(perPage: 15) {
-    media(search: $search, type: ANIME) {
-      id
-      idMal
-      format
-      averageScore
-      popularity
-      season
-      seasonYear
-      startDate { year }
-      genres
-      synonyms
-      coverImage { extraLarge large }
-      title { romaji english native }
+export class AniListTransport extends Context.Service<
+  AniListTransport,
+  {
+    readonly graphql: (query: string, variables: Record<string, unknown>) => Effect.Effect<unknown>
+  }
+>()('app/AniListTransport') {}
+
+export const AniListTransportLive = Layer.succeed(
+  AniListTransport,
+  AniListTransport.of({
+    graphql: (query, variables) =>
+      Effect.gen(function* () {
+        const result = yield* Effect.result(
+          runGuarded({
+            url: ANILIST_URL,
+            task: signal =>
+              proxyFetch(ANILIST_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ query, variables }),
+                signal,
+              }),
+            timeoutMs: FETCH_TIMEOUT_MS,
+            status: response => (response.status === 429 || response.status >= 500 ? response.status : null),
+            retryAfter: retryAfterMs,
+          }),
+        )
+        if (result._tag === 'Failure') {
+          yield* Effect.logWarning('[anilist] request failed', {
+            error: result.failure.message,
+            status: result.failure.status,
+          })
+          return null
+        }
+        if (!result.success.ok) {
+          yield* Effect.logWarning(`[anilist] ${result.success.status} ${result.success.statusText}`)
+          return null
+        }
+        return yield* Effect.tryPromise({
+          try: async () => {
+            const body = (await result.success.json()) as { data?: unknown }
+            return body.data ?? null
+          },
+          catch: error => error,
+        }).pipe(
+          Effect.catch(error =>
+            Effect.logWarning('[anilist] invalid response', {
+              error: error instanceof Error ? error.message : String(error),
+            }).pipe(Effect.as(null)),
+          ),
+        )
+      }),
+  }),
+)
+
+const ALIAS_MEDIA_FIELDS = `
+  id
+  idMal
+  status
+  format
+  title { romaji english native }
+  coverImage { extraLarge large }
+  description(asHtml: false)
+  averageScore
+  rankings { rank type }
+  popularity
+  season
+  seasonYear
+  startDate { year }
+  trailer { id site }
+  studios(isMain: true) { nodes { name } }
+  genres
+  episodes
+  nextAiringEpisode { airingAt episode }
+  characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
+    edges {
+      role
+      node { name { full } image { large } }
+      voiceActors(language: JAPANESE) { name { full } image { large } }
     }
-  }
-}`
+  }`
 
-const MEDIA_QUERY = `query ($idMal: Int) {
-  Media(idMal: $idMal, type: ANIME) {
-    id
-    idMal
-    status
-    format
-    title { romaji english native }
-    coverImage { extraLarge large }
-    description(asHtml: false)
-    averageScore
-    rankings { rank type }
-    popularity
-    season
-    seasonYear
-    startDate { year }
-    trailer { id site }
-    studios(isMain: true) { nodes { name } }
-    genres
-    episodes
-    nextAiringEpisode { airingAt episode }
-    characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
-      edges {
-        role
-        node { name { full } image { large } }
-        voiceActors(language: JAPANESE) { name { full } image { large } }
-      }
-    }
-  }
-}`
+const SEARCH_FIELDS = `id idMal format averageScore popularity season seasonYear startDate { year } genres synonyms coverImage { extraLarge large } title { romaji english native }`
 
-let lastRequestAt = 0
-let blockedUntil = 0
-
-async function acquireAniListSlot(): Promise<void> {
-  for (;;) {
-    const now = Date.now()
-    const wait = Math.max(blockedUntil - now, MIN_INTERVAL_MS - (now - lastRequestAt))
-    if (wait <= 0) break
-    await new Promise(resolve => setTimeout(resolve, wait))
-  }
-  lastRequestAt = Date.now()
+export function aliasSearchQuery(count: number): string {
+  const fields = Array.from(
+    { length: count },
+    (_, index) => `  a${index}: Page(perPage: 15) { media(search: $s${index}, type: ANIME) { ${SEARCH_FIELDS} } }`,
+  ).join('\n')
+  const variables = Array.from({ length: count }, (_, index) => `$s${index}: String`).join(', ')
+  return `query (${variables}) {\n${fields}\n}`
 }
 
-async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await acquireAniListSlot()
-    try {
-      const res = await proxyFetch(ANILIST_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+export function aliasMediaQuery(count: number): string {
+  const fields = Array.from(
+    { length: count },
+    (_, index) => `  a${index}: Media(idMal: $m${index}, type: ANIME) {${ALIAS_MEDIA_FIELDS}\n  }`,
+  ).join('\n')
+  const variables = Array.from({ length: count }, (_, index) => `$m${index}: Int`).join(', ')
+  return `query (${variables}) {\n${fields}\n}`
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let index = 0; index < items.length; index += size) out.push(items.slice(index, index + size))
+  return out
+}
+
+class AniListSearchRequest extends Request.Class<{ readonly search: string }, AniListSearchMedia[], never, never> {}
+class AniListMediaRequest extends Request.Class<{ readonly idMal: number }, AniListMedia | null, never, never> {}
+
+export interface AniListShape {
+  readonly search: (query: string) => Effect.Effect<AniListSearchMedia[]>
+  readonly media: (idMal: number) => Effect.Effect<AniListMedia | null>
+  readonly mediaById: (id: number) => Effect.Effect<AniListMedia | null>
+}
+
+export class AniList extends Context.Service<AniList, AniListShape>()('app/AniList') {
+  static readonly layer: Layer.Layer<AniList, never, AniListTransport> = Layer.effect(
+    AniList,
+    Effect.gen(function* () {
+      const transport = yield* AniListTransport
+
+      const searchResolver = RequestResolver.make<AniListSearchRequest>(
+        Effect.fnUntraced(function* (entries) {
+          for (const group of chunk([...entries], MAX_ALIASES)) {
+            const variables: Record<string, string> = {}
+            group.forEach((entry, index) => {
+              variables[`s${index}`] = entry.request.search
+            })
+            const data = (yield* transport.graphql(aliasSearchQuery(group.length), variables)) as Record<
+              string,
+              { media?: AniListSearchMedia[] }
+            > | null
+            group.forEach((entry, index) => {
+              entry.completeUnsafe(Exit.succeed(data?.[`a${index}`]?.media ?? []))
+            })
+          }
+        }),
+      ).pipe(RequestResolver.setDelay(BATCH_DELAY))
+
+      const mediaResolver = RequestResolver.make<AniListMediaRequest>(
+        Effect.fnUntraced(function* (entries) {
+          for (const group of chunk([...entries], MAX_ALIASES)) {
+            const variables: Record<string, number> = {}
+            group.forEach((entry, index) => {
+              variables[`m${index}`] = entry.request.idMal
+            })
+            const data = (yield* transport.graphql(aliasMediaQuery(group.length), variables)) as Record<
+              string,
+              AniListMedia | null
+            > | null
+            group.forEach((entry, index) => {
+              entry.completeUnsafe(Exit.succeed(data?.[`a${index}`] ?? null))
+            })
+          }
+        }),
+      ).pipe(RequestResolver.setDelay(BATCH_DELAY))
+
+      const searchCache = yield* Cache.make<string, AniListSearchMedia[]>({
+        capacity: CACHE_CAPACITY,
+        lookup: key => Effect.request(new AniListSearchRequest({ search: key }), searchResolver),
+        timeToLive: SEARCH_TTL,
       })
-      if (res.status === 429) {
-        const retryAfter = Number(res.headers.get('retry-after')) || 5
-        blockedUntil = Date.now() + retryAfter * 1000
-        continue
+
+      const mediaCache = yield* Cache.make<number, AniListMedia | null>({
+        capacity: CACHE_CAPACITY,
+        lookup: idMal => Effect.request(new AniListMediaRequest({ idMal }), mediaResolver),
+        timeToLive: MEDIA_TTL,
+      })
+
+      const search = (query: string) => {
+        const key = query.trim().toLowerCase()
+        return key ? Cache.get(searchCache, key) : Effect.succeed<AniListSearchMedia[]>([])
       }
-      if (!res.ok) {
-        warn(`[anilist] ${res.status} ${res.statusText}`)
-        return null
-      }
-      const body = (await res.json()) as { data?: T }
-      return body.data ?? null
-    } catch (error) {
-      const message = error instanceof Error ? error.message : error
-      warn('[anilist] fetch error', { error: String(message) })
-      if (typeof message === 'string' && message.includes('Too many subrequests')) return null
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
-  }
-  return null
+
+      const media = (idMal: number) => Cache.get(mediaCache, idMal)
+
+      const mediaById = (id: number) =>
+        transport
+          .graphql(`query ($id: Int) {\n  Media(id: $id, type: ANIME) {${ALIAS_MEDIA_FIELDS}\n  }\n}`, { id })
+          .pipe(Effect.map(data => (data as { Media?: AniListMedia } | null)?.Media ?? null))
+
+      return AniList.of({ search, media, mediaById })
+    }),
+  )
+
+  static readonly live: Layer.Layer<AniList> = Layer.provide(AniList.layer, AniListTransportLive)
 }
 
-export async function fetchAniListSearch(search: string): Promise<AniListSearchMedia[]> {
-  const data = await graphql<{ Page?: { media?: AniListSearchMedia[] } }>(SEARCH_QUERY, { search })
-  return data?.Page?.media ?? []
-}
+const anilistRuntime = ManagedRuntime.make(AniList.live)
 
-export async function fetchAniListMedia(idMal: number): Promise<AniListMedia | null> {
-  const data = await graphql<{ Media?: AniListMedia }>(MEDIA_QUERY, { idMal })
-  return data?.Media ?? null
+export function runAniList<A>(effect: Effect.Effect<A, never, AniList>): Promise<A> {
+  return anilistRuntime.runPromise(effect)
 }

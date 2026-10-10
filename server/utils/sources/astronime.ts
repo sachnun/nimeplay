@@ -1,12 +1,15 @@
 import * as cheerio from 'cheerio/slim'
+import { Effect, Result } from 'effect'
 import { proxyFetch } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
+import { runGuarded } from '../net/rate'
 import { getSpoofHeaders } from '../net/spoof'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
 
 const BASE_URL = 'https://astronime.id'
 const TIMEOUT_MS = 12000
+const PLAYER_TIMEOUT_MS = 8000
 
 const TITLE_CLEANUP: TitleCleanupRule[] = [/\s*Sub(title)?\s*Indo(nesia)?/gi]
 
@@ -108,15 +111,25 @@ interface ServerOption {
 
 async function resolvePlayer(option: ServerOption): Promise<string | null> {
   const body = `action=player_ajax&post=${encodeURIComponent(option.post)}&nume=${encodeURIComponent(option.nume)}&type=${encodeURIComponent(option.type)}`
+  const result = await Effect.runPromise(
+    Effect.result(
+      runGuarded({
+        url: BASE_URL,
+        task: signal =>
+          proxyFetch(`${BASE_URL}/wp-admin/admin-ajax.php`, {
+            method: 'POST',
+            headers: { ...getSpoofHeaders(BASE_URL, 'cors'), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+            signal,
+          }),
+        timeoutMs: PLAYER_TIMEOUT_MS,
+        status: response => response.status,
+      }),
+    ),
+  )
+  if (Result.isFailure(result)) return null
   try {
-    const res = await proxyFetch(`${BASE_URL}/wp-admin/admin-ajax.php`, {
-      method: 'POST',
-      headers: { ...getSpoofHeaders(BASE_URL, 'cors'), 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) return null
-    const html = await res.text()
+    const html = await result.success.text()
     return html.match(/src=['"]([^'"]+)['"]/)?.[1] ?? null
   } catch {
     return null

@@ -1,20 +1,25 @@
+import { Effect, HashMap, Option, Ref } from 'effect'
 import { eq, sql } from 'drizzle-orm'
 import { appState } from '../../../database/schema'
 import { db } from '../../db'
 
 const SYNC_STALE_MS = 4 * 60 * 1000
 
-const syncStartedAt = new Map<string, number>()
+const syncStartedAt = Ref.makeUnsafe(HashMap.empty<string, number>())
 
 export function acquireSync(name: string): boolean {
-  const startedAt = syncStartedAt.get(name)
-  if (startedAt !== undefined && Date.now() - startedAt < SYNC_STALE_MS) return false
-  syncStartedAt.set(name, Date.now())
-  return true
+  const now = Date.now()
+  return Effect.runSync(
+    Ref.modify(syncStartedAt, map => {
+      const previous = HashMap.get(map, name)
+      if (Option.isSome(previous) && now - previous.value < SYNC_STALE_MS) return [false, map]
+      return [true, HashMap.set(map, name, now)]
+    }),
+  )
 }
 
 export function releaseSync(name: string): void {
-  syncStartedAt.delete(name)
+  Effect.runSync(Ref.update(syncStartedAt, map => HashMap.remove(map, name)))
 }
 
 export async function getAppState(key: string): Promise<string | null> {

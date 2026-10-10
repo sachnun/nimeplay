@@ -1,3 +1,4 @@
+import { Cache, Duration, Effect } from 'effect'
 import { titleSimilarity } from './fuzzy'
 import { seasonNumber } from './season'
 import {
@@ -17,6 +18,8 @@ const MIN_SCORE = 0.86
 const MIN_MARGIN = 0.03
 const NON_SERIES_TYPES = new Set(['OVA', 'ONA', 'SPECIAL', 'MUSIC'])
 const NON_SERIES_PATTERN = /\b(ova|ona|special|music)\b/i
+const LOOKUP_TTL = Duration.hours(6)
+const LOOKUP_CAPACITY = 50_000
 
 interface OfflineEntry {
   malId: number
@@ -37,7 +40,7 @@ interface OfflineMatch {
   score: number
 }
 
-let loading: Promise<OfflineIndex | null> | null = null
+let indexPromise: Promise<OfflineIndex | null> | null = null
 
 function malIdFromSources(sources: string[]): number | null {
   const match = sources.map(source => source.match(/myanimelist\.net\/anime\/(\d+)/)?.[1]).find(Boolean)
@@ -89,8 +92,8 @@ async function buildIndex(): Promise<OfflineIndex | null> {
 }
 
 export function loadOfflineIndex(): Promise<OfflineIndex | null> {
-  if (!loading) loading = buildIndex()
-  return loading
+  if (!indexPromise) indexPromise = buildIndex()
+  return indexPromise
 }
 
 function seasonsCompatible(querySeason: number | null, candidateSeason: number | null): boolean {
@@ -165,11 +168,9 @@ function bestMatch(
   return best ? { entryIndex: best.entryIndex, score: best.score, second } : null
 }
 
-export async function offlineLookup(query: string): Promise<OfflineMatch | null> {
+function lookup(index: OfflineIndex, query: string): OfflineMatch | null {
   const title = query.trim()
   if (!title) return null
-  const index = await loadOfflineIndex()
-  if (!index) return null
 
   const queries = bracketVariants(title)
   const { exact, candidates } = collectCandidates(index, queries)
@@ -182,4 +183,22 @@ export async function offlineLookup(query: string): Promise<OfflineMatch | null>
   if (!best || best.score < MIN_SCORE || best.score - best.second < MIN_MARGIN) return null
   const entry = index.entries[best.entryIndex]!
   return { malId: entry.malId, title: entry.title, score: best.score }
+}
+
+const lookupCache = Effect.runSync(
+  Cache.make<string, OfflineMatch | null>({
+    capacity: LOOKUP_CAPACITY,
+    lookup: title =>
+      Effect.promise(async () => {
+        const index = await loadOfflineIndex()
+        return index ? lookup(index, title) : null
+      }),
+    timeToLive: LOOKUP_TTL,
+  }),
+)
+
+export function offlineLookup(query: string): Promise<OfflineMatch | null> {
+  const title = query.trim()
+  if (!title) return Promise.resolve(null)
+  return Effect.runPromise(Cache.get(lookupCache, title))
 }

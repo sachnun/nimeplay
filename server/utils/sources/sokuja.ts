@@ -1,6 +1,8 @@
 import * as cheerio from 'cheerio/slim'
+import { Effect, Result } from 'effect'
 import { proxyFetch, proxyUrl } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
+import { runGuarded } from '../net/rate'
 import { getSpoofHeaders } from '../net/spoof'
 import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
@@ -8,6 +10,7 @@ import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAni
 const ENTRY_URL = 'https://sokuja.net'
 const CANONICAL_URL = 'https://x6.sokuja.uk'
 const TIMEOUT_MS = 12000
+const MIRROR_TIMEOUT_MS = 8000
 
 let basePromise: Promise<string> | null = null
 
@@ -162,10 +165,19 @@ interface MirrorApiEntry {
 
 async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> {
   const url = `${await baseUrl()}/api/video-mirrors/?e=${episodeId}`
+  const result = await Effect.runPromise(
+    Effect.result(
+      runGuarded({
+        url,
+        task: signal => proxyFetch(url, { headers: getSpoofHeaders(url, 'cors'), signal }),
+        timeoutMs: MIRROR_TIMEOUT_MS,
+        status: response => response.status,
+      }),
+    ),
+  )
+  if (Result.isFailure(result)) return []
   try {
-    const res = await proxyFetch(url, { headers: getSpoofHeaders(url, 'cors'), signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return []
-    const data = (await res.json()) as { mirrors?: MirrorApiEntry[] }
+    const data = (await result.success.json()) as { mirrors?: MirrorApiEntry[] }
     const grouped = new Map<string, { name: string; dataContent: string }[]>()
     for (const mirror of data.mirrors ?? []) {
       if (!mirror.embedUrl) continue

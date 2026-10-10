@@ -1,3 +1,4 @@
+import { Effect, HashMap, Option, Ref } from 'effect'
 import type { JobRow } from '../../database/schema'
 import { splitSource } from './index'
 
@@ -9,15 +10,10 @@ interface GuardState {
   openUntil: number
 }
 
-const states = new Map<string, GuardState>()
+const states = Ref.makeUnsafe(HashMap.empty<string, GuardState>())
 
-function get(id: string): GuardState {
-  let state = states.get(id)
-  if (!state) {
-    state = { failures: 0, openUntil: 0 }
-    states.set(id, state)
-  }
-  return state
+function run<A>(effect: Effect.Effect<A>): A {
+  return Effect.runSync(effect)
 }
 
 export function sourceOf(job: JobRow): string | null {
@@ -29,22 +25,37 @@ export function sourceOf(job: JobRow): string | null {
 
 export function blockedSources(): string[] {
   const now = Date.now()
-  return [...states.entries()].filter(([, state]) => state.openUntil > now).map(([id]) => id)
+  return run(
+    Ref.get(states).pipe(
+      Effect.map(map =>
+        [...map].filter(([, state]) => state.openUntil > now).map(([id]) => id),
+      ),
+    ),
+  )
 }
 
 export function recordSuccess(id: string | null): void {
   if (!id) return
-  const state = get(id)
-  state.failures = 0
-  state.openUntil = 0
+  run(Ref.update(states, map => HashMap.set(map, id, { failures: 0, openUntil: 0 })))
 }
 
 export function recordFailure(id: string | null): boolean {
   if (!id) return false
-  const state = get(id)
-  if (state.openUntil > Date.now()) return false
-  if (++state.failures < BREAKER_THRESHOLD) return false
-  state.failures = 0
-  state.openUntil = Date.now() + BREAKER_OPEN_MS
-  return true
+  const now = Date.now()
+  return run(
+    Ref.modify(states, map => {
+      const previous = HashMap.get(map, id)
+      const state = Option.isSome(previous) ? previous.value : { failures: 0, openUntil: 0 }
+      if (state.openUntil > now) return [false, map]
+      const failures = state.failures + 1
+      if (failures < BREAKER_THRESHOLD) {
+        return [false, HashMap.set(map, id, { failures, openUntil: 0 })]
+      }
+      return [true, HashMap.set(map, id, { failures: 0, openUntil: now + BREAKER_OPEN_MS })]
+    }),
+  )
+}
+
+export function resetSources(): void {
+  run(Ref.set(states, HashMap.empty<string, GuardState>()))
 }

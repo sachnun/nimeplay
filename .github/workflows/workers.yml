@@ -29,28 +29,10 @@ jobs:
     environment: workers
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - id: schema
-        run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          files=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null || echo "")
-          if [ -z "$files" ] || printf '%s\n' "$files" | grep -qE '^(drizzle/|drizzle\.config\.ts)'; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.schema.outputs.changed == 'true'
-        run: bun run db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - run: bun test
       - run: bun run build
       - run: bunx wrangler deploy

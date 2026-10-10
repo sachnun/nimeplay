@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { animePageSchema, episodeSchema, genrePageSchema, malIdSchema, searchSchema } from './schemas'
+import { animePageSchema, episodeInfoSchema, episodeStreamSchema, genrePageSchema, malIdSchema, searchSchema } from './schemas'
 
 describe('searchSchema', () => {
   test('accepts a query with and without a genre', () => {
@@ -55,22 +55,29 @@ describe('malIdSchema', () => {
   })
 })
 
-describe('episodeSchema', () => {
-  test('defaults stream to true and keeps optional picks absent', () => {
-    expect(episodeSchema.parse({ malId: 1, episodeNumber: 3 })).toEqual({
-      malId: 1,
-      episodeNumber: 3,
-      stream: true,
-    })
-  })
-
-  test('accepts server and quality overrides', () => {
-    const parsed = episodeSchema.parse({ malId: 1, episodeNumber: 3, server: 'mega', quality: '720p', stream: false })
-    expect(parsed).toEqual({ malId: 1, episodeNumber: 3, server: 'mega', quality: '720p', stream: false })
+describe('episodeInfoSchema', () => {
+  test('accepts a positive mal id and episode number', () => {
+    expect(episodeInfoSchema.parse({ malId: 1, episodeNumber: 3 })).toEqual({ malId: 1, episodeNumber: 3 })
   })
 
   test('rejects non positive ids and episodes', () => {
-    expect(episodeSchema.safeParse({ malId: 0, episodeNumber: 1 }).success).toBe(false)
-    expect(episodeSchema.safeParse({ malId: 1, episodeNumber: 0 }).success).toBe(false)
+    expect(episodeInfoSchema.safeParse({ malId: 0, episodeNumber: 1 }).success).toBe(false)
+    expect(episodeInfoSchema.safeParse({ malId: 1, episodeNumber: 0 }).success).toBe(false)
+  })
+})
+
+describe('episodeStreamSchema', () => {
+  test('keeps optional picks absent', () => {
+    expect(episodeStreamSchema.parse({ malId: 1, episodeNumber: 3 })).toEqual({ malId: 1, episodeNumber: 3 })
+  })
+
+  test('accepts server and quality overrides', () => {
+    const parsed = episodeStreamSchema.parse({ malId: 1, episodeNumber: 3, server: 'mega', quality: '720p' })
+    expect(parsed).toEqual({ malId: 1, episodeNumber: 3, server: 'mega', quality: '720p' })
+  })
+
+  test('rejects non positive ids and episodes', () => {
+    expect(episodeStreamSchema.safeParse({ malId: 0, episodeNumber: 1 }).success).toBe(false)
+    expect(episodeStreamSchema.safeParse({ malId: 1, episodeNumber: 0 }).success).toBe(false)
   })
 })

@@ -12,24 +12,16 @@ export interface EpisodeStream {
   server: string
 }
 
-export interface EpisodeData {
+export interface EpisodeMeta {
   title: string
   thumbnail: string
   sources: EpisodeSource[]
-  stream: EpisodeStream | null
 }
 
-export interface EpisodeMetaData {
+export interface EpisodeInfo {
   anime: { malId: number; title: string; thumbnail: string }
   episodeNumber: number
-  episodeTitle: string
-  episodes: number[]
-}
-
-export interface EpisodePageData {
-  anime: { malId: number; title: string; thumbnail: string }
-  episodeNumber: number
-  episode: EpisodeData
+  episode: EpisodeMeta
   episodes: number[]
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { EpisodeData } from '#lib/types'
+  import type { EpisodeMeta } from '#lib/types'
   import { createEpisodePlayer } from '#lib/player/episode-player.svelte'
   import { goto } from '$app/navigation'
   import { onMount } from 'svelte'
@@ -18,7 +18,7 @@
   }: {
     malId: number
     episodeNumber: number
-    episode: EpisodeData
+    episode: EpisodeMeta
     episodes: number[]
     animeTitle: string
     animeThumbnail: string

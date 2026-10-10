@@ -1,5 +1,5 @@
 import { qualityRank, sourcePriority } from '#lib/shared/utils/mirror'
-import type { EpisodeData, EpisodeSource, MirrorCandidate } from '#lib/types'
+import type { EpisodeMeta, EpisodeSource, MirrorCandidate } from '#lib/types'
 
 const QUALITY_BITRATE: Record<string, number> = {
   '1080p': 5_000_000,
@@ -53,7 +53,7 @@ export function buildFallbackOrder(
   )
 }
 
-export function findDefaultMirror(episode: EpisodeData): MirrorCandidate | null {
+export function findDefaultMirror(episode: Pick<EpisodeMeta, 'sources'>): MirrorCandidate | null {
   return buildFallbackOrder(episode.sources, '720p')[0] ?? null
 }
 

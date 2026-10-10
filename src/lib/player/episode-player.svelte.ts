@@ -1,6 +1,6 @@
 import type Hls from 'hls.js'
-import type { EpisodeData, EpisodePageData, MirrorCandidate, SkipTime } from '#lib/types'
-import { loadEpisode } from '#lib/remote/episode.remote'
+import type { EpisodeInfo, EpisodeMeta, EpisodeStream, MirrorCandidate, SkipTime } from '#lib/types'
+import { loadEpisodeInfo, loadEpisodeStream } from '#lib/remote/episode.remote'
 import { loadHls } from './hls'
 import {
   bufferedEndAt,
@@ -24,7 +24,7 @@ import {
 export interface EpisodePlayerProps {
   malId: number
   episodeNumber: number
-  episode: EpisodeData
+  episode: EpisodeMeta
   episodes: number[]
   animeTitle: string
   animeThumbnail: string
@@ -133,10 +133,11 @@ function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof 
 }
 
 export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNavigate: (url: string) => void) {
-  let episode = $state<EpisodeData>({ ...getProps().episode })
+  let episode = $state<EpisodeMeta>({ ...getProps().episode })
   let currentEpisodeNum = $state(getProps().episodeNumber)
   let directUrl = $state<string | null>(null)
   let directKind = $state<'hls' | 'file' | null>(null)
+  let resolvedStream: EpisodeStream | null = null
   let activeQuality = $state('720p')
   let resolving = $state(true)
   let videoLoading = $state(true)
@@ -450,18 +451,19 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   async function prepareCandidate(candidate: MirrorCandidate) {
-    const cached = episode.stream
+    const cached = resolvedStream
     if (cached && cached.server === candidate.server && cached.quality === candidate.quality) {
       return { prepared: cached }
     }
     try {
-      const response = await loadEpisode({
+      const stream = await loadEpisodeStream({
         malId: getProps().malId,
         episodeNumber: currentEpisodeNum,
         server: candidate.server,
         quality: candidate.quality,
       })
-      return { prepared: response.episode.stream }
+      if (stream) resolvedStream = stream
+      return { prepared: stream }
     } catch {
       return null
     }
@@ -1279,11 +1281,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
 
   function loadEpisodeSource() {
     if (typeof window === 'undefined') return
-    const stream = episode.stream
-    const def =
-      (stream && { server: stream.server, quality: stream.quality }) ??
-      qualityLevels[0] ??
-      findDefaultMirror(episode)
+    const def = findDefaultMirror(episode) ?? qualityLevels[0]
     if (!def) {
       resolving = false
       return
@@ -1310,6 +1308,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     directKind = null
     autoPlayOnLoad = shouldAutoPlay
     resumeTime = 0
+    resolvedStream = null
     detachVideoSource()
     const video = videoRef
     if (video) {
@@ -1317,9 +1316,9 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       video.removeAttribute('src')
       video.load()
     }
-    let data: EpisodePageData | null = null
+    let data: EpisodeInfo | null = null
     try {
-      data = await loadEpisode({ malId: getProps().malId, episodeNumber: epNum })
+      data = await loadEpisodeInfo({ malId: getProps().malId, episodeNumber: epNum })
     } catch {
       resolving = false
       return
@@ -1331,10 +1330,10 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     episode.title = data.episode.title
     episode.thumbnail = data.episode.thumbnail
     episode.sources = data.episode.sources
-    episode.stream = data.episode.stream
     currentEpisodeNum = data.episodeNumber
     window.history.replaceState(null, '', `/anime/${getProps().malId}/${data.episodeNumber}`)
     document.title = `${data.episode.title} - Nimeplay`
+    loadEpisodeSource()
   }
 
   function navigateEpisode(epNum: number) {

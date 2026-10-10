@@ -17,10 +17,14 @@ export const genrePageSchema = z.object({
 
 export const malIdSchema = z.object({ malId: z.number().int().min(0) })
 
-export const episodeSchema = z.object({
+export const episodeInfoSchema = z.object({
+  malId: z.number().int().positive(),
+  episodeNumber: z.number().int().positive(),
+})
+
+export const episodeStreamSchema = z.object({
   malId: z.number().int().positive(),
   episodeNumber: z.number().int().positive(),
   server: z.string().optional(),
   quality: z.string().optional(),
-  stream: z.boolean().default(true),
 })

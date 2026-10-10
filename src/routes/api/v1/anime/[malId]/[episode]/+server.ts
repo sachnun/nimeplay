@@ -2,51 +2,9 @@ import { Effect } from 'effect'
 import { error, json } from '@sveltejs/kit'
 import { getEpisodeNumbers, resolveEpisode } from '#lib/server/utils/db/queries/episodes'
 import { loadEpisodeData } from '#lib/server/utils/db/episode-cache'
-import { prepareMirror, selectDefaultCandidate } from '#lib/server/utils/media/prepare'
+import { resolveStreamFromMirrors } from '#lib/server/utils/media/stream-resolve'
 import { runApp } from '#lib/server/utils/runtime'
 import type { RequestHandler } from './$types'
-
-interface EpisodeCandidate {
-  dataContent: string
-  quality: string
-  name: string
-}
-
-function orderCandidates(
-  candidates: EpisodeCandidate[],
-  mirrors: Parameters<typeof selectDefaultCandidate>[0],
-  preferredServer: string,
-  preferredQuality: string,
-): EpisodeCandidate[] {
-  const requested =
-    preferredServer || preferredQuality
-      ? candidates.find(
-          candidate =>
-            (!preferredServer || candidate.name.toLowerCase() === preferredServer) &&
-            (!preferredQuality || candidate.quality === preferredQuality),
-        )
-      : undefined
-  if (requested) return [requested]
-  const best = selectDefaultCandidate(mirrors)
-  const match = best && candidates.find(candidate => candidate.dataContent === best.dataContent)
-  if (!match) return candidates
-  return [match, ...candidates.filter(candidate => candidate.dataContent !== match.dataContent)]
-}
-
-function resolveFirstStream(order: EpisodeCandidate[], enabled: boolean) {
-  return Effect.gen(function* () {
-    if (!enabled) return null
-    for (const candidate of order.slice(0, 3)) {
-      const result = yield* prepareMirror(candidate.dataContent).pipe(
-        Effect.catch(() => Effect.succeed({ playUrl: null, kind: null, ok: false })),
-      )
-      if (result.ok && result.playUrl && result.kind) {
-        return { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
-      }
-    }
-    return null
-  })
-}
 
 export const GET: RequestHandler = async ({ params, url }) => {
   const malId = Number(params.malId)
@@ -76,11 +34,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
   const servers = scraped.mirrors.flatMap(mirror =>
     mirror.sources.map(source => ({ server: source.name, quality: mirror.quality })),
   )
-  const candidates: EpisodeCandidate[] = scraped.mirrors.flatMap(mirror =>
-    mirror.sources.map(source => ({ dataContent: source.dataContent, quality: mirror.quality, name: source.name })),
-  )
-  const ordered = orderCandidates(candidates, scraped.mirrors, preferredServer, preferredQuality)
-  const stream = await runApp(resolveFirstStream(ordered, resolveStream))
+  const stream = resolveStream
+    ? await runApp(resolveStreamFromMirrors(scraped.mirrors, preferredServer, preferredQuality))
+    : null
 
   return json({
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },

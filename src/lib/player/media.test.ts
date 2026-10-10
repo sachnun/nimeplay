@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { EpisodeData, EpisodeSource } from '#lib/types'
+import type { EpisodeMeta, EpisodeSource } from '#lib/types'
 import {
   bufferedEndAt,
   buildFallbackOrder,
@@ -120,12 +120,12 @@ describe('listQualityLevels', () => {
 
 describe('findDefaultMirror', () => {
   test('prefers 720p then falls back', () => {
-    const episode = { sources } as unknown as EpisodeData
+    const episode = { sources } as unknown as EpisodeMeta
     expect(findDefaultMirror(episode)).toEqual({ server: 'mega', quality: '720p' })
   })
 
   test('returns null when there are no sources', () => {
-    expect(findDefaultMirror({ sources: [] } as unknown as EpisodeData)).toBeNull()
+    expect(findDefaultMirror({ sources: [] } as unknown as EpisodeMeta)).toBeNull()
   })
 })
 

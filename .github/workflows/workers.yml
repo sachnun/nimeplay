@@ -7,6 +7,7 @@ on:
       - app/**
       - server/**
       - shared/**
+      - scripts/**
       - public/**
       - nuxt.config.ts
       - tsconfig.json
@@ -51,6 +52,8 @@ jobs:
         run: bun run db:migrate
         env:
           NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - run: bun run lint
+      - run: bun run typecheck
       - run: bun run test
       - run: bun run build
       - run: bunx wrangler deploy

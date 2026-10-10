@@ -1,7 +1,7 @@
 import type Hls from 'hls.js'
 import type { EpisodeData, EpisodePageData, MirrorCandidate, SkipTime } from '#lib/types'
 import { loadEpisode } from '#lib/remote/episode.remote'
-import { loadHls, preloadHls } from './hls'
+import { loadHls } from './hls'
 import {
   bufferedEndAt,
   buildFallbackOrder,
@@ -559,7 +559,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
-    if (typeof window !== 'undefined') void preloadHls()
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1
@@ -1390,19 +1389,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     void setAutoSkip(autoSkip)
   }
 
-  function prefetchNextEpisode() {
-    const target = nextEpisode
-    if (!target || typeof window === 'undefined') return
-    const run = () => {
-      loadEpisode({ malId: getProps().malId, episodeNumber: target.num, stream: false }).catch(() => {})
-    }
-    if ('requestIdleCallback' in window)
-      (
-        window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void }
-      ).requestIdleCallback(run, { timeout: 2000 })
-    else setTimeout(run, 1500)
-  }
-
   function onFullscreenChange() {
     isFullscreen = !!document.fullscreenElement
     if (isFullscreen) resetIdle()
@@ -1435,9 +1421,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     void getAutoSkip().then(val => {
       autoSkip = val
     })
-    void preloadHls()
     startQuality()
-    prefetchNextEpisode()
     const video = videoRef
     if (video) registerVideoEvents(video)
     document.addEventListener('fullscreenchange', onFullscreenChange)

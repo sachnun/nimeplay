@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { loadEpisode } from '#lib/remote/episode.remote'
-  import { preloadHls } from '#lib/player/hls'
   import { getEpisodeStatusMap, progressKey } from '#lib/storage'
   import { onMount } from 'svelte'
 
@@ -8,8 +6,6 @@
 
   let episodeStatuses = $state<Record<string, import('#lib/types').WatchProgressStatus>>({})
   const reversedEpisodes = $derived(episodes.toReversed())
-  const prefetched = new Set<number>()
-  let hlsPreloaded = false
 
   async function refreshEpisodeStatuses() {
     episodeStatuses = await getEpisodeStatusMap(malId)
@@ -17,18 +13,6 @@
 
   function onVisibility() {
     if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
-  }
-
-  function prefetchEpisode(number: number) {
-    if (prefetched.has(number)) return
-    prefetched.add(number)
-    loadEpisode({ malId, episodeNumber: number, stream: false }).catch(() => {
-      prefetched.delete(number)
-    })
-    if (!hlsPreloaded) {
-      hlsPreloaded = true
-      void preloadHls()
-    }
   }
 
   function episodeClass(number: number) {
@@ -40,7 +24,6 @@
 
   $effect(() => {
     void malId
-    prefetched.clear()
     void refreshEpisodeStatuses()
   })
 
@@ -62,9 +45,6 @@
         <a
           href={`/anime/${malId}/${number}`}
           class="relative text-sm py-2 rounded text-center transition-colors {episodeClass(number)}"
-          onmouseenter={() => prefetchEpisode(number)}
-          onfocus={() => prefetchEpisode(number)}
-          ontouchstart={() => prefetchEpisode(number)}
         >
           {number}
         </a>

@@ -67,7 +67,7 @@ function ctrCounter(key: Uint8Array, blockIndex: number): Uint8Array {
   counter.set(key.subarray(16, 24), 0)
   let carry = blockIndex
   for (let i = BLOCK - 1; i >= 0 && carry > 0; i--) {
-    const sum = counter[i]! + (carry % 256)
+    const sum = (counter[i] ?? 0) + (carry % 256)
     counter[i] = sum % 256
     carry = Math.floor(carry / 256) + Math.floor(sum / 256)
   }
@@ -92,7 +92,7 @@ export async function streamMega(target: string, megaKey: string, range?: string
   if (key.length < 32) throw new Error('Invalid mega key')
 
   const aesKey = new Uint8Array(16)
-  for (let i = 0; i < 16; i++) aesKey[i] = key[i]! ^ key[16 + i]!
+  for (let i = 0; i < 16; i++) aesKey[i] = (key[i] ?? 0) ^ (key[16 + i] ?? 0)
 
   const { start, end } = parseRange(range)
   const hasRange = !!range

@@ -60,7 +60,7 @@ export function parseEpisodeDate(raw: string, now: number = Date.now()): Date | 
   const match = value.match(/^(\d{1,2})\s+([A-Za-z]+),?\s*(\d{4})?$/)
   if (!match) return null
   const day = Number(match[1])
-  const month = ID_MONTHS[match[2]!.toLowerCase().slice(0, 3)]
+  const month = ID_MONTHS[(match[2] ?? '').toLowerCase().slice(0, 3)]
   if (month === undefined || day < 1 || day > 31) return null
   let year = match[3] ? Number(match[3]) : new Date(now).getUTCFullYear()
   if (!match[3] && month > new Date(now).getUTCMonth() + 1) year -= 1

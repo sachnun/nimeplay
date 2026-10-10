@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { cleanTitleWithRules, keepSeriesEpisodes, parseEpisodeDate } from './shared'
 
+function dateOf(value: Date | null): number {
+  if (!value) throw new Error('expected a date')
+  return value.getTime()
+}
+
 describe('cleanTitleWithRules', () => {
   test('removes matches for regexp rules', () => {
     expect(cleanTitleWithRules('Naruto Sub Indo', [/Sub Indo/gi])).toBe('Naruto')
@@ -25,7 +30,7 @@ describe('parseEpisodeDate', () => {
     const yesterday = parseEpisodeDate('Kemarin')
     expect(today).toBeInstanceOf(Date)
     expect(yesterday).toBeInstanceOf(Date)
-    expect(today!.getTime() - yesterday!.getTime()).toBeCloseTo(86_400_000, -4)
+    expect(dateOf(today) - dateOf(yesterday)).toBeCloseTo(86_400_000, -4)
   })
 
   test('handles relative amounts and units', () => {
@@ -33,8 +38,8 @@ describe('parseEpisodeDate', () => {
     const twoHours = parseEpisodeDate('2 jam lalu')
     expect(fiveDays).toBeInstanceOf(Date)
     expect(twoHours).toBeInstanceOf(Date)
-    expect(Date.now() - fiveDays!.getTime()).toBeCloseTo(5 * 86_400_000, -5)
-    expect(Date.now() - twoHours!.getTime()).toBeCloseTo(2 * 3_600_000, -5)
+    expect(Date.now() - dateOf(fiveDays)).toBeCloseTo(5 * 86_400_000, -5)
+    expect(Date.now() - dateOf(twoHours)).toBeCloseTo(2 * 3_600_000, -5)
   })
 
   test('parses absolute dates in indonesian months', () => {

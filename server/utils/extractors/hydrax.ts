@@ -100,10 +100,11 @@ function hostFor(media: HydraxMedia, sub: string): string {
 }
 
 async function soraUrl(datas: HydraxDatas, media: HydraxMedia, source: HydraxSource): Promise<string | null> {
+  if (!source.sub) return null
   const key = hexKey(numberKeyBytes(String(source.size)))
   const path = `/mp4/${datas.md5_id}/${source.res_id}/${source.size}?v=${datas.slug}`
   const token = doubleBase64(await aesCtr(key, new TextEncoder().encode(path), 'encrypt'))
-  return asHttpUrl(`https://${hostFor(media, source.sub!)}/sora/${source.size}/${token}`)
+  return asHttpUrl(`https://${hostFor(media, source.sub)}/sora/${source.size}/${token}`)
 }
 
 async function followToFinal(url: string): Promise<string | null> {

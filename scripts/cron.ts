@@ -11,7 +11,10 @@ import { AppLayer } from '../server/utils/runtime'
 
 const POOL_MAX = 32
 
-const client = new SQL({ url: process.env.NUXT_DATABASE_URL!, max: POOL_MAX })
+const databaseUrl = process.env.NUXT_DATABASE_URL
+if (!databaseUrl) throw new Error('NUXT_DATABASE_URL is not set')
+
+const client = new SQL({ url: databaseUrl, max: POOL_MAX })
 setNodeDatabase(drizzle({ client, schema }))
 enableProxy()
 

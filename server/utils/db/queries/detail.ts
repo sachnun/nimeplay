@@ -64,7 +64,7 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
     .from(anime)
     .where(and(eq(anime.malId, malId), CATALOG_READY))
     .limit(1)
-  return row ? { ...row, malId: row.malId! } : null
+  return row ? { ...row, malId: row.malId } : null
 }
 
 export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {

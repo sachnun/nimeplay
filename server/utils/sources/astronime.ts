@@ -28,7 +28,7 @@ function seriesSlugFromHref(href: string): string {
 
 function episodeSlugFromHref(href: string): string {
   const match = href.match(/astronime\.id\/([^/?#]+)\/?$/)
-  return match ? decode(match[1]!) : ''
+  return match ? decode(match[1] ?? '') : ''
 }
 
 function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {

@@ -235,7 +235,10 @@ function columnsFor(shape: Shape): number[] {
 
 function simulateMove(shape: Shape, col: number, land: number): boolean[][] {
   const sim = grid.value.map(r => [...r])
-  for (const [dr, dc] of shape) sim[land + dr]![col + dc] = true
+  for (const [dr, dc] of shape) {
+    const row = sim[land + dr]
+    if (row) row[col + dc] = true
+  }
   return sim
 }
 

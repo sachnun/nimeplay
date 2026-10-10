@@ -244,7 +244,7 @@ function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
   return Effect.gen(function* () {
     const match = slug.match(/^episode-\d+-(\d+)$/)
     if (!match) return null
-    const channelId = match[1]!
+    const channelId = match[1] ?? ''
 
     const data = yield* postEndpoint<EpisodeResponse>('get_post_description', {
       channel_id: channelId,

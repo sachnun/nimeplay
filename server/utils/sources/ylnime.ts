@@ -119,7 +119,7 @@ function parseStreams($: cheerio.CheerioAPI): YlnimeStream[] {
   const match = raw.match(/const streams = (\[[\s\S]*?\]);/)
   if (!match) return []
   try {
-    return JSON.parse(match[1]!) as YlnimeStream[]
+    return JSON.parse(match[1] ?? '[]') as YlnimeStream[]
   } catch {
     return []
   }

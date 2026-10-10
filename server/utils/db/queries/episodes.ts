@@ -25,7 +25,8 @@ export async function resolveEpisode(
 
   if (rows.length === 0) return null
   rows.sort((a, b) => sourceRank(a.source) - sourceRank(b.source))
-  const first = rows[0]!
+  const first = rows[0]
+  if (!first) return null
   return {
     animeId: first.animeId,
     anime: { title: first.title, thumbnail: posterSrc(first.posterKey) },

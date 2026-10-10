@@ -65,12 +65,14 @@ const pendingEpisodeNum = computed(() => Number(episodeParam.value) || metaData.
 const pendingPrev = computed(() => {
   const list = metaData.value?.episodes ?? []
   const idx = list.indexOf(pendingEpisodeNum.value)
-  return idx > 0 ? { num: list[idx - 1]! } : null
+  const prev = idx > 0 ? list[idx - 1] : undefined
+  return prev !== undefined ? { num: prev } : null
 })
 const pendingNext = computed(() => {
   const list = metaData.value?.episodes ?? []
   const idx = list.indexOf(pendingEpisodeNum.value)
-  return idx !== -1 && idx < list.length - 1 ? { num: list[idx + 1]! } : null
+  const next = idx !== -1 && idx < list.length - 1 ? list[idx + 1] : undefined
+  return next !== undefined ? { num: next } : null
 })
 
 function pendingNavigate(epNum: number) {

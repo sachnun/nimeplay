@@ -177,7 +177,8 @@ export async function upsertCanonicalAnime(mal: MalAnime): Promise<number> {
           : values,
     })
     .returning({ id: anime.id })
-  const animeId = row!.id
+  const animeId = row?.id
+  if (animeId === undefined) throw new Error('anime upsert returned no row')
 
   const characterRows = mal.characters.map((c, index) => ({
     animeId,

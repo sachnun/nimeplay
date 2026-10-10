@@ -1,4 +1,4 @@
-import { Cache, Context, Duration, Effect, Exit, Layer, Request, RequestResolver } from 'effect'
+import { Cache, Context, Duration, Effect, Exit, Layer, Request, RequestResolver, Result } from 'effect'
 import { ManagedRuntime } from 'effect'
 import { proxyFetch } from '../media/proxy'
 import { runGuarded, retryAfterMs } from '../net/rate'
@@ -88,7 +88,7 @@ export const AniListTransportLive = Layer.succeed(
             retryAfter: retryAfterMs,
           }),
         )
-        if (result._tag === 'Failure') {
+        if (Result.isFailure(result)) {
           yield* Effect.logWarning('[anilist] request failed', {
             error: result.failure.message,
             status: result.failure.status,

@@ -72,7 +72,7 @@ export async function getGenreAnimePage(
   }
 
   const cards: GenreAnimeCard[] = rows.map(row => ({
-    malId: row.malId!,
+    malId: row.malId,
     title: row.title,
     thumbnail: posterSrc(row.posterKey),
     studio: '',
@@ -82,5 +82,5 @@ export async function getGenreAnimePage(
     date: formatSeason(row.season, row.year),
   }))
 
-  return { anime: cards, totalPages: Math.max(1, Math.ceil(rows[0]!.total / PAGE_SIZE)) }
+  return { anime: cards, totalPages: Math.max(1, Math.ceil((rows[0]?.total ?? 0) / PAGE_SIZE)) }
 }

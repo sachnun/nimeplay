@@ -1,4 +1,4 @@
-import { Clock, Effect, Schema } from 'effect'
+import { Clock, Effect, Result, Schema } from 'effect'
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
@@ -89,7 +89,7 @@ function processJob(job: JobRow): Effect.Effect<void, never, Http | AniList> {
       }),
     )
     const ms = (yield* Clock.currentTimeMillis) - startedAt
-    if (failure._tag === 'Success') {
+    if (Result.isSuccess(failure)) {
       ok(`[job] ok ${label}`, { type: job.type, ms })
       return
     }

@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio/slim'
-import { Effect } from 'effect'
+import { Effect, Result } from 'effect'
 import { sealStreamToken } from '../media/stream'
 import { Http } from '../net/http'
 import { cleanTitleWithRules, type TitleCleanupRule } from './shared'
@@ -221,7 +221,7 @@ function resolveMirror(opaque: string): SourceEffect<string | null> {
         return cheerio.load(html)('iframe').attr('src') || ''
       }),
     )
-    return result._tag === 'Success' ? result.success : null
+    return Result.isSuccess(result) ? result.success : null
   })
 }
 

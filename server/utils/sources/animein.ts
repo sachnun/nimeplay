@@ -185,9 +185,9 @@ function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
   return Effect.gen(function* () {
     const match = slug.match(/^(\d+)-episode-(\d+)-(\d+)$/)
     if (!match) return null
-    const movieId = match[1]!
-    const index = match[2]!
-    const episodeId = match[3]!
+    const movieId = match[1] ?? ''
+    const index = match[2] ?? ''
+    const episodeId = match[3] ?? ''
 
     const data = yield* apiGet<{ episode?: AnimeinEpisode; server?: AnimeinServer[] }>(
       `/3/2/episode/streamnew/${encodeURIComponent(episodeId)}`,

@@ -50,19 +50,25 @@ export function jaroWinkler(a: string, b: string, prefixScale = 0.1, maxPrefix =
 function damerauLevenshtein(a: string, b: string): number {
   const rows = a.length + 1
   const cols = b.length + 1
-  const d: number[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0))
-  for (let i = 0; i < rows; i++) d[i]![0] = i
-  for (let j = 0; j < cols; j++) d[0]![j] = j
+  const d: number[][] = Array.from({ length: rows }, () => Array.from<number>({ length: cols }).fill(0))
+  const at = (i: number, j: number): number => d[i]?.[j] ?? 0
+  const set = (i: number, j: number, value: number): void => {
+    const row = d[i]
+    if (row) row[j] = value
+  }
+  for (let i = 0; i < rows; i++) set(i, 0, i)
+  for (let j = 0; j < cols; j++) set(0, j, j)
   for (let i = 1; i < rows; i++) {
     for (let j = 1; j < cols; j++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + cost)
+      let value = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost)
       if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-        d[i]![j] = Math.min(d[i]![j]!, d[i - 2]![j - 2]! + 1)
+        value = Math.min(value, at(i - 2, j - 2) + 1)
       }
+      set(i, j, value)
     }
   }
-  return d[a.length]![b.length]!
+  return at(a.length, b.length)
 }
 
 function normalizedDamerau(a: string, b: string): number {

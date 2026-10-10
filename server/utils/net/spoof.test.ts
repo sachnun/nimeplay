@@ -31,9 +31,9 @@ describe('getSpoofHeaders', () => {
       expect(a).toBeLessThanOrEqual(223)
       expect(a).not.toBe(10)
       expect(a).not.toBe(127)
-      expect(a === 172 && b! >= 16 && b! <= 31).toBe(false)
+      expect(a === 172 && (b ?? -1) >= 16 && (b ?? -1) <= 31).toBe(false)
       expect(a === 192 && b === 168).toBe(false)
-      expect(a === 100 && b! >= 64 && b! <= 127).toBe(false)
+      expect(a === 100 && (b ?? -1) >= 64 && (b ?? -1) <= 127).toBe(false)
       expect(a === 169 && b === 254).toBe(false)
     }
   })

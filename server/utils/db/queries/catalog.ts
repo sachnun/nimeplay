@@ -50,7 +50,7 @@ export async function listAnimePage(
 
   return {
     anime: rows.map(row => ({
-      malId: row.malId!,
+      malId: row.malId,
       title: row.title,
       thumbnail: posterSrc(row.posterKey),
       episode: row.maxEpisode ? `Episode ${row.maxEpisode}` : '',
@@ -58,6 +58,6 @@ export async function listAnimePage(
       date: formatSeason(row.season, row.year),
       rating: row.rating != null ? String(row.rating) : undefined,
     })),
-    totalPages: Math.max(1, Math.ceil(rows[0]!.total / PAGE_SIZE)),
+    totalPages: Math.max(1, Math.ceil((rows[0]?.total ?? 0) / PAGE_SIZE)),
   }
 }

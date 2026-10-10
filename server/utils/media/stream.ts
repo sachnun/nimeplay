@@ -27,7 +27,7 @@ const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678
 function toBase64Url(bytes: Uint8Array): string {
   let out = ''
   for (let i = 0; i < bytes.length; i += 3) {
-    const b0 = bytes[i]!
+    const b0 = bytes[i] ?? 0
     const b1 = bytes[i + 1]
     const b2 = bytes[i + 2]
     out += BASE64URL[b0 >> 2]

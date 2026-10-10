@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { Effect, Fiber, Ref } from 'effect'
+import { Effect, Exit, Fiber, Ref } from 'effect'
 import { TestClock } from 'effect/testing'
 import { netStats, runGuarded } from './rate'
 
@@ -7,6 +7,10 @@ function fakeResponse(status: number, retryAfter?: string): Response {
   const headers = new Headers()
   if (retryAfter) headers.set('retry-after', retryAfter)
   return new Response('', { status, headers })
+}
+
+async function failing(): Promise<Response> {
+  return fakeResponse(503)
 }
 
 describe('runGuarded', () => {
@@ -42,7 +46,7 @@ describe('runGuarded', () => {
       return yield* Fiber.join(fiber)
     }).pipe(Effect.provide(TestClock.layer()))
     const exit = await Effect.runPromise(program)
-    expect(exit._tag).toBe('Failure')
+    expect(Exit.isFailure(exit)).toBe(true)
     expect(calls).toBe(3)
     const stats = await Effect.runPromise(netStats())
     expect(stats.retries).toBeGreaterThan(0)
@@ -62,7 +66,7 @@ describe('runGuarded', () => {
         status: response => (response.status === 404 ? null : response.status),
       }),
     )
-    expect(exit._tag).toBe('Success')
+    expect(Exit.isSuccess(exit)).toBe(true)
     expect(calls).toBe(1)
   })
 
@@ -87,7 +91,7 @@ describe('runGuarded', () => {
       return yield* Fiber.join(fiber)
     }).pipe(Effect.provide(TestClock.layer()))
     const exit = await Effect.runPromise(program)
-    expect(exit._tag).toBe('Failure')
+    expect(Exit.isFailure(exit)).toBe(true)
     expect(calls).toBe(3)
   })
 
@@ -107,9 +111,9 @@ describe('runGuarded', () => {
     const exit = await Effect.runPromiseExit(
       runGuarded({ url: `${host}/b`, task, timeoutMs: 1000, status: r => r.status, attempts: 1 }),
     )
-    expect(exit._tag).toBe('Failure')
+    expect(Exit.isFailure(exit)).toBe(true)
     expect(calls).toBe(before)
-    if (exit._tag === 'Failure') {
+    if (Exit.isFailure(exit)) {
       expect(String(exit.cause)).toContain('circuit open')
     }
   })
@@ -126,7 +130,7 @@ describe('runGuarded', () => {
       const current = await Effect.runPromise(Ref.get(active))
       await Effect.runPromise(Ref.update(peak, value => Math.max(value, current)))
       await new Promise(resolve => setTimeout(resolve, 30))
-      await Effect.runPromise(Ref.update(active, current => current - 1))
+      await Effect.runPromise(Ref.update(active, value => value - 1))
       return fakeResponse(200)
     }
     const urls = Array.from({ length: 6 }, (_, i) => `https://limit.test/${i}`)
@@ -161,12 +165,11 @@ describe('runGuarded', () => {
       return yield* Fiber.join(fiber)
     }).pipe(Effect.provide(TestClock.layer()))
     const exit = await Effect.runPromise(program)
-    expect(exit._tag).toBe('Failure')
+    expect(Exit.isFailure(exit)).toBe(true)
     expect(calls).toBe(3)
   })
 
   test('keeps separate breakers per host', async () => {
-    const failing = async () => fakeResponse(503)
     for (let i = 0; i < 6; i++) {
       await Effect.runPromiseExit(
         runGuarded({ url: 'https://host-a.test/a', task: failing, timeoutMs: 1000, status: r => r.status, attempts: 1 }),
@@ -192,7 +195,7 @@ describe('runGuarded', () => {
       ),
     )
     const exit = await Effect.runPromise(Fiber.await(fiber))
-    expect(exit._tag).toBe('Success')
+    expect(Exit.isSuccess(exit)).toBe(true)
   })
 })
 
@@ -218,7 +221,7 @@ describe('runGuarded with TestClock', () => {
     }).pipe(Effect.provide(TestClock.layer()))
 
     const exit = await Effect.runPromise(program)
-    expect(exit._tag).toBe('Failure')
+    expect(Exit.isFailure(exit)).toBe(true)
     expect(calls).toBe(3)
   })
 

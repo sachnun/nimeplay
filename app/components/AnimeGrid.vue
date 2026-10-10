@@ -114,8 +114,14 @@ async function loadPrimaryPage() {
 
 async function loadNextPage() {
   const nextPage = gridState.value.nextSize + 1
+  const nextPageType = props.nextPageType
   const data =
-    nextPage === 1 && props.nextInitialData ? props.nextInitialData : await fetchPage(props.nextPageType!, nextPage)
+    nextPage === 1 && props.nextInitialData
+      ? props.nextInitialData
+      : nextPageType
+        ? await fetchPage(nextPageType, nextPage)
+        : null
+  if (!data) return
   gridState.value.nextPages.push(data)
   gridState.value.nextSize = nextPage
 }

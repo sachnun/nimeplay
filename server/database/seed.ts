@@ -6,7 +6,10 @@ import { refreshSearchDoc } from '../utils/jobs/refresh/persist'
 import * as schema from './schema'
 import { anime, animeGenres, animeSources, characters, episodes, genres } from './schema'
 
-const client = new SQL({ url: process.env.NUXT_DATABASE_URL!, max: 4 })
+const databaseUrl = process.env.NUXT_DATABASE_URL
+if (!databaseUrl) throw new Error('NUXT_DATABASE_URL is not set')
+
+const client = new SQL({ url: databaseUrl, max: 4 })
 setNodeDatabase(drizzle({ client, schema }))
 
 const PREFIX = 'seed:'
@@ -53,7 +56,9 @@ function int(min: number, max: number): number {
 }
 
 function pick<T>(items: readonly T[]): T {
-  return items[Math.floor(rand() * items.length)]!
+  const item = items[Math.floor(rand() * items.length)]
+  if (item === undefined) throw new Error('pick from empty list')
+  return item
 }
 
 function pickMany<T>(items: readonly T[], min: number, max: number): T[] {
@@ -61,7 +66,8 @@ function pickMany<T>(items: readonly T[], min: number, max: number): T[] {
   const pool = [...items]
   const picked: T[] = []
   while (picked.length < count && pool.length > 0) {
-    picked.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]!)
+    const [item] = pool.splice(Math.floor(rand() * pool.length), 1)
+    if (item !== undefined) picked.push(item)
   }
   return picked
 }
@@ -386,7 +392,8 @@ async function seed(): Promise<void> {
       })
       .onConflictDoUpdate({ target: [animeSources.source, animeSources.slug], set: { animeId } })
       .returning({ id: animeSources.id })
-    const sourceId = storedSource!.id
+    const sourceId = storedSource?.id
+    if (sourceId === undefined) throw new Error('seed source insert returned no row')
 
     await dbClient.delete(animeGenres).where(eq(animeGenres.animeId, animeId))
     const links = entry.genres

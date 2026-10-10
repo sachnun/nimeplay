@@ -56,13 +56,17 @@ export function seasonNumber(title: string): number | null {
   const trailingNumber = /\s(\d{1,2})$/.exec(lower.trim())
   if (trailingNumber) return Number(trailingNumber[1])
   const roman = /\b(ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii)\b/.exec(lower)
-  if (roman?.[1] !== undefined && roman[1] in ROMAN_SEASONS) return ROMAN_SEASONS[roman[1]]!
+  const romanValue = roman?.[1] !== undefined ? ROMAN_SEASONS[roman[1]] : undefined
+  if (romanValue !== undefined) return romanValue
   const word = /\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b/.exec(lower)
-  if (word?.[1] !== undefined && word[1] in WORD_SEASONS) return WORD_SEASONS[word[1]]!
+  const wordValue = word?.[1] !== undefined ? WORD_SEASONS[word[1]] : undefined
+  if (wordValue !== undefined) return wordValue
   const sono = /sono\s+(ichi|ni|san|yon|shi|go|roku|nana|shichi|hachi|kyuu|ku|juu)\b/.exec(lower)
-  if (sono?.[1] !== undefined && sono[1] in JP_SEASONS) return JP_SEASONS[sono[1]]!
+  const sonoValue = sono?.[1] !== undefined ? JP_SEASONS[sono[1]] : undefined
+  if (sonoValue !== undefined) return sonoValue
   const shou = /\b(ichi|ni|san|yon|shi|go|roku|nana|shichi|hachi|kyuu|ku|juu)\s+no\s+(shou|hen|ki|maku)\b/.exec(lower)
-  if (shou?.[1] !== undefined && shou[1] in JP_SEASONS) return JP_SEASONS[shou[1]]!
+  const shouValue = shou?.[1] !== undefined ? JP_SEASONS[shou[1]] : undefined
+  if (shouValue !== undefined) return shouValue
   return null
 }
 

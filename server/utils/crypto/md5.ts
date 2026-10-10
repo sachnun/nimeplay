@@ -46,11 +46,11 @@ export function md5Hex(input: Uint8Array): string {
         f = c ^ (b | ~d)
         g = (7 * i) % 16
       }
-      f = (f + a + CONSTANTS[i]! + words[g]!) >>> 0
+      f = (f + a + (CONSTANTS[i] ?? 0) + (words[g] ?? 0)) >>> 0
       a = d
       d = c
       c = b
-      const shift = SHIFTS[i]!
+      const shift = SHIFTS[i] ?? 0
       b = (b + ((f << shift) | (f >>> (32 - shift)))) >>> 0
     }
     a0 = (a0 + a) >>> 0

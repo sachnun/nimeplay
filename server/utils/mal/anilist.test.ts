@@ -53,7 +53,7 @@ describe('AniList batching', () => {
 
     const recorded = await Effect.runPromise(Ref.get(calls))
     expect(recorded.length).toBe(1)
-    expect(Object.keys(recorded[0]!.variables).length).toBe(4)
+    expect(Object.keys(recorded[0]?.variables ?? {}).length).toBe(4)
     expect(results.map(r => r[0]?.title.romaji)).toEqual([
       'title-naruto',
       'title-bleach',
@@ -73,7 +73,7 @@ describe('AniList batching', () => {
 
     const recorded = await Effect.runPromise(Ref.get(calls))
     expect(recorded.length).toBe(1)
-    expect(Object.values(recorded[0]!.variables).map(String).toSorted()).toEqual(['bleach', 'naruto'])
+    expect(Object.values(recorded[0]?.variables ?? {}).map(String).toSorted()).toEqual(['bleach', 'naruto'])
   })
 
   test('normalizes the search key before caching', async () => {
@@ -87,7 +87,7 @@ describe('AniList batching', () => {
 
     const recorded = await Effect.runPromise(Ref.get(calls))
     expect(recorded.length).toBe(1)
-    expect(Object.values(recorded[0]!.variables)).toEqual(['naruto'])
+    expect(Object.values(recorded[0]?.variables ?? {})).toEqual(['naruto'])
   })
 
   test('splits large batches at the alias limit', async () => {

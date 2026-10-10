@@ -26,8 +26,8 @@ function video(currentTime: number, ranges: [number, number][]): HTMLVideoElemen
     currentTime,
     buffered: {
       length: ranges.length,
-      start: (index: number) => ranges[index]![0],
-      end: (index: number) => ranges[index]![1],
+      start: (index: number) => ranges[index]?.[0] ?? 0,
+      end: (index: number) => ranges[index]?.[1] ?? 0,
     },
   } as unknown as HTMLVideoElement
 }

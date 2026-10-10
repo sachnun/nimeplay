@@ -69,7 +69,13 @@ export function getSpoofHeaders(referer?: string, context: SpoofContext = 'navig
       : '*/*'
 
   if (referer) {
-    const nonLatin1 = [...referer].some(char => (char.codePointAt(0) ?? 0) > 0xff)
+    let nonLatin1 = false
+    for (const char of referer) {
+      if ((char.codePointAt(0) ?? 0) > 0xff) {
+        nonLatin1 = true
+        break
+      }
+    }
     headers.Referer = nonLatin1 ? encodeURI(referer) : referer
   }
 

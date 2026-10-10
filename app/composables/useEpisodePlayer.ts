@@ -9,7 +9,7 @@ interface EpisodePlayerProps {
   animeThumbnail: string
 }
 
-function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
+function clearAnyTimer(timer: ReturnType<typeof setTimeout> | null) {
   if (timer) clearTimeout(timer)
 }
 
@@ -304,8 +304,8 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   }
 
   function navigateEpisode(epNum: number) {
-    if (isFullscreen.value) loadEpisodeInPlace(epNum, !!videoRef.value && !videoRef.value.paused)
-    else router.replace(`/anime/${props.malId}/${epNum}`)
+    if (isFullscreen.value) void loadEpisodeInPlace(epNum, !!videoRef.value && !videoRef.value.paused)
+    else void router.replace(`/anime/${props.malId}/${epNum}`)
   }
 
   function cancelAutoNext() {
@@ -328,7 +328,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     cancelAutoNext()
     if (!nextEpisode.value) return
     if (isFullscreen.value) void loadEpisodeInPlace(nextEpisode.value.num, true)
-    else router.replace(`/anime/${props.malId}/${nextEpisode.value.num}`)
+    else void router.replace(`/anime/${props.malId}/${nextEpisode.value.num}`)
   }
 
   function togglePlay() {
@@ -538,10 +538,10 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
   onMounted(() => {
     isTouchDevice.value =
       window.matchMedia('(hover: none) and (pointer: coarse)').matches || navigator.maxTouchPoints > 0
-    getAutoSkip().then(val => {
+    void getAutoSkip().then(val => {
       autoSkip.value = val
     })
-    preloadHls()
+    void preloadHls()
     startQuality()
     prefetchNextEpisode()
     const video = videoRef.value
@@ -555,7 +555,7 @@ export function useEpisodePlayer(props: EpisodePlayerProps) {
     mediaSession.installHandlers({ videoRef, seekRelative, prevEpisode, nextEpisode, navigateEpisode })
 
     onBeforeUnmount(() => {
-      progressStore.doSaveProgress()
+      void progressStore.doSaveProgress()
       const current = videoRef.value
       if (current) {
         try {

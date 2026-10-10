@@ -140,7 +140,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
     fallbackFn = () => {
       if (fallbackRunning || !isCurrentSession(sessionId)) return
       fallbackRunning = true
-      ;(async () => {
+      void (async () => {
         try {
           resetForFallbackAttempt(seamless)
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
@@ -155,7 +155,7 @@ export function useEpisodePlayerResolution(options: EpisodePlayerResolutionOptio
   }
 
   async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
-    if (import.meta.client) preloadHls()
+    if (import.meta.client) void preloadHls()
     const sessionId = startPlaybackResolution(seamless)
     const candidates = fallbackCandidates(startCandidate, manual)
     let fallbackIdx = 1

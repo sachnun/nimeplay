@@ -158,7 +158,7 @@ export async function removeAnimeProgress(malId: number): Promise<void> {
   const db = await getDb()
   const keys = await db.getAllKeys('progress')
   const prefix = `${malId}:`
-  await Promise.all(keys.filter(key => String(key).startsWith(prefix)).map(key => db.delete('progress', key)))
+  await Promise.all(keys.filter(key => typeof key === 'string' && key.startsWith(prefix)).map(key => db.delete('progress', key)))
 }
 
 export async function clearAllProgress(): Promise<void> {

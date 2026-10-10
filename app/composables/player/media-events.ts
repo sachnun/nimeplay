@@ -54,7 +54,7 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
     if (!options.canMarkWatched() || playTimer) return
     playTimer = setInterval(() => {
       playSeconds += 1
-      if (playSeconds >= 10) options.doMark()
+      if (playSeconds >= 10) void options.doMark()
     }, 1000)
   }
 
@@ -68,7 +68,7 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
   function onPause() {
     options.isPlaying.value = false
     options.videoLoading.value = false
-    options.doSaveProgress()
+    void options.doSaveProgress()
     clearPlaybackTimers()
   }
 
@@ -78,9 +78,9 @@ export function useEpisodePlayerMediaEvents(options: EpisodePlayerMediaEventOpti
 
   function onEnded() {
     options.isPlaying.value = false
-    options.doSaveProgress()
-    options.doMark()
-    options.saveNextEpisodeResume()
+    void options.doSaveProgress()
+    void options.doMark()
+    void options.saveNextEpisodeResume()
     clearPlaybackTimers()
     if (options.isFullscreen.value && options.nextEpisode.value) options.startAutoNextCountdown()
   }

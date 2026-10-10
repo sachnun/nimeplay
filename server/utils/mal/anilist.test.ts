@@ -135,6 +135,22 @@ describe('AniList batching', () => {
     expect(results.map(r => r?.title.romaji)).toEqual(['mal-20', 'mal-269', 'mal-21'])
   })
 
+  test('splits media batches below the anilist complexity limit', async () => {
+    const { layer, calls } = makeLayer(() => ({}))
+    const ids = Array.from({ length: 25 }, (_, index) => index + 1)
+    await Effect.runPromise(
+      Effect.forEach(ids, id => Effect.flatMap(AniList, a => a.media(id)), {
+        concurrency: 'unbounded',
+        discard: true,
+      }).pipe(Effect.provide(layer)),
+    )
+    const recorded = await Effect.runPromise(Ref.get(calls))
+    const sizes = recorded.map(call => Object.keys(call.variables).length)
+    // 25 media aliases cost 46 complexity each, so anilist rejects anything above 10.
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(10)
+    expect(sizes.reduce((sum, n) => sum + n, 0)).toBe(25)
+  })
+
   test('returns null media when the transport reports a miss', async () => {
     const { layer } = makeLayer(() => ({ a0: null }))
     const result = await Effect.runPromise(Effect.flatMap(AniList, a => a.media(999)).pipe(Effect.provide(layer)))

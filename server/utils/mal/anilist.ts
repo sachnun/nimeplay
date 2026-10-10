@@ -9,7 +9,8 @@ const CACHE_CAPACITY = 10_000
 const SEARCH_TTL = Duration.hours(6)
 const MEDIA_TTL = Duration.hours(24)
 const BATCH_DELAY = '15 millis'
-const MAX_ALIASES = 25
+const MAX_SEARCH_ALIASES = 25
+const MAX_MEDIA_ALIASES = 10
 
 export interface TitleNames {
   romaji?: string | null
@@ -185,7 +186,7 @@ export class AniList extends Context.Service<AniList, AniListShape>()('app/AniLi
 
       const searchResolver = RequestResolver.make<AniListSearchRequest>(
         Effect.fnUntraced(function* (entries) {
-          for (const group of chunk([...entries], MAX_ALIASES)) {
+          for (const group of chunk([...entries], MAX_SEARCH_ALIASES)) {
             const variables: Record<string, string> = {}
             group.forEach((entry, index) => {
               variables[`s${index}`] = entry.request.search
@@ -203,7 +204,7 @@ export class AniList extends Context.Service<AniList, AniListShape>()('app/AniLi
 
       const mediaResolver = RequestResolver.make<AniListMediaRequest>(
         Effect.fnUntraced(function* (entries) {
-          for (const group of chunk([...entries], MAX_ALIASES)) {
+          for (const group of chunk([...entries], MAX_MEDIA_ALIASES)) {
             const variables: Record<string, number> = {}
             group.forEach((entry, index) => {
               variables[`m${index}`] = entry.request.idMal

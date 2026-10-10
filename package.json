@@ -2,15 +2,15 @@
   "name": "nimeplay",
   "type": "module",
   "private": true,
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.3",
   "scripts": {
     "build": "nuxt build",
     "dev": "bun --env-file=.env.local nuxt dev",
     "generate": "nuxt generate",
     "lint": "oxlint .",
-    "preview": "nuxt preview",
+    "check": "bun check",
     "test": "bun test",
-    "typecheck": "oxlint --type-aware --type-check .",
+    "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -41,7 +41,6 @@
     "@types/bun": "^1.4.2",
     "drizzle-kit": "^0.31.10",
     "oxlint": "1.87.0",
-    "oxlint-tsgolint": "^7.0.2003",
     "wrangler": "^4.131.1"
   }
 }

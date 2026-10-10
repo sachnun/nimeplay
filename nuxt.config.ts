@@ -1,4 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
+import type { PluginOption } from 'vite'
 
 const apiCors = {
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -103,6 +104,6 @@ export default defineNuxtConfig({
     },
   },
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss()] as PluginOption[],
   },
 })

@@ -6,22 +6,12 @@
   },
   "plugins": ["typescript", "unicorn", "oxc", "vue"],
   "rules": {
-    "no-unused-vars": "error",
     "typescript/no-explicit-any": "warn",
-    "typescript/no-non-null-assertion": "off",
+    "typescript/no-non-null-assertion": "error",
     "typescript/array-type": ["error", { "default": "array" }],
     "typescript/consistent-type-imports": ["error", { "disallowTypeAnnotations": false }],
-    "typescript/consistent-type-exports": "error",
     "unicorn/prefer-export-from": "error",
     "one-var": ["error", "never"]
   },
-  "ignorePatterns": [".nuxt", ".output", ".wrangler", "dist", "public", "drizzle"],
-  "overrides": [
-    {
-      "files": ["**/*.vue"],
-      "rules": {
-        "no-unused-vars": "off"
-      }
-    }
-  ]
+  "ignorePatterns": [".nuxt", ".output", ".wrangler", "dist", "public", "drizzle"]
 }

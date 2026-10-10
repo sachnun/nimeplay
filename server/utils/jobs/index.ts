@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
 import { ok, warn } from '../log'
+import type { AniList } from '../mal/anilist'
+import type { Http } from '../net/http'
 import { getSources } from '../sources'
 import { blockedSources, recordFailure, recordSuccess, sourceOf } from '../sources/guard'
 import { alert } from './alert'
@@ -26,15 +28,19 @@ function toJobFailure(error: unknown): JobFailure {
   return new JobFailure({ message: error instanceof Error ? error.message : String(error), cause: error })
 }
 
-function handle(job: JobRow): Effect.Effect<void, JobFailure> {
+function payloadString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function handle(job: JobRow): Effect.Effect<void, JobFailure, Http | AniList> {
   if (job.type === 'anime.refresh') {
-    return Effect.tryPromise({ try: () => refreshSourceBySlug(String(job.payload.slug ?? '')), catch: toJobFailure })
+    return refreshSourceBySlug(payloadString(job.payload.slug)).pipe(Effect.mapError(toJobFailure))
   }
   if (job.type === 'catalog.ongoing') {
-    return Effect.tryPromise({ try: () => runOngoingSync(), catch: toJobFailure })
+    return runOngoingSync().pipe(Effect.mapError(toJobFailure))
   }
   if (job.type === 'catalog.backfill') {
-    return Effect.tryPromise({ try: () => runBackfill(String(job.payload.sourceId ?? '')), catch: toJobFailure })
+    return runBackfill(payloadString(job.payload.sourceId)).pipe(Effect.mapError(toJobFailure))
   }
   return Effect.fail(new JobFailure({ message: `unknown job type: ${job.type}` }))
 }
@@ -70,9 +76,9 @@ async function seedRefreshJobs(createdSince: Date): Promise<void> {
   `)
 }
 
-function processJob(job: JobRow): Effect.Effect<void> {
+function processJob(job: JobRow): Effect.Effect<void, never, Http | AniList> {
   const sourceId = sourceOf(job)
-  const label = String(job.payload.slug ?? job.payload.sourceId ?? job.type)
+  const label = payloadString(job.payload.slug) || payloadString(job.payload.sourceId) || job.type
   const startedAt = Date.now()
   const run = Effect.gen(function* () {
     yield* handle(job)
@@ -95,25 +101,27 @@ function processJob(job: JobRow): Effect.Effect<void> {
   )
 }
 
-async function drain(types: string[] = TASK_TYPES): Promise<void> {
-  while (true) {
-    const claimed = await claim(worker, BATCH, types, blockedSources())
-    if (claimed.length === 0) return
-    await Effect.runPromise(Effect.forEach(claimed, processJob, { concurrency: JOB_CONCURRENCY, discard: true }))
-  }
+function drain(types: string[] = TASK_TYPES): Effect.Effect<void, never, Http | AniList> {
+  return Effect.gen(function* () {
+    while (true) {
+      const claimed = yield* Effect.promise(() => claim(worker, BATCH, types, blockedSources()))
+      if (claimed.length === 0) return
+      yield* Effect.forEach(claimed, processJob, { concurrency: JOB_CONCURRENCY, discard: true })
+    }
+  })
 }
 
-export async function runCatalog(): Promise<void> {
-  const startedAt = new Date()
-  await releaseStale(STALE_MS)
-  await prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS))
-  await runOngoingSync()
-  await Effect.runPromise(
-    Effect.forEach(getSources(), source => Effect.promise(() => runBackfill(source.id)), {
+export function runCatalog(): Effect.Effect<void, never, Http | AniList> {
+  return Effect.gen(function* () {
+    const startedAt = new Date()
+    yield* Effect.promise(() => releaseStale(STALE_MS))
+    yield* Effect.promise(() => prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS)))
+    yield* runOngoingSync()
+    yield* Effect.forEach(getSources(), source => runBackfill(source.id), {
       concurrency: 2,
       discard: true,
-    }),
-  )
-  await seedRefreshJobs(startedAt)
-  await drain()
+    })
+    yield* Effect.promise(() => seedRefreshJobs(startedAt))
+    yield* drain()
+  })
 }

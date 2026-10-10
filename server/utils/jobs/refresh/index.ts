@@ -1,3 +1,4 @@
+import { Cause, Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import type { AnimeSourceRow } from '../../../database/schema'
 import { anime, animeSources } from '../../../database/schema'
@@ -5,12 +6,15 @@ import { db } from '../../db'
 import { log, ok, warn } from '../../log'
 import { getSources, splitSource } from '../../sources'
 import { parseEpisodeDate } from '../../sources/shared'
+import type { AniList } from '../../mal/anilist'
+import type { Http } from '../../net/http'
 import type { AnimeSource, ScrapedAnimeDetail } from '../../sources/types'
 import { backfillCompleted, syncOngoingCatalog } from './catalog'
 import { getSourceRow, refreshCanonicalMetadata, syncAnimeAggregate, upsertEpisodes } from './persist'
 import { resolveSourceMetadata } from './resolve'
 import { acquireSync, releaseSync } from './state'
 import { episodeNumber } from './util'
+import type { NetError } from '../../net/rate'
 
 function normalizeStatus(raw: string): string {
   const value = raw.toLowerCase()
@@ -78,64 +82,77 @@ async function markNewEpisode(animeId: number, maxInDetail: number): Promise<voi
   }
 }
 
-async function syncLinked(
+function syncLinked(
   source: AnimeSource,
   sourceRow: AnimeSourceRow,
   detail: ScrapedAnimeDetail | null,
   maxInDetail: number,
-): Promise<void> {
-  const linkedAnimeId = sourceRow.animeId
-  if (!linkedAnimeId) {
-    const animeId = await resolveSourceMetadata(sourceRow, source, detail)
-    if (animeId) await syncAnimeAggregate(animeId)
-    return
-  }
-  if (!sourceRow.metadataSyncedAt) {
-    await refreshCanonicalMetadata(linkedAnimeId)
-    await db().update(animeSources).set({ metadataSyncedAt: new Date() }).where(eq(animeSources.id, sourceRow.id))
-  }
-  await markNewEpisode(linkedAnimeId, maxInDetail)
-  await syncAnimeAggregate(linkedAnimeId)
-}
-
-export async function refreshSourceBySlug(compositeSlug: string): Promise<void> {
-  const split = splitSource(compositeSlug)
-  if (!split) return
-  const sourceRow = await ensureSourceRow(split.source, split.rest)
-  if (!sourceRow) return
-
-  const detail = await split.source.detailFresh(split.rest)
-  const maxInDetail = await applyDetail(split.source, sourceRow, detail)
-  await syncLinked(split.source, sourceRow, detail, maxInDetail)
-
-  log(`[refresh] ${compositeSlug}`, {
-    status: detail ? normalizeStatus(detail.status) : 'no-detail',
-    episodes: detail?.episodes.length ?? 0,
-    maxEpisode: maxInDetail,
+): Effect.Effect<void, never, AniList> {
+  return Effect.gen(function* () {
+    const linkedAnimeId = sourceRow.animeId
+    if (!linkedAnimeId) {
+      const animeId = yield* resolveSourceMetadata(sourceRow, source, detail)
+      if (animeId) yield* Effect.promise(() => syncAnimeAggregate(animeId))
+      return
+    }
+    if (!sourceRow.metadataSyncedAt) {
+      yield* Effect.promise(() => refreshCanonicalMetadata(linkedAnimeId))
+      yield* Effect.promise(() =>
+        db().update(animeSources).set({ metadataSyncedAt: new Date() }).where(eq(animeSources.id, sourceRow.id)),
+      )
+    }
+    yield* Effect.promise(() => markNewEpisode(linkedAnimeId, maxInDetail))
+    yield* Effect.promise(() => syncAnimeAggregate(linkedAnimeId))
   })
 }
 
-export async function runOngoingSync(): Promise<void> {
-  if (!acquireSync('catalog')) return
-  try {
-    await syncOngoingCatalog()
-  } catch (error) {
-    warn('[ongoing] sync failed', { error: error instanceof Error ? error.message : String(error) })
-  } finally {
-    releaseSync('catalog')
-  }
+export function refreshSourceBySlug(compositeSlug: string): Effect.Effect<void, NetError, Http | AniList> {
+  return Effect.gen(function* () {
+    const split = splitSource(compositeSlug)
+    if (!split) return
+    const sourceRow = yield* Effect.promise(() => ensureSourceRow(split.source, split.rest))
+    if (!sourceRow) return
+
+    const detail = yield* split.source.detailFresh(split.rest)
+    const maxInDetail = yield* Effect.promise(() => applyDetail(split.source, sourceRow, detail))
+    yield* syncLinked(split.source, sourceRow, detail, maxInDetail)
+
+    yield* Effect.sync(() =>
+      log(`[refresh] ${compositeSlug}`, {
+        status: detail ? normalizeStatus(detail.status) : 'no-detail',
+        episodes: detail?.episodes.length ?? 0,
+        maxEpisode: maxInDetail,
+      }),
+    )
+  })
 }
 
-export async function runBackfill(sourceId: string): Promise<void> {
-  const source = getSources().find(item => item.id === sourceId)
-  if (!source) return
-  if (!acquireSync(`backfill:${sourceId}`)) return
-  try {
-    const result = await backfillCompleted(source)
-    if (result.registered > 0) ok(`[backfill] ${sourceId}: +${result.registered}`)
-  } catch (error) {
-    warn(`[backfill] ${sourceId} failed`, { error: error instanceof Error ? error.message : String(error) })
-  } finally {
-    releaseSync(`backfill:${sourceId}`)
-  }
+export function runOngoingSync(): Effect.Effect<void, never, Http> {
+  return Effect.gen(function* () {
+    if (!acquireSync('catalog')) return
+    yield* syncOngoingCatalog().pipe(
+      Effect.catchCause(cause =>
+        Effect.sync(() => warn('[ongoing] sync failed', { error: Cause.pretty(cause).slice(0, 300) })),
+      ),
+      Effect.ensuring(Effect.sync(() => releaseSync('catalog'))),
+    )
+  })
+}
+
+export function runBackfill(sourceId: string): Effect.Effect<void, never, Http> {
+  return Effect.gen(function* () {
+    const source = getSources().find(item => item.id === sourceId)
+    if (!source) return
+    if (!acquireSync(`backfill:${sourceId}`)) return
+    yield* backfillCompleted(source).pipe(
+      Effect.tap(result =>
+        result.registered > 0 ? Effect.sync(() => ok(`[backfill] ${sourceId}: +${result.registered}`)) : Effect.void,
+      ),
+      Effect.asVoid,
+      Effect.catchCause(cause =>
+        Effect.sync(() => warn(`[backfill] ${sourceId} failed`, { error: Cause.pretty(cause).slice(0, 300) })),
+      ),
+      Effect.ensuring(Effect.sync(() => releaseSync(`backfill:${sourceId}`))),
+    )
+  })
 }

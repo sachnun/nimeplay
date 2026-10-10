@@ -105,6 +105,22 @@ describe('AniList batching', () => {
     expect(recorded.map(call => Object.keys(call.variables).length)).toEqual([25, 25, 10])
   })
 
+  test('batches at the job concurrency used by the drain loop', async () => {
+    const { layer, calls } = makeLayer(searchHandler(() => ({ media: [] })))
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const api = yield* AniList
+        yield* Effect.forEach(Array.from({ length: 40 }, (_, i) => `job-${i}`), q => api.search(q), {
+          concurrency: 8,
+          discard: true,
+        })
+      }).pipe(Effect.provide(layer)),
+    )
+    const recorded = await Effect.runPromise(Ref.get(calls))
+    expect(recorded.length).toBeLessThan(40)
+    expect(recorded.length).toBeGreaterThanOrEqual(5)
+  })
+
   test('batches concurrent media lookups by mal id', async () => {
     const { layer, calls } = makeLayer(searchHandler(value => media(Number(value), `mal-${String(value)}`)))
 

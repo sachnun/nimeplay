@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { defineRouteMeta } from 'nitro'
 import { createError, defineEventHandler, getQuery, getRouterParam, type RequestEvent } from 'nuxt/server'
 
@@ -124,17 +125,19 @@ function orderCandidates(
   return [match, ...candidates.filter(candidate => candidate.dataContent !== match.dataContent)]
 }
 
-async function resolveFirstStream(order: EpisodeCandidate[], enabled: boolean) {
-  if (!enabled) return null
-  for (const candidate of order.slice(0, 3)) {
-    try {
-      const result = await prepareMirror(candidate.dataContent)
+function resolveFirstStream(order: EpisodeCandidate[], enabled: boolean) {
+  return Effect.gen(function* () {
+    if (!enabled) return null
+    for (const candidate of order.slice(0, 3)) {
+      const result = yield* prepareMirror(candidate.dataContent).pipe(
+        Effect.catch(() => Effect.succeed({ playUrl: null, kind: null, ok: false })),
+      )
       if (result.ok && result.playUrl && result.kind) {
         return { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
       }
-    } catch {}
-  }
-  return null
+    }
+    return null
+  })
 }
 
 export default defineEventHandler(async event => {
@@ -149,10 +152,15 @@ export default defineEventHandler(async event => {
   const resolved = await resolveEpisode(malId, episodeNumber)
   if (!resolved) throw createError({ status: 404, statusText: 'Episode not found' })
 
-  const [scraped, episodeNumbers] = await Promise.all([
-    loadEpisodeData(resolved.candidates.map(candidate => candidate.episodeSlug)),
-    getEpisodeNumbers(resolved.animeId),
-  ])
+  const [scraped, episodeNumbers] = await runApp(
+    Effect.all(
+      [
+        loadEpisodeData(resolved.candidates.map(candidate => candidate.episodeSlug)),
+        Effect.promise(() => getEpisodeNumbers(resolved.animeId)),
+      ],
+      { concurrency: 'unbounded' },
+    ),
+  )
   if (!scraped) throw createError({ status: 404, statusText: 'Episode unavailable' })
 
   const servers = scraped.mirrors.flatMap(mirror =>
@@ -166,7 +174,7 @@ export default defineEventHandler(async event => {
     })),
   )
   const ordered = orderCandidates(candidates, scraped.mirrors, preferredServer, preferredQuality)
-  const stream = await resolveFirstStream(ordered, resolveStream)
+  const stream = await runApp(resolveFirstStream(ordered, resolveStream))
 
   return {
     anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },

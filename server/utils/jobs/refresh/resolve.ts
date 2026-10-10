@@ -1,6 +1,8 @@
+import { Effect } from 'effect'
 import type { AnimeSourceRow } from '../../../database/schema'
 import { log, ok } from '../../log'
-import { fetchMalAnime, searchMalAnimeEntries } from '../../mal'
+import { fetchMalAnimeEffect, searchMalAnimeEntriesEffect } from '../../mal'
+import type { AniList } from '../../mal/anilist'
 import { rankMalAnimeMatches } from '../../mal/matching'
 import { offlineLookup } from '../../mal/offline'
 import { malSearchVariants, seasonNumber } from '../../mal/season'
@@ -21,40 +23,54 @@ function parseOdYear(value: string | null | undefined): number | null {
   return year >= 1990 && year <= 2100 ? year : null
 }
 
-async function linkViaOffline(sourceRow: AnimeSourceRow, slug: string, title: string): Promise<number | null> {
-  const offline = await offlineLookup(title)
-  if (!offline || offline.score < 0.9) return null
-  const mal = await fetchMalAnime(offline.malId, title)
-  if (!mal) return null
-  const animeId = await upsertCanonicalAnime(mal)
-  await linkSource(sourceRow.id, animeId)
-  ok(`[metadata] linked ${slug}`, {
-    malId: mal.malId,
-    title: mal.title,
-    via: 'offline',
-    score: Number(offline.score.toFixed(3)),
+function linkViaOffline(
+  sourceRow: AnimeSourceRow,
+  slug: string,
+  title: string,
+): Effect.Effect<number | null, never, AniList> {
+  return Effect.gen(function* () {
+    const offline = yield* Effect.promise(() => offlineLookup(title))
+    if (!offline || offline.score < 0.9) return null
+    const mal = yield* fetchMalAnimeEffect(offline.malId, title)
+    if (!mal) return null
+    const animeId = yield* Effect.promise(() => upsertCanonicalAnime(mal))
+    yield* Effect.promise(() => linkSource(sourceRow.id, animeId))
+    yield* Effect.sync(() =>
+      ok(`[metadata] linked ${slug}`, {
+        malId: mal.malId,
+        title: mal.title,
+        via: 'offline',
+        score: Number(offline.score.toFixed(3)),
+      }),
+    )
+    return animeId
   })
-  return animeId
 }
 
-async function collectMatches(title: string, japanese: string | undefined): Promise<MalSearchEntry[]> {
-  const merged = new Map<number, MalSearchEntry>()
-  const search = async (variants: string[]): Promise<void> => {
-    for (const variant of variants) {
-      const batch = await searchMalAnimeEntries(variant)
-      for (const entry of batch) {
-        if (!merged.has(entry.id)) merged.set(entry.id, entry)
-      }
-      if (merged.size > 0) break
+function collectMatches(
+  title: string,
+  japanese: string | undefined,
+): Effect.Effect<MalSearchEntry[], never, AniList> {
+  return Effect.gen(function* () {
+    const merged = new Map<number, MalSearchEntry>()
+    const search = (variants: string[]): Effect.Effect<void, never, AniList> =>
+      Effect.gen(function* () {
+        for (const variant of variants) {
+          const batch = yield* searchMalAnimeEntriesEffect(variant)
+          for (const entry of batch) {
+            if (!merged.has(entry.id)) merged.set(entry.id, entry)
+          }
+          if (merged.size > 0) break
+        }
+      })
+    yield* search(malSearchVariants(title))
+    let ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
+    if (ranked.length === 0 && japanese) {
+      yield* search(malSearchVariants(japanese))
+      ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
     }
-  }
-  await search(malSearchVariants(title))
-  let ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
-  if (ranked.length === 0 && japanese) {
-    await search(malSearchVariants(japanese))
-    ranked = rankMalAnimeMatches(title, [...merged.values()].slice(0, 15))
-  }
-  return ranked
+    return ranked
+  })
 }
 
 function seasonMismatch(
@@ -70,78 +86,97 @@ function seasonMismatch(
   return Math.abs(detailYear - malYear)
 }
 
-async function linkBestCandidate(
+function linkBestCandidate(
   sourceRow: AnimeSourceRow,
   slug: string,
   candidates: MalSearchEntry[],
   detailYear: number | null,
   title: string,
-): Promise<number | null> {
-  let yearFallback: { mal: MalAnime; diff: number } | null = null
-  for (const candidate of candidates.slice(0, 3)) {
-    const mal = await fetchMalAnime(candidate.id, candidate.title)
-    if (!mal) continue
-    const diff = seasonMismatch(title, candidate.title, detailYear, mal.year)
-    if (diff !== null) {
-      if (!yearFallback || diff < yearFallback.diff) yearFallback = { mal, diff }
-      continue
+): Effect.Effect<number | null, never, AniList> {
+  return Effect.gen(function* () {
+    let yearFallback: { mal: MalAnime; diff: number } | null = null
+    for (const candidate of candidates.slice(0, 3)) {
+      const mal = yield* fetchMalAnimeEffect(candidate.id, candidate.title)
+      if (!mal) continue
+      const diff = seasonMismatch(title, candidate.title, detailYear, mal.year)
+      if (diff !== null) {
+        if (!yearFallback || diff < yearFallback.diff) yearFallback = { mal, diff }
+        continue
+      }
+      const animeId = yield* Effect.promise(() => upsertCanonicalAnime(mal))
+      yield* Effect.promise(() => linkSource(sourceRow.id, animeId))
+      yield* Effect.sync(() => ok(`[metadata] linked ${slug}`, { malId: mal.malId, title: mal.title }))
+      return animeId
     }
-    const animeId = await upsertCanonicalAnime(mal)
-    await linkSource(sourceRow.id, animeId)
-    ok(`[metadata] linked ${slug}`, { malId: mal.malId, title: mal.title })
+    if (!yearFallback) return null
+    const fallback = yearFallback
+    const animeId = yield* Effect.promise(() => upsertCanonicalAnime(fallback.mal))
+    yield* Effect.promise(() => linkSource(sourceRow.id, animeId))
+    yield* Effect.sync(() =>
+      ok(`[metadata] linked ${slug}`, { malId: fallback.mal.malId, title: fallback.mal.title, via: 'year' }),
+    )
     return animeId
-  }
-  if (!yearFallback) return null
-  const animeId = await upsertCanonicalAnime(yearFallback.mal)
-  await linkSource(sourceRow.id, animeId)
-  ok(`[metadata] linked ${slug}`, { malId: yearFallback.mal.malId, title: yearFallback.mal.title, via: 'year' })
-  return animeId
+  })
 }
 
-export async function resolveSourceMetadata(
+export function resolveSourceMetadata(
   sourceRow: AnimeSourceRow,
   source: AnimeSource,
   detail: ScrapedAnimeDetail | null,
-): Promise<number | null> {
-  const slug = `${source.id}:${sourceRow.slug}`
-  const scraped = (detail?.title || '').trim()
-  const title = scraped || slugTitle(sourceRow.slug)
-  if (!title) {
-    await recordMetadataFailure(sourceRow.id, slug, 'no scraped title')
+): Effect.Effect<number | null, never, AniList> {
+  return Effect.gen(function* () {
+    const slug = `${source.id}:${sourceRow.slug}`
+    const scraped = (detail?.title || '').trim()
+    const title = scraped || slugTitle(sourceRow.slug)
+    if (!title) {
+      yield* Effect.promise(() => recordMetadataFailure(sourceRow.id, slug, 'no scraped title'))
+      return null
+    }
+    if (!scraped) yield* Effect.sync(() => log(`[metadata] slug fallback ${slug}`, { title }))
+
+    const offlineId = yield* linkViaOffline(sourceRow, slug, title)
+    if (offlineId) return offlineId
+
+    const existingAnimeId = yield* Effect.promise(() => findAnimeIdByTitle(title))
+    if (existingAnimeId) {
+      yield* Effect.promise(() => linkSource(sourceRow.id, existingAnimeId))
+      yield* Effect.sync(() => ok(`[metadata] linked ${slug}`, { animeId: existingAnimeId, via: 'db' }))
+      return existingAnimeId
+    }
+
+    const japanese = detail?.japanese
+    const ranked = yield* collectMatches(title, japanese)
+    if (ranked.length === 0) {
+      yield* Effect.sync(() => log(`[metadata] miss ${slug}`, { title, japanese: Boolean(japanese) }))
+      yield* Effect.promise(() => recordMetadataFailure(sourceRow.id, slug, `no MAL title matches "${title}"`))
+      return null
+    }
+
+    const episodeCount = detail?.episodes.length ?? 0
+    const candidates = ranked.filter(entry => !(entry.format === 'MOVIE' && episodeCount > 2))
+    if (candidates.length === 0) {
+      yield* Effect.sync(() =>
+        log(`[metadata] miss ${slug}`, { title, episodes: episodeCount, top: ranked[0]?.title }),
+      )
+      yield* Effect.promise(() =>
+        recordMetadataFailure(sourceRow.id, slug, `only movie candidates for ${episodeCount}-episode source "${title}"`),
+      )
+      return null
+    }
+    yield* Effect.sync(() =>
+      log(`[metadata] match ${slug}`, { title, ranked: ranked.length, top: candidates[0]?.title }),
+    )
+
+    const animeId = yield* linkBestCandidate(
+      sourceRow,
+      slug,
+      candidates,
+      parseOdYear(detail?.releaseDate ?? null),
+      title,
+    )
+    if (animeId) return animeId
+
+    yield* Effect.promise(() => recordMetadataFailure(sourceRow.id, slug, `no usable MAL candidate for "${title}"`))
     return null
-  }
-  if (!scraped) log(`[metadata] slug fallback ${slug}`, { title })
-
-  const offlineId = await linkViaOffline(sourceRow, slug, title)
-  if (offlineId) return offlineId
-
-  const existingAnimeId = await findAnimeIdByTitle(title)
-  if (existingAnimeId) {
-    await linkSource(sourceRow.id, existingAnimeId)
-    ok(`[metadata] linked ${slug}`, { animeId: existingAnimeId, via: 'db' })
-    return existingAnimeId
-  }
-
-  const japanese = detail?.japanese
-  const ranked = await collectMatches(title, japanese)
-  if (ranked.length === 0) {
-    log(`[metadata] miss ${slug}`, { title, japanese: Boolean(japanese) })
-    await recordMetadataFailure(sourceRow.id, slug, `no MAL title matches "${title}"`)
-    return null
-  }
-
-  const episodeCount = detail?.episodes.length ?? 0
-  const candidates = ranked.filter(entry => !(entry.format === 'MOVIE' && episodeCount > 2))
-  if (candidates.length === 0) {
-    log(`[metadata] miss ${slug}`, { title, episodes: episodeCount, top: ranked[0]?.title })
-    await recordMetadataFailure(sourceRow.id, slug, `only movie candidates for ${episodeCount}-episode source "${title}"`)
-    return null
-  }
-  log(`[metadata] match ${slug}`, { title, ranked: ranked.length, top: candidates[0]?.title })
-
-  const animeId = await linkBestCandidate(sourceRow, slug, candidates, parseOdYear(detail?.releaseDate ?? null), title)
-  if (animeId) return animeId
-
-  await recordMetadataFailure(sourceRow.id, slug, `no usable MAL candidate for "${title}"`)
-  return null
+  })
 }

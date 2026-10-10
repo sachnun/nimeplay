@@ -2,7 +2,6 @@ import { Effect } from 'effect'
 import { AniList, runAniList, type AniListMedia } from './anilist'
 import { decodeEntities, matchTitleOf, stripHtml, titleOf, titlesOf } from './matching'
 import { cleanSynopsis } from './synopsis'
-import type { MalAnime, MalCharacter, MalSearchEntry } from './types'
 
 function catalogStatus(raw: string | null | undefined): 'ONGOING' | 'COMPLETED' | null {
   if (!raw) return null
@@ -21,14 +20,16 @@ function airDay(airingAt: number | null | undefined): number | null {
   return (weekday + 6) % 7
 }
 
-export async function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
+export function searchMalAnimeEntriesEffect(query: string): Effect.Effect<MalSearchEntry[], never, AniList> {
   const cleaned = query
     .replace(/[!?:,.'"“”‘’]/g, ' ')
     .replace(/\s+sub\s+indo.*/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-  if (!cleaned) return []
-  const media = await runAniList(Effect.flatMap(AniList, api => api.search(cleaned)))
+  if (!cleaned) return Effect.succeed([])
+  return Effect.gen(function* () {
+  const api = yield* AniList
+  const media = yield* api.search(cleaned)
   const entries = new Map<number, MalSearchEntry>()
   for (const item of media) {
     if (item.idMal == null) continue
@@ -55,15 +56,22 @@ export async function searchMalAnimeEntries(query: string): Promise<MalSearchEnt
     }
   }
   return [...entries.values()]
+  })
 }
 
-async function mediaByTitle(malId: number, title: string | undefined): Promise<AniListMedia | null> {
-  if (!title) return null
-  const matches = await searchMalAnimeEntries(title)
-  const candidate = matches.find(entry => entry.id === malId)
-  if (!candidate?.anilistId) return null
-  const media = await runAniList(Effect.flatMap(AniList, api => api.mediaById(candidate.anilistId!)))
-  return media
+export function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
+  return runAniList(searchMalAnimeEntriesEffect(query))
+}
+
+function mediaByTitle(malId: number, title: string | undefined): Effect.Effect<AniListMedia | null, never, AniList> {
+  return Effect.gen(function* () {
+    if (!title) return null
+    const matches = yield* searchMalAnimeEntriesEffect(title)
+    const candidate = matches.find(entry => entry.id === malId)
+    if (!candidate?.anilistId) return null
+    const api = yield* AniList
+    return yield* api.mediaById(candidate.anilistId)
+  })
 }
 
 function parseCharacters(media: AniListMedia): MalCharacter[] {
@@ -83,9 +91,13 @@ function parseCharacters(media: AniListMedia): MalCharacter[] {
     .filter(character => character.name && character.imageUrl)
 }
 
-export async function fetchMalAnime(malId: number, fallbackTitle?: string): Promise<MalAnime | null> {
-  const media =
-    (await runAniList(Effect.flatMap(AniList, api => api.media(malId)))) ?? (await mediaByTitle(malId, fallbackTitle))
+export function fetchMalAnimeEffect(
+  malId: number,
+  fallbackTitle?: string,
+): Effect.Effect<MalAnime | null, never, AniList> {
+  return Effect.gen(function* () {
+  const api = yield* AniList
+  const media = (yield* api.media(malId)) ?? (yield* mediaByTitle(malId, fallbackTitle))
   if (!media) return null
 
   const trailer = media.trailer && media.trailer.site === 'youtube' ? (media.trailer.id ?? null) : null
@@ -110,4 +122,9 @@ export async function fetchMalAnime(malId: number, fallbackTitle?: string): Prom
     genres: media.genres ?? [],
     characters: parseCharacters(media),
   }
+  })
+}
+
+export function fetchMalAnime(malId: number, fallbackTitle?: string): Promise<MalAnime | null> {
+  return runAniList(fetchMalAnimeEffect(malId, fallbackTitle))
 }

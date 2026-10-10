@@ -1,5 +1,9 @@
+import { Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import { episodes } from '../../database/schema'
+import { db } from '../db'
+import type { Http } from '../net/http'
+import { scrapeEpisode } from '../sources'
 import type { EpisodeData } from '../sources/types'
 
 async function getEpisodeData(slug: string): Promise<EpisodeData | null> {
@@ -11,18 +15,20 @@ async function putEpisodeData(slug: string, data: EpisodeData): Promise<void> {
   await db().update(episodes).set({ cache: data, cachedAt: new Date() }).where(eq(episodes.slug, slug))
 }
 
-export async function loadEpisodeData(candidates: string[]): Promise<EpisodeData | null> {
-  let fallback: EpisodeData | null = null
-  for (const slug of candidates) {
-    const cached = await getEpisodeData(slug)
-    if (cached && cached.mirrors.length > 0) return cached
+export function loadEpisodeData(candidates: string[]): Effect.Effect<EpisodeData | null, never, Http> {
+  return Effect.gen(function* () {
+    let fallback: EpisodeData | null = null
+    for (const slug of candidates) {
+      const cached = yield* Effect.promise(() => getEpisodeData(slug))
+      if (cached && cached.mirrors.length > 0) return cached
 
-    const scraped = await scrapeEpisode(slug).catch(() => null)
-    if (!scraped) continue
-    fallback ??= scraped
-    if (scraped.mirrors.length === 0) continue
-    await putEpisodeData(slug, scraped).catch(() => {})
-    return scraped
-  }
-  return fallback
+      const scraped = yield* scrapeEpisode(slug).pipe(Effect.catch(() => Effect.succeed(null)))
+      if (!scraped) continue
+      fallback ??= scraped
+      if (scraped.mirrors.length === 0) continue
+      yield* Effect.promise(() => putEpisodeData(slug, scraped)).pipe(Effect.catch(() => Effect.void))
+      return scraped
+    }
+    return fallback
+  })
 }

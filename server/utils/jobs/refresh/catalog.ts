@@ -3,21 +3,24 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { animeSources } from '../../../database/schema'
 import { db } from '../../db'
 import { ok, warn } from '../../log'
+import type { Http } from '../../net/http'
 import { getSources } from '../../sources'
 import { parseEpisodeDate } from '../../sources/shared'
-import type { AnimeSource } from '../../sources/types'
+import type { AnimeSource, ListResult, SourceEffect } from '../../sources/types'
 import { syncAnimeAggregate } from './persist'
 import { getAppState, setAppState } from './state'
 import { chunkValues } from './util'
 
-function attempt<T>(task: Promise<T>, onError: (error: unknown) => void): Promise<T | null> {
-  return task.then(
-    value => value,
-    (error: unknown) => {
-      onError(error)
-      return null
-    },
+function logFailure(label: string, error: unknown): Effect.Effect<void> {
+  return Effect.sync(() =>
+    warn(`[catalog] ${label} failed`, {
+      error: error instanceof Error ? error.message : String(error),
+    }),
   )
+}
+
+function attempt(label: string, task: SourceEffect<ListResult>): Effect.Effect<ListResult | null, never, Http> {
+  return task.pipe(Effect.catch(error => logFailure(label, error).pipe(Effect.as(null))))
 }
 
 async function registerOngoingCards(
@@ -63,84 +66,74 @@ async function registerOngoingCards(
   for (const animeId of touched) await syncAnimeAggregate(animeId)
 }
 
-export async function backfillCompleted(source: AnimeSource): Promise<{ pages: number; registered: number }> {
-  const key = `backfill:${source.id}`
-  const cursor = await getAppState(key)
-  if (cursor === 'done') return { pages: 0, registered: 0 }
-  let page = Number(cursor) || 1
-  if (page < 1) page = 1
-  let totalPages = page
-  let pages = 0
-  let registered = 0
-  while (page <= totalPages) {
-    const result = await attempt(source.completedFresh(page), error =>
-      warn(`[catalog] ${source.id} completed page ${page} failed`, {
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    )
-    if (result === null) break
-    pages++
-    totalPages = Math.max(1, result.totalPages)
-    if (result.anime.length > 0) {
-      const cards = result.anime.map(card => ({
-        slug: card.slug,
-        date: card.date,
-        status: 'COMPLETED' as const,
-      }))
-      const done = await attempt(registerOngoingCards(source.id, cards), error =>
-        warn(`[catalog] ${source.id} completed register failed`, {
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      )
-      if (done !== null) registered += result.anime.length
+export function backfillCompleted(source: AnimeSource): Effect.Effect<{ pages: number; registered: number }, never, Http> {
+  return Effect.gen(function* () {
+    const key = `backfill:${source.id}`
+    const cursor = yield* Effect.promise(() => getAppState(key))
+    if (cursor === 'done') return { pages: 0, registered: 0 }
+    let page = Number(cursor) || 1
+    if (page < 1) page = 1
+    let totalPages = page
+    let pages = 0
+    let registered = 0
+    while (page <= totalPages) {
+      const result = yield* attempt(`${source.id} completed page ${page}`, source.completedFresh(page))
+      if (result === null) break
+      pages++
+      totalPages = Math.max(1, result.totalPages)
+      if (result.anime.length > 0) {
+        const cards = result.anime.map(card => ({
+          slug: card.slug,
+          date: card.date,
+          status: 'COMPLETED' as const,
+        }))
+        const done = yield* Effect.tryPromise({
+          try: () => registerOngoingCards(source.id, cards),
+          catch: error => error,
+        }).pipe(
+          Effect.catch(error => logFailure(`${source.id} completed register`, error).pipe(Effect.as(null))),
+        )
+        if (done !== null) registered += result.anime.length
+      }
+      page++
     }
-    page++
-  }
-  await setAppState(key, page > totalPages ? 'done' : String(page))
-  return { pages, registered }
+    yield* Effect.promise(() => setAppState(key, page > totalPages ? 'done' : String(page)))
+    return { pages, registered }
+  })
 }
 
 type OngoingCard = { slug: string; date: string; status?: 'ONGOING' | 'COMPLETED'; ongoingRank: number }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-async function collectOngoing(source: AnimeSource): Promise<OngoingCard[]> {
-  const cards: OngoingCard[] = []
-  let ongoingRank = 0
-  const push = (list: { slug: string; date: string; status?: 'ONGOING' | 'COMPLETED' }[]): void => {
-    for (const card of list) {
-      ongoingRank++
-      cards.push({ slug: card.slug, date: card.date, status: card.status, ongoingRank })
+function collectOngoing(source: AnimeSource): Effect.Effect<OngoingCard[], never, Http> {
+  return Effect.gen(function* () {
+    const cards: OngoingCard[] = []
+    let ongoingRank = 0
+    const push = (list: { slug: string; date: string; status?: 'ONGOING' | 'COMPLETED' }[]): void => {
+      for (const card of list) {
+        ongoingRank++
+        cards.push({ slug: card.slug, date: card.date, status: card.status, ongoingRank })
+      }
     }
-  }
-  const first = await attempt(source.ongoingFresh(1), error =>
-    warn(`[catalog] ${source.id} ongoing page 1 failed`, { error: errorMessage(error) }),
-  )
-  if (!first || first.anime.length === 0) return cards
-  push(first.anime)
-  const pages = Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => index + 2)
-  const rest = await Effect.runPromise(
-    Effect.forEach(
+    const first = yield* attempt(`${source.id} ongoing page 1`, source.ongoingFresh(1))
+    if (!first || first.anime.length === 0) return cards
+    push(first.anime)
+    const pages = Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, index) => index + 2)
+    const rest = yield* Effect.forEach(
       pages,
-      page =>
-        Effect.promise(() =>
-          attempt(source.ongoingFresh(page), error =>
-            warn(`[catalog] ${source.id} ongoing page ${page} failed`, { error: errorMessage(error) }),
-          ),
-        ),
+      page => attempt(`${source.id} ongoing page ${page}`, source.ongoingFresh(page)),
       { concurrency: 3 },
-    ),
-  )
-  for (const result of rest) if (result) push(result.anime)
-  return cards
+    )
+    for (const result of rest) if (result) push(result.anime)
+    return cards
+  })
 }
 
-export async function syncOngoingCatalog(): Promise<void> {
-  for (const source of getSources()) {
-    const cards = await collectOngoing(source)
-    await registerOngoingCards(source.id, cards)
-    if (cards.length > 0) ok(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`)
-  }
+export function syncOngoingCatalog(): Effect.Effect<void, never, Http> {
+  return Effect.gen(function* () {
+    for (const source of getSources()) {
+      const cards = yield* collectOngoing(source)
+      yield* Effect.promise(() => registerOngoingCards(source.id, cards))
+      if (cards.length > 0) yield* Effect.sync(() => ok(`[catalog] ${source.id}: registered ${cards.length} ongoing cards`))
+    }
+  })
 }

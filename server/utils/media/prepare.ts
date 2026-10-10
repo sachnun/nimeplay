@@ -1,5 +1,12 @@
+import { Effect } from 'effect'
 import { qualityRank, sourcePriority } from '#shared/utils/mirror'
+import { extractStreamUrl, probeStream } from '../extractors'
 import { isPlaceholderStreamUrl } from '../extractors/hosts'
+import { megaKeyFromUrl } from './mega'
+import { openStreamToken, proxiedStreamPath, sealStreamToken } from './stream'
+import { splitSource, resolvemirror } from '../sources'
+import type { Http } from '../net/http'
+import type { NetError } from '../net/rate'
 
 interface PrepareResult {
   playUrl: string | null
@@ -38,22 +45,26 @@ export function selectDefaultCandidate(mirrors: MirrorGroup[]): DefaultMirrorCan
   return null
 }
 
-export async function prepareMirror(dataContent: string): Promise<PrepareResult> {
-  const mirrorId = await openStreamToken(dataContent)
-  if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyPrepareResult()
-  const embedUrl = await resolvemirror(mirrorId)
-  if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
-  const directUrl = await extractStreamUrl(embedUrl)
-  if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
-  const source = splitSource(mirrorId)?.source
-  const hint = source?.proxy ? await source.proxy(directUrl).catch(() => null) : null
-  const hintHeaders = hint?.headers && Object.keys(hint.headers).length > 0 ? hint.headers : undefined
-  const megaKey = megaKeyFromUrl(directUrl)
-  if (megaKey) {
-    const token = await sealStreamToken(directUrl.slice(0, directUrl.indexOf('#')), undefined, hintHeaders, megaKey)
-    return { playUrl: proxiedStreamPath(token), kind: 'file', ok: true }
-  }
-  const probe = await probeStream(directUrl, hintHeaders)
-  const token = await sealStreamToken(directUrl, undefined, hintHeaders)
-  return { playUrl: proxiedStreamPath(token), kind: probe.kind, ok: true }
+export function prepareMirror(dataContent: string): Effect.Effect<PrepareResult, NetError, Http> {
+  return Effect.gen(function* () {
+    const mirrorId = yield* Effect.promise(() => openStreamToken(dataContent))
+    if (!mirrorId || isPlaceholderStreamUrl(mirrorId)) return emptyPrepareResult()
+    const embedUrl = yield* resolvemirror(mirrorId)
+    if (!embedUrl || isPlaceholderStreamUrl(embedUrl)) return emptyPrepareResult()
+    const directUrl = yield* Effect.promise(() => extractStreamUrl(embedUrl))
+    if (!directUrl || isPlaceholderStreamUrl(directUrl)) return emptyPrepareResult()
+    const source = splitSource(mirrorId)?.source
+    const hint = source?.proxy ? yield* source.proxy(directUrl).pipe(Effect.catch(() => Effect.succeed(null))) : null
+    const hintHeaders = hint?.headers && Object.keys(hint.headers).length > 0 ? hint.headers : undefined
+    const megaKey = megaKeyFromUrl(directUrl)
+    if (megaKey) {
+      const token = yield* Effect.promise(() =>
+        sealStreamToken(directUrl.slice(0, directUrl.indexOf('#')), undefined, hintHeaders, megaKey),
+      )
+      return { playUrl: proxiedStreamPath(token), kind: 'file', ok: true }
+    }
+    const probe = yield* Effect.promise(() => probeStream(directUrl, hintHeaders))
+    const token = yield* Effect.promise(() => sealStreamToken(directUrl, undefined, hintHeaders))
+    return { playUrl: proxiedStreamPath(token), kind: probe.kind, ok: true }
+  })
 }

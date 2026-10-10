@@ -73,7 +73,7 @@ describe('AniList batching', () => {
 
     const recorded = await Effect.runPromise(Ref.get(calls))
     expect(recorded.length).toBe(1)
-    expect(Object.values(recorded[0]!.variables).map(String).sort()).toEqual(['bleach', 'naruto'])
+    expect(Object.values(recorded[0]!.variables).map(String).toSorted()).toEqual(['bleach', 'naruto'])
   })
 
   test('normalizes the search key before caching', async () => {

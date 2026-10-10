@@ -48,6 +48,10 @@ body {
   @apply grid justify-center justify-items-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))] [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] [@media(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(110px,1fr))];
 }
 
+@utility episode-cell {
+  @apply relative text-sm py-2 rounded text-center transition-colors;
+}
+
 @utility chip {
   @apply px-3 py-1.5 rounded-full text-xs font-medium transition-colors;
 }

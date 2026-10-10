@@ -44,7 +44,7 @@
       {#each reversedEpisodes as number (number)}
         <a
           href={`/anime/${malId}/${number}`}
-          class="relative text-sm py-2 rounded text-center transition-colors {episodeClass(number)}"
+          class="episode-cell {episodeClass(number)}"
         >
           {number}
         </a>

@@ -100,8 +100,8 @@
   {/if}
 
   {#if player.volumeIndicator}
-    <div class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
-      <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm">
+    <div class="overlay-center">
+      <div class="hud-pill">
         <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
           <path
             d={player.volumeIndicator.isMuted || player.volumeIndicator.volume === 0
@@ -117,8 +117,8 @@
   {/if}
 
   {#if player.speedBoost}
-    <div class="absolute inset-0 z-[15] flex items-center justify-center pointer-events-none">
-      <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-sm">
+    <div class="overlay-center">
+      <div class="hud-pill">
         <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" /></svg>
         <span class="text-sm font-semibold text-white">3x</span>
       </div>

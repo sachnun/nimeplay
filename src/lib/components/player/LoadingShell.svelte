@@ -258,7 +258,7 @@
         {#if malId}
           <button
             type="button"
-            class="flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-white/15 hover:bg-white/25 transition-colors cursor-pointer"
+            class="w-9 h-9 player-btn shrink-0 rounded-full bg-white/15 hover:bg-white/25"
             aria-label="Kembali"
             onclick={goBack}
           >
@@ -305,15 +305,15 @@
       <div class="px-4 md:px-8 pb-4 pt-20">
         <div class="h-1 w-full rounded-full bg-white/15 mb-3"></div>
         <div class="flex items-center gap-1 md:gap-2">
-          <div class="w-9 h-9 rounded-full bg-white/10 animate-pulse"></div>
-          <div class="w-8 h-8 rounded-full bg-white/10 animate-pulse"></div>
-          <div class="w-8 h-8 rounded-full bg-white/10 animate-pulse"></div>
+          <div class="w-9 h-9 skeleton"></div>
+          <div class="w-8 h-8 skeleton"></div>
+          <div class="w-8 h-8 skeleton"></div>
           <div class="h-3 w-24 bg-white/10 rounded animate-pulse"></div>
           <div class="flex-1"></div>
           <div class="hidden md:block h-7 w-14 bg-white/10 rounded-lg animate-pulse"></div>
           <div class="hidden md:block h-7 w-10 bg-white/10 rounded-lg animate-pulse"></div>
-          <div class="hidden md:flex w-9 h-9 rounded-full bg-white/10 animate-pulse"></div>
-          <div class="w-9 h-9 rounded-full bg-white/10 animate-pulse"></div>
+          <div class="hidden md:flex w-9 h-9 skeleton"></div>
+          <div class="w-9 h-9 skeleton"></div>
         </div>
       </div>
     </div>

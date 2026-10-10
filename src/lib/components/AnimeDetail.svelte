@@ -167,7 +167,7 @@
         </div>
 
         <div class="md:hidden">
-          <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">Episodes</h2>
+          <h2 class="section-heading mb-2">Episodes</h2>
           <EpisodeList {episodes} {malId} />
         </div>
 
@@ -175,7 +175,7 @@
           class="hidden md:relative md:block md:col-start-2 md:row-start-1 {charactersBeside ? 'md:row-span-3' : synopsisBeside ? 'md:row-span-2' : ''}"
         >
           <div bind:this={episodesPanelRef} class="flex flex-col md:absolute md:inset-x-0 md:top-0 md:max-h-full">
-            <h2 class="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 shrink-0">Episodes</h2>
+            <h2 class="section-heading mb-3 shrink-0">Episodes</h2>
             <div bind:this={episodesListRef} class="min-h-0 flex-1 overflow-y-auto">
               <EpisodeList {episodes} {malId} />
             </div>

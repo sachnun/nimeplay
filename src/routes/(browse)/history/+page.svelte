@@ -99,7 +99,7 @@
 
   {#if items.length > 0}
     <div
-      class="grid justify-center justify-items-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))] [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] [@media(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(110px,1fr))]"
+      class="anime-grid"
     >
       {#each items as item (item.malId)}
         <AnimePosterCard

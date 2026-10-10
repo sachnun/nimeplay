@@ -190,7 +190,7 @@
     </div>
 
     <div class="flex items-center gap-1 md:gap-2">
-      <button class="w-9 h-9 flex items-center justify-center text-white hover:text-white/80 transition-colors cursor-pointer" aria-label={isPlaying ? 'Pause' : 'Play'} onclick={ontogglePlay}>
+      <button class="w-9 h-9 player-btn text-white hover:text-white/80" aria-label={isPlaying ? 'Pause' : 'Play'} onclick={ontogglePlay}>
         {#if isPlaying}
           <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
         {:else}
@@ -198,12 +198,12 @@
         {/if}
       </button>
       {#if prevEpisode}
-        <button class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" aria-label="Episode sebelumnya" onclick={() => onnavigate(prevEpisode.num)}>
+        <button class="w-8 h-8 player-btn text-white/70 hover:text-white" aria-label="Episode sebelumnya" onclick={() => onnavigate(prevEpisode.num)}>
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" /></svg>
         </button>
       {/if}
       {#if nextEpisode}
-        <button class="w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" aria-label="Episode selanjutnya" onclick={() => onnavigate(nextEpisode.num)}>
+        <button class="w-8 h-8 player-btn text-white/70 hover:text-white" aria-label="Episode selanjutnya" onclick={() => onnavigate(nextEpisode.num)}>
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M16 18h2V6h-2v12zM4 18l8.5-6L4 6v12z" /></svg>
         </button>
       {/if}
@@ -211,7 +211,7 @@
       <div class="flex-1"></div>
       {#if episodeCount > 1 && isDesktopLayout.current}
         <button
-          class="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
+          class="hidden md:flex player-toggle {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
           onclick={ontoggleEpisodes}
         >
           EP {currentEpisodeNum}
@@ -227,7 +227,7 @@
         </button>
       {/if}
       <div class="relative flex items-center" role="group" aria-label="Volume" onmouseenter={onshowVolume} onmouseleave={onhideVolume}>
-        <button class="w-9 h-9 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" aria-label="Mute" onclick={ontoggleMute}>
+        <button class="w-9 h-9 player-btn text-white/70 hover:text-white" aria-label="Mute" onclick={ontoggleMute}>
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path
               d={isMuted || volume === 0
@@ -250,7 +250,7 @@
           />
         </div>
       </div>
-      <button class="w-9 h-9 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer" aria-label="Fullscreen" onclick={ontoggleFullscreen}>
+      <button class="w-9 h-9 player-btn text-white/70 hover:text-white" aria-label="Fullscreen" onclick={ontoggleFullscreen}>
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path
             stroke-linecap="round"

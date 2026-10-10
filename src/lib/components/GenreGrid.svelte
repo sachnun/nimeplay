@@ -128,7 +128,7 @@
 
 <div>
   <div
-    class="grid justify-center justify-items-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))] [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] [@media(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(110px,1fr))]"
+    class="anime-grid"
   >
     {#each animeCards as card, i (card.anime.malId + '-' + i)}
       <AnimePosterCard
@@ -149,7 +149,7 @@
   {/if}
   <div bind:this={sentinelRef} class="py-4">
     {#if loadError && !showPlane}
-      <button type="button" class="block mx-auto text-sm text-zinc-400 hover:text-white" onclick={loadMore}>
+      <button type="button" class="retry-link" onclick={loadMore}>
         Gagal memuat anime. Coba lagi
       </button>
     {/if}

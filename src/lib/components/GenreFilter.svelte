@@ -178,7 +178,7 @@
       <button
         bind:this={menuButtonEl}
         type="button"
-        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 cursor-pointer {menuOpen ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'}"
+        class="chip shrink-0 cursor-pointer {menuOpen ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'}"
         title="Menu"
         aria-label="Menu"
         onclick={toggleMenu}
@@ -210,7 +210,7 @@
           draggable="false"
           data-active={selectedGenre?.slug === genre.slug ? 'true' : undefined}
           aria-current={selectedGenre?.slug === genre.slug ? 'true' : undefined}
-          class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer [-webkit-user-drag:none] {selectedGenre?.slug === genre.slug ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'}"
+          class="chip whitespace-nowrap shrink-0 cursor-pointer [-webkit-user-drag:none] {selectedGenre?.slug === genre.slug ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100'}"
         >
           {genre.name}
         </a>
@@ -234,7 +234,7 @@
         onclick={() => (menuOpen = false)}
       >
         <button
-          class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+          class="menu-item cursor-pointer"
           onclick={onsearch}
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,7 +243,7 @@
           Search
         </button>
         <button
-          class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+          class="menu-item cursor-pointer"
           onclick={onsignin}
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,7 +255,7 @@
           href="/docs"
           target="_blank"
           rel="noopener"
-          class="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors"
+          class="menu-item"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />

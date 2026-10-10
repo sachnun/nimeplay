@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
+  import { SvelteSet } from 'svelte/reactivity'
   import { onMount } from 'svelte'
 
   let {
@@ -80,7 +81,7 @@
   let id = 0
   let busy = $state(false)
   let cells = $state<CellData[]>([])
-  let clearRows = $state(new Set<number>())
+  const clearRows = new SvelteSet<number>()
   let fading = $state(false)
 
   function isInsideBoard(row: number, col: number): boolean {
@@ -200,14 +201,15 @@
     cells = cells
       .filter(cell => !full.includes(cell.row))
       .map(cell => ({ ...cell, row: cell.row + full.filter(row => row > cell.row).length }))
-    clearRows = new Set()
+    clearRows.clear()
     busy = false
   }
 
   function clearFullRows(full: number[], schedule: (fn: () => void, ms: number) => void) {
     busy = true
     schedule(() => {
-      clearRows = new Set(full)
+      clearRows.clear()
+      for (const row of full) clearRows.add(row)
       schedule(() => collapseRows(full), 350)
     }, 50)
   }

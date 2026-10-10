@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { useMediaQuery } from '#lib/media-query.svelte'
   import { goto } from '$app/navigation'
+  import { MediaQuery } from 'svelte/reactivity'
 
   let {
     title,
@@ -20,8 +20,9 @@
     ontoggleEpisodes: () => void
   } = $props()
 
-  const isMobilePortraitControls = useMediaQuery(
+  const isMobilePortraitControls = new MediaQuery(
     '(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)',
+    true,
   )
 
   function goBack() {
@@ -47,7 +48,7 @@
       <h1 class="text-sm md:text-base font-semibold text-white/90 truncate">{title}</h1>
     </button>
     <div class="flex-1"></div>
-    {#if episodeCount > 1 && isMobilePortraitControls()}
+    {#if episodeCount > 1 && isMobilePortraitControls.current}
       <button
         class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
         onclick={ontoggleEpisodes}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { SkipTime } from '#lib/types'
   import { formatTime } from '#lib/player/media'
-  import { useMediaQuery } from '#lib/media-query.svelte'
+  import { MediaQuery } from 'svelte/reactivity'
 
   let {
     autoSkip = false,
@@ -67,7 +67,7 @@
     ontogglePlay: () => void
   } = $props()
 
-  const isDesktopLayout = useMediaQuery('(min-width: 768px)')
+  const isDesktopLayout = new MediaQuery('(min-width: 768px)', true)
 
   let trackRef: HTMLElement | null = $state(null)
   let dragging = $state(false)
@@ -209,7 +209,7 @@
       {/if}
       <span class="text-xs text-white/70 font-mono tabular-nums select-none whitespace-nowrap">{formatTime(currentTime)} / {formatTime(duration)}</span>
       <div class="flex-1"></div>
-      {#if episodeCount > 1 && isDesktopLayout()}
+      {#if episodeCount > 1 && isDesktopLayout.current}
         <button
           class="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg whitespace-nowrap transition-colors cursor-pointer {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
           onclick={ontoggleEpisodes}

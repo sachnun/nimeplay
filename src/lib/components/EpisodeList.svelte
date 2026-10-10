@@ -41,7 +41,6 @@
   })
 
   onMount(() => {
-    void refreshEpisodeStatuses()
     const onVisibility = () => {
       if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
     }

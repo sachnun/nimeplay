@@ -1,3 +1,4 @@
+import { SvelteMap } from 'svelte/reactivity'
 import { getContinueWatching } from '#lib/storage'
 
 export type { WatchProgress } from '#lib/storage'
@@ -11,20 +12,11 @@ interface ProgressEntry {
   latestEpisode?: number
 }
 
-class ProgressMapStore {
-  private items = $state<ProgressEntry[]>([])
+export const progressMap = new SvelteMap<number, ProgressEntry>()
 
-  get value(): Map<number, ProgressEntry> {
-    const map = new Map<number, ProgressEntry>()
-    for (const item of this.items) map.set(item.malId, item)
-    return map
-  }
-
-  async sync(fallback: ProgressEntry[] = []): Promise<void> {
-    const all = await getContinueWatching()
-    this.items = all.length > 0 ? all : fallback
-  }
+export async function syncProgressMap(fallback: ProgressEntry[] = []): Promise<void> {
+  const all = await getContinueWatching()
+  const next = all.length > 0 ? all : fallback
+  progressMap.clear()
+  for (const item of next) progressMap.set(item.malId, item)
 }
-
-export const progressMapStore = new ProgressMapStore()
-

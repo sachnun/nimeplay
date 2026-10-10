@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SearchResult } from '#lib/shared/types'
   import { fetchSearch } from '#lib/api'
+  import { MediaQuery } from 'svelte/reactivity'
   import { onMount } from 'svelte'
 
   let { open, onclose, onopen }: { open: boolean; onclose: () => void; onopen: () => void } = $props()
@@ -13,16 +14,13 @@
   let searchToken = 0
   let pendingQuery = ''
 
-  function isDesktop() {
-    if (typeof window.matchMedia !== 'function') return true
-    return window.matchMedia('(hover: hover) and (pointer: fine)').matches
-  }
+  const isDesktop = new MediaQuery('(hover: hover) and (pointer: fine)', true)
 
   function shouldOpenFromKey(event: KeyboardEvent) {
     if (open || event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return false
     const target = event.target instanceof HTMLElement ? event.target : null
     if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return false
-    return isDesktop()
+    return isDesktop.current
   }
 
   function handleKey(event: KeyboardEvent) {

@@ -2,7 +2,7 @@
   import type { AnimeCard } from '#lib/shared/types'
   import { fetchAnimePage } from '#lib/api'
   import { isServerError } from '#lib/error'
-  import { progressMapStore } from '#lib/progress-map.svelte'
+  import { progressMap, syncProgressMap } from '#lib/progress-map'
   import { onMount } from 'svelte'
   import AnimePosterCard from './AnimePosterCard.svelte'
   import EmptyState from './EmptyState.svelte'
@@ -50,7 +50,7 @@
     ...primaryAnime.map(anime => ({ anime, isFromNext: false })),
     ...nextAnime.map(anime => ({ anime, isFromNext: true })),
   ].map(({ anime, isFromNext }) => {
-    const progress = progressMapStore.value.get(anime.malId)
+    const progress = progressMap.get(anime.malId)
     const resumeTo = progress ? `/anime/${anime.malId}/${progress.episodeNumber}` : undefined
     const showDate = anime.day && (isFromNext ? nextShowDay : showDay)
     const latest = Number(anime.episode.match(/\d+/)?.[0])
@@ -125,7 +125,7 @@
   let observer: IntersectionObserver | null = null
 
   onMount(() => {
-    void progressMapStore.sync()
+    void syncProgressMap()
     observer = new IntersectionObserver(
       entries => {
         if (entries.some(entry => entry.isIntersecting)) void loadMore()
@@ -135,7 +135,7 @@
     if (sentinelRef) observer.observe(sentinelRef)
 
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void progressMapStore.sync()
+      if (document.visibilityState === 'visible') void syncProgressMap()
     }
     document.addEventListener('visibilitychange', onVisibility)
     void fillViewport()

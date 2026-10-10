@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
+  import { innerHeight } from 'svelte/reactivity/window'
 
   let {
     thumbnail = undefined,
@@ -15,9 +16,9 @@
   } = $props()
 
   let scrollRef: HTMLElement | null = $state(null)
-  let vh = $state(typeof window !== 'undefined' ? window.innerHeight : 800)
-  let panelHeightPx = $state(vh * 0.8)
-  let dragY = $state(vh)
+  const vh = $derived(innerHeight.current ?? 800)
+  let panelHeightPx = $state((innerHeight.current ?? 800) * 0.8)
+  let dragY = $state(innerHeight.current ?? 800)
   let isFull = $state(false)
   let ready = $state(false)
   let dragging = $state(false)
@@ -45,15 +46,18 @@
     }`,
   )
 
-  function syncSize() {
-    vh = window.innerHeight
-    panelHeightPx = isFull ? fullHeight() : collapsedHeight()
-    dragY = 0
-  }
-
   function onKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') requestClose()
   }
+
+  $effect(() => {
+    void vh
+    untrack(() => {
+      if (!ready) return
+      panelHeightPx = isFull ? fullHeight() : collapsedHeight()
+      dragY = 0
+    })
+  })
 
   function finishClose() {
     if (closed) return
@@ -189,7 +193,6 @@
   onMount(() => {
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKeydown)
-    window.addEventListener('resize', syncSize)
     const el = scrollRef
     el?.addEventListener('touchstart', onContentTouchStart, { passive: true })
     el?.addEventListener('touchmove', onContentTouchMove, { passive: false })
@@ -204,7 +207,6 @@
     return () => {
       document.body.style.overflow = ''
       window.removeEventListener('keydown', onKeydown)
-      window.removeEventListener('resize', syncSize)
       el?.removeEventListener('touchstart', onContentTouchStart)
       el?.removeEventListener('touchmove', onContentTouchMove)
       el?.removeEventListener('touchend', onContentTouchEnd)

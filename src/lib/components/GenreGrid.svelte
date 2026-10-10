@@ -2,7 +2,7 @@
   import type { GenreAnimeCard } from '#lib/shared/types'
   import { fetchGenrePage } from '#lib/api'
   import { isServerError } from '#lib/error'
-  import { progressMapStore } from '#lib/progress-map.svelte'
+  import { progressMap, syncProgressMap } from '#lib/progress-map'
   import { onMount } from 'svelte'
   import AnimePosterCard from './AnimePosterCard.svelte'
   import EmptyState from './EmptyState.svelte'
@@ -28,7 +28,7 @@
   const isEnd = $derived(size >= totalPages)
 
   const animeCards = $derived(allAnime.map(anime => {
-    const progress = progressMapStore.value.get(anime.malId)
+    const progress = progressMap.get(anime.malId)
     const latest = Number(anime.episodes?.match(/\d+/)?.[0])
     return {
       anime,
@@ -75,7 +75,7 @@
   let observer: IntersectionObserver | null = null
 
   onMount(() => {
-    void progressMapStore.sync()
+    void syncProgressMap()
     observer = new IntersectionObserver(
       entries => {
         if (entries.some(entry => entry.isIntersecting)) void loadMore()
@@ -85,7 +85,7 @@
     if (sentinelRef) observer.observe(sentinelRef)
 
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') void progressMapStore.sync()
+      if (document.visibilityState === 'visible') void syncProgressMap()
     }
     document.addEventListener('visibilitychange', onVisibility)
     if (pages.length === 0) void loadMore()

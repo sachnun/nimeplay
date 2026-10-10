@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Genre } from '#lib/shared/types'
   import { getContinueWatching } from '#lib/storage'
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount } from 'svelte'
 
   let { genres, selectedGenre, onsearch, onsignin }: {
     genres: Genre[]

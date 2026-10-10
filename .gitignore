@@ -1,12 +1,11 @@
-# Nuxt dev/build outputs
-.output
-.data
-.nuxt
-.nitro
+# Build outputs
 .cache
 .wrangler
 dist
-www
+
+# SvelteKit outputs
+.svelte-kit
+build
 
 # Dependencies
 node_modules

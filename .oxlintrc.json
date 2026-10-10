@@ -4,7 +4,7 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "plugins": ["typescript", "unicorn", "oxc", "vue"],
+  "plugins": ["typescript", "unicorn", "oxc"],
   "rules": {
     "typescript/no-explicit-any": "warn",
     "typescript/no-non-null-assertion": "error",
@@ -13,5 +13,13 @@
     "unicorn/prefer-export-from": "error",
     "one-var": ["error", "never"]
   },
-  "ignorePatterns": [".nuxt", ".output", ".wrangler", "dist", "public", "drizzle"]
+  "ignorePatterns": [
+    ".svelte-kit",
+    ".wrangler",
+    "build",
+    "dist",
+    "node_modules",
+    "static",
+    "drizzle"
+  ]
 }

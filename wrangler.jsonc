@@ -1,0 +1,17 @@
+{
+  "name": "nimeplay",
+  "main": ".svelte-kit/cloudflare/_worker.js",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat", "nodejs_als"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".svelte-kit/cloudflare"
+  },
+  "placement": {
+    "mode": "targeted",
+    "region": "gcp:asia-southeast2"
+  },
+  "vars": {
+    "MEDIA_BUCKET": "nimeplay"
+  }
+}

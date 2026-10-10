@@ -1,24 +1,29 @@
 {
-  // https://nuxt.com/docs/guide/concepts/typescript
-  "files": [],
+  "extends": "$app/tsconfig",
   "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "strict": true,
+    "moduleResolution": "bundler",
+    "types": ["bun", "$app/types"],
     "paths": {
-      "#shared": ["./shared"],
-      "#shared/*": ["./shared/*"]
+      "#lib": ["./src/lib/index.ts"],
+      "#lib/*": ["./src/lib/*"]
     }
   },
-  "references": [
-    {
-      "path": "./.nuxt/tsconfig.app.json"
-    },
-    {
-      "path": "./.nuxt/tsconfig.server.json"
-    },
-    {
-      "path": "./.nuxt/tsconfig.shared.json"
-    },
-    {
-      "path": "./.nuxt/tsconfig.node.json"
-    }
+  "include": [
+    "src",
+    "test",
+    "scripts",
+    "drizzle.config.ts",
+    "vite.config.ts",
+    ".svelte-kit/ambient.d.ts",
+    ".svelte-kit/non-ambient.d.ts",
+    ".svelte-kit/types/**/$types.d.ts"
   ]
 }

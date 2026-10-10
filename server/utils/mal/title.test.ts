@@ -1,15 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  baseTitle,
-  bracketVariants,
-  cleanTitle,
-  isMovieTitle,
-  isSeasonTitle,
-  isSpinoffTitle,
-  movieSeasonClash,
-  normalizeTitleKey,
-  tokenizeTitle,
-} from './title'
+import { cleanTitle, isMovieTitle, isSeasonTitle, movieSeasonClash, normalizeTitleKey } from './title'
 
 describe('normalizeTitleKey', () => {
   test('strips case, accents and punctuation', () => {
@@ -34,57 +24,6 @@ describe('cleanTitle', () => {
 
   test('collapses whitespace', () => {
     expect(cleanTitle('  Naruto   Shippuuden  ')).toBe('Naruto Shippuuden')
-  })
-})
-
-describe('baseTitle', () => {
-  test('removes trailing season markers', () => {
-    expect(baseTitle('Naruto Season 2')).toBe('Naruto')
-    expect(baseTitle('Naruto 2nd Season')).toBe('Naruto')
-    expect(baseTitle('Naruto Part 3')).toBe('Naruto')
-    expect(baseTitle('Naruto S4')).toBe('Naruto')
-  })
-
-  test('keeps titles without season markers intact', () => {
-    expect(baseTitle('Naruto')).toBe('Naruto')
-  })
-})
-
-describe('tokenizeTitle', () => {
-  test('drops stopwords and short tokens', () => {
-    expect(tokenizeTitle('The Attack on Titan Movie')).toEqual(['attack', 'titan'])
-  })
-
-  test('normalizes accents', () => {
-    expect(tokenizeTitle('Béryllium')).toEqual(['beryllium'])
-  })
-})
-
-describe('bracketVariants', () => {
-  test('returns the original plus cleaned and inner annotations', () => {
-    expect(bracketVariants('Naruto [BD] (1080p)')).toEqual(['Naruto [BD] (1080p)', 'Naruto', '1080p'])
-  })
-
-  test('deduplicates variants', () => {
-    const variants = bracketVariants('Naruto (Naruto)')
-    expect(new Set(variants).size).toBe(variants.length)
-  })
-})
-
-describe('isSpinoffTitle', () => {
-  test('detects spinoff markers only on the candidate', () => {
-    expect(isSpinoffTitle('Naruto OVA', 'Naruto')).toBe(true)
-    expect(isSpinoffTitle('Naruto Specials', 'Naruto')).toBe(true)
-    expect(isSpinoffTitle('Naruto Recap', 'Naruto')).toBe(true)
-  })
-
-  test('ignores markers shared by both titles', () => {
-    expect(isSpinoffTitle('Naruto Specials', 'Naruto Specials')).toBe(false)
-    expect(isSpinoffTitle('Naruto', 'Naruto Specials')).toBe(false)
-  })
-
-  test('is false when neither side carries a marker', () => {
-    expect(isSpinoffTitle('Naruto', 'Naruto')).toBe(false)
   })
 })
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { jaroWinkler, titleSimilarity, tokenSetRatio } from './fuzzy'
+import { jaroWinkler, tokenSetRatio } from './fuzzy'
 
 describe('jaroWinkler', () => {
   test('returns 1 for identical strings', () => {
@@ -36,26 +36,5 @@ describe('tokenSetRatio', () => {
   test('handles empty input', () => {
     expect(tokenSetRatio('', '')).toBe(1)
     expect(tokenSetRatio('naruto', '')).toBe(0)
-  })
-})
-
-describe('titleSimilarity', () => {
-  test('returns 1 for identical titles', () => {
-    expect(titleSimilarity('Naruto', 'Naruto')).toBe(1)
-  })
-
-  test('is case and punctuation insensitive', () => {
-    expect(titleSimilarity('Attack on Titan', 'attack on titan!')).toBe(1)
-  })
-
-  test('scores a related title above an unrelated one', () => {
-    const related = titleSimilarity('Attack on Titan', 'Attack on Titan Season 2')
-    const unrelated = titleSimilarity('Attack on Titan', 'Bleach')
-    expect(related).toBeGreaterThan(unrelated)
-  })
-
-  test('returns 0 for empty input', () => {
-    expect(titleSimilarity('', 'Naruto')).toBe(0)
-    expect(titleSimilarity('!!!', '???')).toBe(0)
   })
 })

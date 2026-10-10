@@ -4,7 +4,6 @@ import { log, ok } from '../../log'
 import { fetchMalAnimeEffect, searchMalAnimeEntriesEffect } from '../../mal'
 import type { AniList } from '../../mal/anilist'
 import { rankMalAnimeMatches } from '../../mal/matching'
-import { offlineLookup } from '../../mal/offline'
 import { malSearchVariants, seasonNumber } from '../../mal/season'
 import { normalizeSlugTitle } from '../../mal/slug'
 import type { MalAnime, MalSearchEntry } from '../../mal/types'
@@ -21,30 +20,6 @@ function parseOdYear(value: string | null | undefined): number | null {
   if (!match) return null
   const year = Number(match[1])
   return year >= 1990 && year <= 2100 ? year : null
-}
-
-function linkViaOffline(
-  sourceRow: AnimeSourceRow,
-  slug: string,
-  title: string,
-): Effect.Effect<number | null, never, AniList> {
-  return Effect.gen(function* () {
-    const offline = yield* Effect.promise(() => offlineLookup(title))
-    if (!offline || offline.score < 0.9) return null
-    const mal = yield* fetchMalAnimeEffect(offline.malId, title)
-    if (!mal) return null
-    const animeId = yield* Effect.promise(() => upsertCanonicalAnime(mal))
-    yield* Effect.promise(() => linkSource(sourceRow.id, animeId))
-    yield* Effect.sync(() =>
-      ok(`[metadata] linked ${slug}`, {
-        malId: mal.malId,
-        title: mal.title,
-        via: 'offline',
-        score: Number(offline.score.toFixed(3)),
-      }),
-    )
-    return animeId
-  })
 }
 
 function collectMatches(
@@ -133,9 +108,6 @@ export function resolveSourceMetadata(
       return null
     }
     if (!scraped) yield* Effect.sync(() => log(`[metadata] slug fallback ${slug}`, { title }))
-
-    const offlineId = yield* linkViaOffline(sourceRow, slug, title)
-    if (offlineId) return offlineId
 
     const existingAnimeId = yield* Effect.promise(() => findAnimeIdByTitle(title))
     if (existingAnimeId) {

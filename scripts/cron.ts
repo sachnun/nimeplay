@@ -5,7 +5,6 @@ import { drizzle } from 'drizzle-orm/bun-sql'
 import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
 import { runCatalog } from '../server/utils/jobs'
-import { loadOfflineIndex } from '../server/utils/mal/offline'
 import { enableProxy } from '../server/utils/media/proxy'
 import { NetStatsService } from '../server/utils/net/stats'
 import { AppLayer } from '../server/utils/runtime'
@@ -24,10 +23,6 @@ const program = Effect.gen(function* () {
   const stats = yield* NetStatsService
   const startedAt = Date.now()
   yield* Effect.logInfo('[run] start', { sha: process.env.GITHUB_SHA?.slice(0, 7) ?? 'local' })
-  yield* Effect.tryPromise({
-    try: () => loadOfflineIndex(),
-    catch: error => error,
-  }).pipe(Effect.catch(() => Effect.void))
   yield* runCatalog()
   yield* Effect.logInfo('[run] net', yield* stats.stats)
   yield* Effect.logInfo('[run] done', { ms: Date.now() - startedAt })

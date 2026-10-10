@@ -85,20 +85,3 @@ export function tokenSetRatio(a: string, b: string): number {
   const t2 = [...inter, ...bOnly].join(' ')
   return Math.max(normalizedDamerau(t0, t1), normalizedDamerau(t0, t2), normalizedDamerau(t1, t2))
 }
-
-function stripToAlnum(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '')
-}
-
-export function titleSimilarity(a: string, b: string): number {
-  const na = stripToAlnum(a)
-  const nb = stripToAlnum(b)
-  if (!na || !nb) return 0
-  const charSim = Math.max(jaroWinkler(na, nb), normalizedDamerau(na, nb))
-  const lenRatio = Math.min(na.length, nb.length) / Math.max(na.length, nb.length)
-  const score = charSim * 0.75 + tokenSetRatio(a, b) * 0.25
-  return lenRatio < 0.5 ? score * lenRatio * 2 : score
-}

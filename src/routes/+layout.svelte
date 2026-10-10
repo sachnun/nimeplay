@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css'
   import AnimeSheetHost from '#lib/components/AnimeSheetHost.svelte'
-  import { ANIME_SHEET_DETAIL_RE, isAnimeSheetViewport } from '#lib/anime-sheet'
+  import { ANIME_SHEET_DETAIL_RE, isAnimeSheetDevice } from '#lib/anime-sheet'
   import {
     animeSheet,
     dropFakeEntry,
@@ -25,7 +25,7 @@
     if (!from?.route.id?.includes('(browse)')) return
     if (!navigation.to) return
     if (!ANIME_SHEET_DETAIL_RE.test(navigation.to.url.pathname)) return
-    if (!isAnimeSheetViewport()) return
+    if (!isAnimeSheetDevice()) return
     const malId = Number(navigation.to.params?.malId)
     openAnimeSheet(malId, from.url.pathname + from.url.search, navigation.to.url.pathname)
     navigation.cancel()

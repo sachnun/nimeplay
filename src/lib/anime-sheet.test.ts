@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ANIME_SHEET_DETAIL_RE, isAnimeSheetViewport } from './anime-sheet'
+import { ANIME_SHEET_DETAIL_RE, isAnimeSheetDevice } from './anime-sheet'
 
 describe('ANIME_SHEET_DETAIL_RE', () => {
   test('matches detail routes with an optional trailing slash', () => {
@@ -15,8 +15,8 @@ describe('ANIME_SHEET_DETAIL_RE', () => {
   })
 })
 
-describe('isAnimeSheetViewport', () => {
+describe('isAnimeSheetDevice', () => {
   test('is false outside the browser', () => {
-    expect(isAnimeSheetViewport()).toBe(false)
+    expect(isAnimeSheetDevice()).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import { Effect, Ref } from 'effect'
+import { Clock, Effect, Ref } from 'effect'
 import { proxyUrl } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
 import type { Http } from '../net/http'
@@ -138,9 +138,10 @@ function fetchConfig(): Effect.Effect<{ base: string; auth: string | null }> {
 function loadConfig(): Effect.Effect<{ base: string; auth: string | null }> {
   return Effect.gen(function* () {
     const cached = yield* Ref.get(configRef)
-    if (cached && Date.now() - cached.at < BASE_TTL_MS) return cached
+    const now = yield* Clock.currentTimeMillis
+    if (cached && now - cached.at < BASE_TTL_MS) return cached
     const fresh = yield* fetchConfig()
-    const value: ConfigCache = { ...fresh, at: Date.now() }
+    const value: ConfigCache = { ...fresh, at: now }
     yield* Ref.set(configRef, value)
     return value
   })

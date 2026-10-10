@@ -24,12 +24,12 @@ const ID_MONTHS: Record<string, number> = {
   des: 11,
 }
 
-export function parseEpisodeDate(raw: string): Date | null {
+export function parseEpisodeDate(raw: string, now: number = Date.now()): Date | null {
   const value = raw.trim()
   if (!value) return null
   const lower = value.toLowerCase()
-  if (lower === 'hari ini') return new Date()
-  if (lower === 'kemarin') return new Date(Date.now() - 86_400_000)
+  if (lower === 'hari ini') return new Date(now)
+  if (lower === 'kemarin') return new Date(now - 86_400_000)
 
   const relativeMatch = lower.match(
     /^(\d+)\s+(min|minute|menit|hour|jam|day|hari|week|minggu|month|bulan|year|tahun)\w*\s+lalu$/,
@@ -54,7 +54,7 @@ export function parseEpisodeDate(raw: string): Date | null {
     }
     const ms = unit ? (msMap[unit] ?? 0) : 0
     const delta = ms * num
-    return new Date(Date.now() - delta)
+    return new Date(now - delta)
   }
 
   const match = value.match(/^(\d{1,2})\s+([A-Za-z]+),?\s*(\d{4})?$/)
@@ -62,8 +62,8 @@ export function parseEpisodeDate(raw: string): Date | null {
   const day = Number(match[1])
   const month = ID_MONTHS[match[2]!.toLowerCase().slice(0, 3)]
   if (month === undefined || day < 1 || day > 31) return null
-  let year = match[3] ? Number(match[3]) : new Date().getUTCFullYear()
-  if (!match[3] && month > new Date().getUTCMonth() + 1) year -= 1
+  let year = match[3] ? Number(match[3]) : new Date(now).getUTCFullYear()
+  if (!match[3] && month > new Date(now).getUTCMonth() + 1) year -= 1
   const date = new Date(Date.UTC(year, month, day))
   return date.getUTCDate() === day ? date : null
 }

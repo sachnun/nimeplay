@@ -113,13 +113,13 @@ function pace(host: string): Effect.Effect<void> {
   })
 }
 
-function retryAfterMs(response: Response): number {
+function retryAfterMs(response: Response, now: number): number {
   const header = response.headers.get('retry-after')
   if (!header) return 0
   const seconds = Number(header)
   if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, RETRY_CAP_MS)
   const at = Date.parse(header)
-  return Number.isFinite(at) ? Math.min(Math.max(0, at - Date.now()), RETRY_CAP_MS) : 0
+  return Number.isFinite(at) ? Math.min(Math.max(0, at - now), RETRY_CAP_MS) : 0
 }
 
 interface GuardOptions<A> {
@@ -127,7 +127,7 @@ interface GuardOptions<A> {
   readonly task: (signal: AbortSignal) => Promise<A>
   readonly timeoutMs: number
   readonly status: (value: A) => number | null
-  readonly retryAfter?: (value: A) => number
+  readonly retryAfter?: (value: A, now: number) => number
   readonly attempts?: number
 }
 
@@ -158,7 +158,7 @@ export function runGuarded<A>(options: GuardOptions<A>): Effect.Effect<A, NetErr
     )
     const status = statusOf(value)
     if (status !== null && isRetryableStatus(status)) {
-      const retryAfter = options.retryAfter?.(value) ?? 0
+      const retryAfter = options.retryAfter?.(value, yield* Clock.currentTimeMillis) ?? 0
       return yield* Effect.fail(new NetError({ host, status, message: `HTTP ${status}`, retryAfterMs: retryAfter }))
     }
     return value

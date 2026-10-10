@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Clock, Effect, Schema } from 'effect'
 import { sql } from 'drizzle-orm'
 import type { JobRow } from '../../database/schema'
 import { db } from '../db'
@@ -79,32 +79,36 @@ async function seedRefreshJobs(createdSince: Date): Promise<void> {
 function processJob(job: JobRow): Effect.Effect<void, never, Http | AniList> {
   const sourceId = sourceOf(job)
   const label = payloadString(job.payload.slug) || payloadString(job.payload.sourceId) || job.type
-  const startedAt = Date.now()
-  const run = Effect.gen(function* () {
-    yield* handle(job)
-    yield* Effect.tryPromise({ try: () => complete(job.id), catch: toJobFailure })
-    recordSuccess(sourceId)
-    ok(`[job] ok ${label}`, { type: job.type, ms: Date.now() - startedAt })
-  })
-  return run.pipe(
-    Effect.catch(error =>
-      Effect.promise(async () => {
-        warn(`[job] fail ${label}`, { type: job.type, ms: Date.now() - startedAt, error: error.message })
-        if (classifyError(error.cause) === 'transient') {
-          if (recordFailure(sourceId)) await alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`)
-        } else {
-          recordSuccess(sourceId)
-        }
-        await fail(job.id, error.cause)
+  return Effect.gen(function* () {
+    const startedAt = yield* Clock.currentTimeMillis
+    const failure = yield* Effect.result(
+      Effect.gen(function* () {
+        yield* handle(job)
+        yield* Effect.tryPromise({ try: () => complete(job.id), catch: toJobFailure })
+        yield* recordSuccess(sourceId)
       }),
-    ),
-  )
+    )
+    const ms = (yield* Clock.currentTimeMillis) - startedAt
+    if (failure._tag === 'Success') {
+      ok(`[job] ok ${label}`, { type: job.type, ms })
+      return
+    }
+    warn(`[job] fail ${label}`, { type: job.type, ms, error: failure.failure.message })
+    if (classifyError(failure.failure.cause) === 'transient') {
+      const tripped = yield* recordFailure(sourceId)
+      if (tripped) yield* Effect.promise(() => alert(`breaker:${sourceId}`, `circuit breaker opened for ${sourceId}`))
+    } else {
+      yield* recordSuccess(sourceId)
+    }
+    yield* Effect.promise(() => fail(job.id, failure.failure.cause))
+  })
 }
 
 function drain(types: string[] = TASK_TYPES): Effect.Effect<void, never, Http | AniList> {
   return Effect.gen(function* () {
     while (true) {
-      const claimed = yield* Effect.promise(() => claim(worker, BATCH, types, blockedSources()))
+      const blocked = yield* blockedSources()
+      const claimed = yield* Effect.promise(() => claim(worker, BATCH, types, blocked))
       if (claimed.length === 0) return
       yield* Effect.forEach(claimed, processJob, { concurrency: JOB_CONCURRENCY, discard: true })
     }
@@ -113,9 +117,10 @@ function drain(types: string[] = TASK_TYPES): Effect.Effect<void, never, Http | 
 
 export function runCatalog(): Effect.Effect<void, never, Http | AniList> {
   return Effect.gen(function* () {
-    const startedAt = new Date()
+    const now = yield* Clock.currentTimeMillis
+    const startedAt = new Date(now)
     yield* Effect.promise(() => releaseStale(STALE_MS))
-    yield* Effect.promise(() => prune(new Date(Date.now() - DONE_TTL_MS), new Date(Date.now() - DEAD_TTL_MS)))
+    yield* Effect.promise(() => prune(new Date(now - DONE_TTL_MS), new Date(now - DEAD_TTL_MS)))
     yield* runOngoingSync()
     yield* Effect.forEach(getSources(), source => runBackfill(source.id), {
       concurrency: 2,

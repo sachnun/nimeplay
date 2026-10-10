@@ -58,6 +58,13 @@ describe('sealStreamToken and openStreamToken', () => {
     expect(await openStreamToken(token)).toBeNull()
   })
 
+  test('honours an explicit clock when sealing and opening', async () => {
+    const now = Date.UTC(2024, 0, 1)
+    const token = await sealStreamToken('https://cdn.example/v.mp4', 60_000, undefined, undefined, now)
+    expect(await openStreamToken(token, now)).toBe('https://cdn.example/v.mp4')
+    expect(await openStreamToken(token, now + 120_000)).toBeNull()
+  })
+
   test('rejects tampered and malformed tokens', async () => {
     const token = await sealStreamToken('https://cdn.example/v.mp4', 60_000)
     const index = Math.floor(token.length / 2)

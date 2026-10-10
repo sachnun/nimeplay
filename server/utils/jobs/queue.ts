@@ -86,7 +86,7 @@ export async function fail(id: number, error: unknown): Promise<void> {
 export async function releaseStale(staleMs: number): Promise<void> {
   await db().execute(sql`
     update jobs set status = 'waiting', locked_at = null, locked_by = null, updated_at = now()
-    where status = 'active' and locked_at < ${new Date(Date.now() - staleMs)}
+    where status = 'active' and locked_at < now() - make_interval(secs => ${staleMs / 1000}::double precision)
   `)
 }
 

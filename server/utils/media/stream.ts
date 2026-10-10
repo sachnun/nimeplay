@@ -63,10 +63,11 @@ export async function sealStreamToken(
   ttlMs?: number,
   headers?: Record<string, string>,
   megaKey?: string,
+  now: number = Date.now(),
 ): Promise<string> {
   const key = await getKey()
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH))
-  const payload: TokenPayload = { u: url, e: ttlMs ? Date.now() + ttlMs : 0 }
+  const payload: TokenPayload = { u: url, e: ttlMs ? now + ttlMs : 0 }
   if (headers && Object.keys(headers).length > 0) payload.h = headers
   if (megaKey) payload.k = megaKey
   const ciphertext = new Uint8Array(
@@ -78,7 +79,7 @@ export async function sealStreamToken(
   return toBase64Url(sealed)
 }
 
-async function decodeToken(token: string): Promise<TokenPayload | null> {
+async function decodeToken(token: string, now: number = Date.now()): Promise<TokenPayload | null> {
   try {
     const sealed = fromBase64Url(token)
     if (sealed.length <= IV_LENGTH) return null
@@ -90,21 +91,22 @@ async function decodeToken(token: string): Promise<TokenPayload | null> {
     )
     const payload = JSON.parse(new TextDecoder().decode(plaintext)) as TokenPayload
     if (!payload.u || typeof payload.e !== 'number') return null
-    if (payload.e !== 0 && payload.e < Date.now()) return null
+    if (payload.e !== 0 && payload.e < now) return null
     return payload
   } catch {
     return null
   }
 }
 
-export async function openStreamToken(token: string): Promise<string | null> {
-  return (await decodeToken(token))?.u ?? null
+export async function openStreamToken(token: string, now?: number): Promise<string | null> {
+  return (await decodeToken(token, now))?.u ?? null
 }
 
 export async function openStreamRequest(
   token: string,
+  now?: number,
 ): Promise<{ url: string; headers: Record<string, string>; megaKey?: string } | null> {
-  const payload = await decodeToken(token)
+  const payload = await decodeToken(token, now)
   if (!payload) return null
   return { url: payload.u, headers: payload.h ?? {}, megaKey: payload.k }
 }

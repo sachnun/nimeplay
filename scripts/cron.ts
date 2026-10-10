@@ -1,6 +1,6 @@
 import { SQL } from 'bun'
 import { BunRuntime } from '@effect/platform-bun'
-import { Cause, Effect } from 'effect'
+import { Cause, Clock, Effect } from 'effect'
 import { drizzle } from 'drizzle-orm/bun-sql'
 import * as schema from '../server/database/schema'
 import { setNodeDatabase } from '../server/utils/db'
@@ -21,11 +21,11 @@ function closeClient(): void {
 
 const program = Effect.gen(function* () {
   const stats = yield* NetStatsService
-  const startedAt = Date.now()
+  const startedAt = yield* Clock.currentTimeMillis
   yield* Effect.logInfo('[run] start', { sha: process.env.GITHUB_SHA?.slice(0, 7) ?? 'local' })
   yield* runCatalog()
   yield* Effect.logInfo('[run] net', yield* stats.stats)
-  yield* Effect.logInfo('[run] done', { ms: Date.now() - startedAt })
+  yield* Effect.logInfo('[run] done', { ms: (yield* Clock.currentTimeMillis) - startedAt })
 }).pipe(
   Effect.provide(AppLayer),
   Effect.tapCause(cause =>

@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Clock, Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
 import { Http } from '../net/http'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
@@ -59,8 +59,8 @@ function apiGet<T>(path: string): Effect.Effect<T | null, never, Http> {
   })
 }
 
-function wibDay(): string {
-  const index = new Date(Date.now() + 7 * 3600 * 1000).getUTCDay()
+function wibDay(now: number): string {
+  const index = new Date(now + 7 * 3600 * 1000).getUTCDay()
   return DAY_BY_INDEX[index] ?? 'MINGGU'
 }
 
@@ -127,7 +127,7 @@ function latestEpisode(movieId: string): Effect.Effect<LatestEpisode | null, nev
 function scrapeOngoingFresh(page: number): SourceEffect<ListResult> {
   return Effect.gen(function* () {
     if (page > 1) return { anime: [], totalPages: 1 }
-    const day = wibDay()
+    const day = wibDay(yield* Clock.currentTimeMillis)
     const data = yield* apiGet<{ movie?: AnimeinMovie[] }>(`/3/2/schedule/data?day=${day}`)
     const movies = (data?.movie ?? []).filter(movie => movie.status === 'ONGOING')
     const latest = yield* Effect.forEach(movies, movie => latestEpisode(String(movie.id)), { concurrency: 'unbounded' })

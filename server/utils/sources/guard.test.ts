@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
+import { Effect } from 'effect'
+import { TestClock } from 'effect/testing'
 import type { JobRow } from '../../database/schema'
 import { blockedSources, recordFailure, recordSuccess, resetSources, sourceOf } from './guard'
 
@@ -24,33 +26,57 @@ describe('sourceOf', () => {
 })
 
 describe('circuit breaker', () => {
-  beforeEach(() => {
-    resetSources()
+  beforeEach(async () => {
+    await Effect.runPromise(resetSources())
   })
 
-  test('opens only after the failure threshold and resets on success', () => {
+  test('opens only after the failure threshold and resets on success', async () => {
     const id = 'breaker-open'
-    for (let i = 1; i < 8; i++) {
-      expect(recordFailure(id)).toBe(false)
-      expect(blockedSources()).not.toContain(id)
-    }
-    expect(recordFailure(id)).toBe(true)
-    expect(blockedSources()).toContain(id)
-    expect(recordFailure(id)).toBe(false)
-    recordSuccess(id)
-    expect(blockedSources()).not.toContain(id)
-    expect(recordFailure(id)).toBe(false)
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let i = 1; i < 8; i++) {
+          expect(yield* recordFailure(id)).toBe(false)
+          expect(yield* blockedSources()).not.toContain(id)
+        }
+        expect(yield* recordFailure(id)).toBe(true)
+        expect(yield* blockedSources()).toContain(id)
+        expect(yield* recordFailure(id)).toBe(false)
+        yield* recordSuccess(id)
+        expect(yield* blockedSources()).not.toContain(id)
+        expect(yield* recordFailure(id)).toBe(false)
+      }),
+    )
   })
 
-  test('ignores null ids', () => {
-    expect(recordFailure(null)).toBe(false)
-    expect(() => recordSuccess(null)).not.toThrow()
+  test('ignores null ids', async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        expect(yield* recordFailure(null)).toBe(false)
+        yield* recordSuccess(null)
+      }),
+    )
   })
 
-  test('tracks sources independently', () => {
+  test('tracks sources independently', async () => {
     const open = 'breaker-a'
-    for (let i = 0; i < 8; i++) recordFailure(open)
-    expect(blockedSources()).toContain(open)
-    expect(blockedSources()).not.toContain('breaker-b')
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let i = 0; i < 8; i++) yield* recordFailure(open)
+        expect(yield* blockedSources()).toContain(open)
+        expect(yield* blockedSources()).not.toContain('breaker-b')
+      }),
+    )
+  })
+
+  test('reopens after the cooldown elapses', async () => {
+    const id = 'breaker-cooldown'
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        for (let i = 0; i < 8; i++) yield* recordFailure(id)
+        expect(yield* blockedSources()).toContain(id)
+        yield* TestClock.adjust('10 minutes')
+        expect(yield* blockedSources()).not.toContain(id)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
   })
 })

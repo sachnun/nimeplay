@@ -129,12 +129,12 @@ export function refreshSourceBySlug(compositeSlug: string): Effect.Effect<void, 
 
 export function runOngoingSync(): Effect.Effect<void, never, Http> {
   return Effect.gen(function* () {
-    if (!acquireSync('catalog')) return
+    if (!(yield* acquireSync('catalog'))) return
     yield* syncOngoingCatalog().pipe(
       Effect.catchCause(cause =>
         Effect.sync(() => warn('[ongoing] sync failed', { error: Cause.pretty(cause).slice(0, 300) })),
       ),
-      Effect.ensuring(Effect.sync(() => releaseSync('catalog'))),
+      Effect.ensuring(releaseSync('catalog')),
     )
   })
 }
@@ -143,7 +143,7 @@ export function runBackfill(sourceId: string): Effect.Effect<void, never, Http> 
   return Effect.gen(function* () {
     const source = getSources().find(item => item.id === sourceId)
     if (!source) return
-    if (!acquireSync(`backfill:${sourceId}`)) return
+    if (!(yield* acquireSync(`backfill:${sourceId}`))) return
     yield* backfillCompleted(source).pipe(
       Effect.tap(result =>
         result.registered > 0 ? Effect.sync(() => ok(`[backfill] ${sourceId}: +${result.registered}`)) : Effect.void,
@@ -152,7 +152,7 @@ export function runBackfill(sourceId: string): Effect.Effect<void, never, Http> 
       Effect.catchCause(cause =>
         Effect.sync(() => warn(`[backfill] ${sourceId} failed`, { error: Cause.pretty(cause).slice(0, 300) })),
       ),
-      Effect.ensuring(Effect.sync(() => releaseSync(`backfill:${sourceId}`))),
+      Effect.ensuring(releaseSync(`backfill:${sourceId}`)),
     )
   })
 }

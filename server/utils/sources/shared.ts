@@ -1,8 +1,3 @@
-import { Effect, Result } from 'effect'
-import { proxyFetch } from '../media/proxy'
-import { getSpoofHeaders } from '../net/spoof'
-import { NetError, runGuarded } from '../net/rate'
-
 export type TitleCleanupRule = RegExp | [RegExp, string]
 
 export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): string {
@@ -12,51 +7,6 @@ export function cleanTitleWithRules(title: string, rules: TitleCleanupRule[]): s
       return value.replace(rule, '')
     }, title)
     .trim()
-}
-
-const HTML_TIMEOUT_MS = 8000
-const POST_TIMEOUT_MS = 8000
-
-export async function fetchHTML(url: string, timeoutMs = HTML_TIMEOUT_MS): Promise<string> {
-  const result = await Effect.runPromise(
-    Effect.result(
-      runGuarded({
-        url,
-        task: signal => proxyFetch(url, { headers: getSpoofHeaders(url, 'navigate'), signal }),
-        timeoutMs,
-        status: response => response.status,
-      }),
-    ),
-  )
-  if (Result.isFailure(result)) throw result.failure
-  const response = result.success
-  if (!response.ok) throw new NetError({ host: new URL(url).hostname, status: response.status, message: `HTTP ${response.status}`, retryAfterMs: 0 })
-  return await response.text()
-}
-
-export async function postForm(url: string, body: string, referer: string): Promise<Record<string, unknown>> {
-  const headers = getSpoofHeaders(referer, 'cors')
-  headers['Content-Type'] = 'application/x-www-form-urlencoded'
-  const result = await Effect.runPromise(
-    Effect.result(
-      runGuarded({
-        url,
-        task: signal => proxyFetch(url, { method: 'POST', headers, body, signal }),
-        timeoutMs: POST_TIMEOUT_MS,
-        status: response => response.status,
-      }),
-    ),
-  )
-  if (Result.isFailure(result)) throw result.failure
-  if (!result.success.ok) {
-    throw new NetError({
-      host: new URL(url).hostname,
-      status: result.success.status,
-      message: `HTTP ${result.success.status}`,
-      retryAfterMs: 0,
-    })
-  }
-  return result.success.json()
 }
 
 const ID_MONTHS: Record<string, number> = {

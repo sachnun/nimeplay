@@ -1,10 +1,11 @@
+import { Effect } from 'effect'
 import { animein } from './animein'
 import { animexnonton } from './animexnonton'
 import { astronime } from './astronime'
 import { nakanime } from './nakanime'
 import { otakudesu } from './otakudesu'
 import { sokuja } from './sokuja'
-import type { AnimeSource, EpisodeData, ScrapedAnimeDetail } from './types'
+import type { AnimeSource, EpisodeData, ScrapedAnimeDetail, SourceEffect } from './types'
 import { ylnime } from './ylnime'
 
 const sources: Record<string, AnimeSource> = {
@@ -37,20 +38,20 @@ export function splitSource(slug: string): { source: AnimeSource; rest: string }
   return { source, rest }
 }
 
-export function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
+export function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
   const split = splitSource(slug)
-  if (!split) return Promise.resolve(null)
+  if (!split) return Effect.succeed(null)
   return split.source.detailFresh(split.rest)
 }
 
-export function scrapeEpisode(slug: string): Promise<EpisodeData | null> {
+export function scrapeEpisode(slug: string): SourceEffect<EpisodeData | null> {
   const split = splitSource(slug)
-  if (!split) return Promise.resolve(null)
+  if (!split) return Effect.succeed(null)
   return split.source.episodeFresh(split.rest)
 }
 
-export function resolvemirror(dataContent: string): Promise<string | null> {
+export function resolvemirror(dataContent: string): SourceEffect<string | null> {
   const split = splitSource(dataContent)
-  if (!split) return Promise.resolve(null)
+  if (!split) return Effect.succeed(null)
   return split.source.resolveMirror(split.rest)
 }

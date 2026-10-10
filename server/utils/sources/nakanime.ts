@@ -1,7 +1,8 @@
+import { Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
-import { plainGet } from '../net/fetch'
+import { Http } from '../net/http'
 import { keepSeriesEpisodes } from './shared'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const SITE_BASE = 'https://api.nakanime.my.id'
 const API_BASE = 'https://anime.nakanime.my.id/api'
@@ -51,19 +52,18 @@ interface NakanimeStreamData {
   iframe_uri?: { title?: string; video_uri?: string }[]
 }
 
-async function apiGet<T>(path: string): Promise<{ data: T | null; lastPage: number }> {
-  const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
-  if (res && res.status === 200 && res.text.trim()) {
-    try {
-      const body = JSON.parse(res.text) as ApiEnvelope<T>
-      if (body.data !== undefined && body.data !== null) {
-        return { data: body.data, lastPage: Math.max(1, Number(body.lastPage) || 1) }
-      }
-    } catch {
-      // malformed body
-    }
-  }
-  return { data: null, lastPage: 1 }
+function apiGet<T>(path: string): Effect.Effect<{ data: T | null; lastPage: number }, never, Http> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const res = yield* http.text(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS })
+    if (!res || res.status !== 200 || !res.text.trim()) return { data: null, lastPage: 1 }
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(res.text) as ApiEnvelope<T>,
+      catch: () => new Error('invalid nakanime payload'),
+    }).pipe(Effect.catch(() => Effect.succeed(null)))
+    if (!parsed || parsed.data === undefined || parsed.data === null) return { data: null, lastPage: 1 }
+    return { data: parsed.data, lastPage: Math.max(1, Number(parsed.lastPage) || 1) }
+  })
 }
 
 function normalizeStatus(value: string | undefined): 'ONGOING' | 'COMPLETED' | undefined {
@@ -81,18 +81,22 @@ function toCard(card: NakanimeCard, fallback: 'ONGOING' | 'COMPLETED'): ScrapedA
   }
 }
 
-async function scrapeOngoingFresh(page: number): Promise<ListResult> {
-  if (page > 1) return { anime: [], totalPages: 1 }
-  const { data } = await apiGet<NakanimeCard[]>('/anime/ongoing')
-  return { anime: (data ?? []).map(card => toCard(card, 'ONGOING')), totalPages: 1 }
+function scrapeOngoingFresh(page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    if (page > 1) return { anime: [], totalPages: 1 }
+    const { data } = yield* apiGet<NakanimeCard[]>('/anime/ongoing')
+    return { anime: (data ?? []).map(card => toCard(card, 'ONGOING')), totalPages: 1 }
+  })
 }
 
-async function scrapeCompletedFresh(page: number): Promise<ListResult> {
-  const { data, lastPage } = await apiGet<NakanimeCard[]>(`/anime/all/?page=${page}`)
-  const anime = (data ?? [])
-    .filter(card => normalizeStatus(card.status) === 'COMPLETED')
-    .map(card => toCard(card, 'COMPLETED'))
-  return { anime, totalPages: lastPage }
+function scrapeCompletedFresh(page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const { data, lastPage } = yield* apiGet<NakanimeCard[]>(`/anime/all/?page=${page}`)
+    const anime = (data ?? [])
+      .filter(card => normalizeStatus(card.status) === 'COMPLETED')
+      .map(card => toCard(card, 'COMPLETED'))
+    return { anime, totalPages: lastPage }
+  })
 }
 
 function parseInfo(info: string[] | undefined): Map<string, string> {
@@ -105,22 +109,24 @@ function parseInfo(info: string[] | undefined): Map<string, string> {
   return map
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const { data } = await apiGet<NakanimeDetail>(`/anime/?name=${encodeURIComponent(slug)}`)
-  if (!data?.title) return null
-  const info = parseInfo(data.info)
-  const episodes = keepSeriesEpisodes(
-    data.title,
-    data.slug || slug,
-    (data.episodes ?? []).filter(episode => episode.slug),
-  )
-  return {
-    title: data.title,
-    japanese: '',
-    status: info.get('status') ?? '',
-    releaseDate: info.get('released') ?? '',
-    episodes: episodes.map(episode => ({ title: episode.title, slug: episode.slug, date: episode.date ?? '' })),
-  }
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const { data } = yield* apiGet<NakanimeDetail>(`/anime/?name=${encodeURIComponent(slug)}`)
+    if (!data?.title) return null
+    const info = parseInfo(data.info)
+    const episodes = keepSeriesEpisodes(
+      data.title,
+      data.slug || slug,
+      (data.episodes ?? []).filter(episode => episode.slug),
+    )
+    return {
+      title: data.title,
+      japanese: '',
+      status: info.get('status') ?? '',
+      releaseDate: info.get('released') ?? '',
+      episodes: episodes.map(episode => ({ title: episode.title, slug: episode.slug, date: episode.date ?? '' })),
+    }
+  })
 }
 
 function decodeUrl(value: string | undefined): string {
@@ -133,41 +139,47 @@ function qualityLabel(title: string | undefined): string {
   return QUALITY_RE.test(value) ? value : DEFAULT_QUALITY
 }
 
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const { data } = await apiGet<NakanimeStreamData>(`/anime/data/?slug=${encodeURIComponent(slug)}`)
-  if (!data) return null
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const { data } = yield* apiGet<NakanimeStreamData>(`/anime/data/?slug=${encodeURIComponent(slug)}`)
+    if (!data) return null
 
-  const seen = new Set<string>()
-  const groups = new Map<string, { name: string; dataContent: string }[]>()
-  const add = async (quality: string, url: string): Promise<void> => {
-    if (!url.startsWith('http') || seen.has(url)) return
-    seen.add(url)
-    const list = groups.get(quality) ?? []
-    list.push({ name: 'Blogger', dataContent: await sealStreamToken(`nakanime:${url}`) })
-    groups.set(quality, list)
-  }
+    const seen = new Set<string>()
+    const groups = new Map<string, { name: string; dataContent: string }[]>()
+    const add = (quality: string, url: string): Effect.Effect<void> =>
+      Effect.gen(function* () {
+        if (!url.startsWith('http') || seen.has(url)) return
+        seen.add(url)
+        const dataContent = yield* Effect.promise(() => sealStreamToken(`nakanime:${url}`))
+        const list = groups.get(quality) ?? []
+        list.push({ name: 'Blogger', dataContent })
+        groups.set(quality, list)
+      })
 
-  for (const stream of data.iframe_uri ?? []) {
-    await add(qualityLabel(stream.title), decodeUrl(stream.video_uri))
-  }
-  if (groups.size === 0) await add(DEFAULT_QUALITY, decodeUrl(data.video_uri))
+    yield* Effect.forEach(
+      data.iframe_uri ?? [],
+      stream => add(qualityLabel(stream.title), decodeUrl(stream.video_uri)),
+      { concurrency: 'unbounded', discard: true },
+    )
+    if (groups.size === 0) yield* add(DEFAULT_QUALITY, decodeUrl(data.video_uri))
 
-  const episodeNav: { title: string; slug: string }[] = []
-  if (data.prev_eps) episodeNav.push({ title: 'Previous Episode', slug: data.prev_eps })
-  if (data.next_eps) episodeNav.push({ title: 'Next Episode', slug: data.next_eps })
+    const episodeNav: { title: string; slug: string }[] = []
+    if (data.prev_eps) episodeNav.push({ title: 'Previous Episode', slug: data.prev_eps })
+    if (data.next_eps) episodeNav.push({ title: 'Next Episode', slug: data.next_eps })
 
-  return {
-    title: data.title ?? '',
-    animeSlug: data.slug ?? '',
-    animeTitle: data.anime ?? '',
-    mirrors: [...groups.entries()].map(([quality, sources]) => ({ quality, sources })),
-    episodeNav,
-    thumbnail: decodeUrl(data.thumbnail),
-  }
+    return {
+      title: data.title ?? '',
+      animeSlug: data.slug ?? '',
+      animeTitle: data.anime ?? '',
+      mirrors: [...groups.entries()].map(([quality, sources]) => ({ quality, sources })),
+      episodeNav,
+      thumbnail: decodeUrl(data.thumbnail),
+    }
+  })
 }
 
-async function resolveMirror(opaque: string): Promise<string | null> {
-  return opaque.startsWith('http') ? opaque : null
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.succeed(opaque.startsWith('http') ? opaque : null)
 }
 
 export const nakanime: AnimeSource = {

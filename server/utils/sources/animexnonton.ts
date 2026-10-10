@@ -1,7 +1,9 @@
+import { Effect, Ref } from 'effect'
 import { proxyUrl } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
+import type { Http } from '../net/http'
 import { keepSeriesEpisodes } from './shared'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const API_BASE_FALLBACK = 'https://wincamp.web.id/animexnonton/api'
 const CONFIG_URL = 'https://wincampdotorg.github.io/config/api/animexnonton.json'
@@ -67,7 +69,13 @@ interface EpisodeResponse {
   [key: string]: unknown
 }
 
-let cachedConfig: { base: string; auth: string | null; at: number } | null = null
+interface ConfigCache {
+  base: string
+  auth: string | null
+  at: number
+}
+
+const configRef = Ref.makeUnsafe<ConfigCache | null>(null)
 
 function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   const length = Math.floor(hex.length / 2)
@@ -83,70 +91,81 @@ function bytesFromBase64(value: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
-async function decrypt(keyHex: string, payload: string): Promise<string | null> {
-  try {
-    const keyBytes = hexToBytes(keyHex)
-    if (keyBytes.length !== 32) return null
-    const raw = bytesFromBase64(payload)
-    if (raw.length <= 28) return null
-    const iv = new Uint8Array(raw.subarray(16, 28))
-    const data = new Uint8Array(raw.length - 12)
-    data.set(raw.slice(28), 0)
-    data.set(raw.slice(0, 16), raw.length - 28)
-    const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt'])
-    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)
-    return new TextDecoder().decode(plain)
-  } catch {
-    return null
-  }
+function decrypt(keyHex: string, payload: string): Effect.Effect<string | null> {
+  return Effect.tryPromise({
+    try: async () => {
+      const keyBytes = hexToBytes(keyHex)
+      if (keyBytes.length !== 32) return null
+      const raw = bytesFromBase64(payload)
+      if (raw.length <= 28) return null
+      const iv = new Uint8Array(raw.subarray(16, 28))
+      const data = new Uint8Array(raw.length - 12)
+      data.set(raw.slice(28), 0)
+      data.set(raw.slice(0, 16), raw.length - 28)
+      const key = await crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['decrypt'])
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data)
+      return new TextDecoder().decode(plain)
+    },
+    catch: () => new Error('decrypt failed'),
+  }).pipe(Effect.catch(() => Effect.succeed(null)))
 }
 
-async function fetchConfig(): Promise<{ base: string; auth: string | null }> {
-  let base = API_BASE_FALLBACK
-  let auth: string | null = null
-  try {
-    const res = await fetch(CONFIG_URL, { headers: API_HEADERS, signal: AbortSignal.timeout(8000) })
-    if (!res.ok) return { base, auth }
-    const config = (await res.json()) as { hex?: string; server_url?: string; video_pass?: string }
-    if (!config.hex) return { base, auth }
+function fetchConfig(): Effect.Effect<{ base: string; auth: string | null }> {
+  return Effect.gen(function* () {
+    let base = API_BASE_FALLBACK
+    let auth: string | null = null
+    const config = yield* Effect.tryPromise({
+      try: async () => {
+        const res = await fetch(CONFIG_URL, { headers: API_HEADERS, signal: AbortSignal.timeout(8000) })
+        if (!res.ok) return null
+        return (await res.json()) as { hex?: string; server_url?: string; video_pass?: string }
+      },
+      catch: () => new Error('config fetch failed'),
+    }).pipe(Effect.catch(() => Effect.succeed(null)))
+    if (!config?.hex) return { base, auth }
     if (config.server_url) {
-      const resolved = await decrypt(config.hex, config.server_url)
+      const resolved = yield* decrypt(config.hex, config.server_url)
       if (resolved && /^https?:\/\//.test(resolved)) base = resolved.replace(/\/+$/, '')
     }
     if (config.video_pass) {
-      const pass = await decrypt(config.hex, config.video_pass)
+      const pass = yield* decrypt(config.hex, config.video_pass)
       if (pass?.startsWith('Basic ')) auth = pass
     }
-  } catch {}
-  return { base, auth }
+    return { base, auth }
+  })
 }
 
-async function loadConfig(): Promise<{ base: string; auth: string | null }> {
-  if (cachedConfig && Date.now() - cachedConfig.at < BASE_TTL_MS) return cachedConfig
-  cachedConfig = { ...(await fetchConfig()), at: Date.now() }
-  return cachedConfig
+function loadConfig(): Effect.Effect<{ base: string; auth: string | null }> {
+  return Effect.gen(function* () {
+    const cached = yield* Ref.get(configRef)
+    if (cached && Date.now() - cached.at < BASE_TTL_MS) return cached
+    const fresh = yield* fetchConfig()
+    const value: ConfigCache = { ...fresh, at: Date.now() }
+    yield* Ref.set(configRef, value)
+    return value
+  })
 }
 
-async function apiBase(): Promise<string> {
-  return (await loadConfig()).base
-}
-
-async function postEndpoint<T>(name: string, fields: Record<string, string | number>): Promise<T | null> {
-  try {
-    const base = await apiBase()
+function postEndpoint<T>(name: string, fields: Record<string, string | number>): Effect.Effect<T | null> {
+  return Effect.gen(function* () {
+    const { base } = yield* loadConfig()
     const body = new URLSearchParams()
     for (const [key, value] of Object.entries(fields)) body.set(key, String(value))
-    const res = await fetch(proxyUrl(`${base}/phalcon/api/${name}/`), {
-      method: 'POST',
-      headers: { ...API_HEADERS, 'content-type': 'application/x-www-form-urlencoded' },
-      body,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
+    const result = yield* Effect.tryPromise({
+      try: async () => {
+        const res = await fetch(proxyUrl(`${base}/phalcon/api/${name}/`), {
+          method: 'POST',
+          headers: { ...API_HEADERS, 'content-type': 'application/x-www-form-urlencoded' },
+          body,
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        })
+        if (!res.ok) return null
+        return (await res.json()) as T
+      },
+      catch: () => new Error('animexnonton endpoint failed'),
+    }).pipe(Effect.catch(() => Effect.succeed(null)))
+    return result
+  })
 }
 
 function parseEpisodeNumber(name: string): number | null {
@@ -167,87 +186,94 @@ function toCard(item: CategoryItem, status: 'ONGOING' | 'COMPLETED'): ScrapedAni
   }
 }
 
-async function scrapeCategory(status: 'ONGOING' | 'COMPLETED', page: number): Promise<ListResult> {
-  const name = status === 'ONGOING' ? 'get_category_ongoing' : 'get_category_not_ongoing'
-  const data = await postEndpoint<ListResponse>(name, { page, count: PAGE_SIZE, lang: 'id', isAPKvalid: 'true' })
-  if (!data) return { anime: [], totalPages: 1 }
-  const anime = (data.categories ?? []).map(item => toCard(item, status)).filter(card => card.slug)
-  const total = data.count_total ?? anime.length
-  return { anime, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
-}
-
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const data = await postEndpoint<DetailResponse>('get_category_posts_secure', { id: slug, isAPKvalid: 'true' })
-  const category = data?.category
-  const title = (category?.category_name ?? '').trim()
-  if (!title) return null
-
-  const posts = (data?.posts ?? []).filter((post): post is CategoryPost & { channel_id: number } =>
-    Number.isFinite(post.channel_id),
-  )
-  const channels = keepSeriesEpisodes(
-    title,
-    slug,
-    posts.map(post => ({ title: post.channel_name ?? '' })),
-  )
-  const kept = new Set(channels.map(channel => channel.title))
-  const episodes = posts
-    .filter(post => kept.has(post.channel_name ?? ''))
-    .map(post => {
-      const number = parseEpisodeNumber(post.channel_name ?? '') ?? (posts.length === 1 ? 1 : null)
-      if (number === null) return null
-      return {
-        number,
-        title: (post.channel_name ?? '').trim() || `Episode ${number}`,
-        slug: `episode-${number}-${post.channel_id}`,
-        date: '',
-      }
-    })
-    .filter((entry): entry is { number: number; title: string; slug: string; date: string } => entry !== null)
-    .toSorted((a, b) => a.number - b.number)
-    .map(({ title: episodeTitle, slug: episodeSlug, date }) => ({ title: episodeTitle, slug: episodeSlug, date }))
-
-  return {
-    title,
-    japanese: '',
-    status: category?.ongoing ? 'Ongoing' : 'Completed',
-    releaseDate: category?.years ? String(category.years) : '',
-    episodes,
-  }
-}
-
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const match = slug.match(/^episode-\d+-(\d+)$/)
-  if (!match) return null
-  const channelId = match[1]!
-
-  const data = await postEndpoint<EpisodeResponse>('get_post_description', {
-    channel_id: channelId,
-    isAPKvalid: 'true',
+function scrapeCategory(status: 'ONGOING' | 'COMPLETED', page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const name = status === 'ONGOING' ? 'get_category_ongoing' : 'get_category_not_ongoing'
+    const data = yield* postEndpoint<ListResponse>(name, { page, count: PAGE_SIZE, lang: 'id', isAPKvalid: 'true' })
+    if (!data) return { anime: [], totalPages: 1 }
+    const anime = (data.categories ?? []).map(item => toCard(item, status)).filter(card => card.slug)
+    const total = data.count_total ?? anime.length
+    return { anime, totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)) }
   })
-  if (!data?.channel_name) return null
+}
 
-  const grouped = new Map<string, { name: string; dataContent: string }[]>()
-  if (data.secretKey) {
-    for (const { quality, field, name } of MIRROR_FIELDS) {
-      const value = data[field]
-      if (typeof value !== 'string' || value.length === 0) continue
-      const url = await decrypt(data.secretKey, value)
-      if (!url || !/^https?:\/\//.test(url)) continue
-      const list = grouped.get(quality) ?? []
-      list.push({ name, dataContent: await sealStreamToken(`animexnonton:${channelId}|${field}`) })
-      grouped.set(quality, list)
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const data = yield* postEndpoint<DetailResponse>('get_category_posts_secure', { id: slug, isAPKvalid: 'true' })
+    const category = data?.category
+    const title = (category?.category_name ?? '').trim()
+    if (!title) return null
+
+    const posts = (data?.posts ?? []).filter((post): post is CategoryPost & { channel_id: number } =>
+      Number.isFinite(post.channel_id),
+    )
+    const channels = keepSeriesEpisodes(
+      title,
+      slug,
+      posts.map(post => ({ title: post.channel_name ?? '' })),
+    )
+    const kept = new Set(channels.map(channel => channel.title))
+    const episodes = posts
+      .filter(post => kept.has(post.channel_name ?? ''))
+      .map(post => {
+        const number = parseEpisodeNumber(post.channel_name ?? '') ?? (posts.length === 1 ? 1 : null)
+        if (number === null) return null
+        return {
+          number,
+          title: (post.channel_name ?? '').trim() || `Episode ${number}`,
+          slug: `episode-${number}-${post.channel_id}`,
+          date: '',
+        }
+      })
+      .filter((entry): entry is { number: number; title: string; slug: string; date: string } => entry !== null)
+      .toSorted((a, b) => a.number - b.number)
+      .map(({ title: episodeTitle, slug: episodeSlug, date }) => ({ title: episodeTitle, slug: episodeSlug, date }))
+
+    return {
+      title,
+      japanese: '',
+      status: category?.ongoing ? 'Ongoing' : 'Completed',
+      releaseDate: category?.years ? String(category.years) : '',
+      episodes,
     }
-  }
+  })
+}
 
-  return {
-    title: data.channel_name,
-    animeSlug: String(data.category_id ?? ''),
-    animeTitle: data.category_name ?? '',
-    mirrors: [...grouped.entries()].map(([quality, sources]) => ({ quality, sources })),
-    episodeNav: [],
-    thumbnail: typeof data.img_url === 'string' && data.img_url !== '#' ? data.img_url : '',
-  }
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const match = slug.match(/^episode-\d+-(\d+)$/)
+    if (!match) return null
+    const channelId = match[1]!
+
+    const data = yield* postEndpoint<EpisodeResponse>('get_post_description', {
+      channel_id: channelId,
+      isAPKvalid: 'true',
+    })
+    if (!data?.channel_name) return null
+
+    const grouped = new Map<string, { name: string; dataContent: string }[]>()
+    if (data.secretKey) {
+      for (const { quality, field, name } of MIRROR_FIELDS) {
+        const value = data[field]
+        if (typeof value !== 'string' || value.length === 0) continue
+        const url = yield* decrypt(data.secretKey, value)
+        if (!url || !/^https?:\/\//.test(url)) continue
+        const dataContent = yield* Effect.promise(() => sealStreamToken(`animexnonton:${channelId}|${field}`))
+        const list = grouped.get(quality) ?? []
+        list.push({ name, dataContent })
+        grouped.set(quality, list)
+      }
+    }
+
+    return {
+      title: data.channel_name,
+      animeSlug: String(data.category_id ?? ''),
+      animeTitle: data.category_name ?? '',
+      mirrors: [...grouped.entries()].map(([quality, sources]) => ({ quality, sources })),
+      episodeNav: [],
+      thumbnail: typeof data.img_url === 'string' && data.img_url !== '#' ? data.img_url : '',
+    }
+  })
 }
 
 function gdriveDirect(url: string): string | null {
@@ -255,35 +281,39 @@ function gdriveDirect(url: string): string | null {
   return id ? `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t` : null
 }
 
-async function resolveMirror(opaque: string): Promise<string | null> {
-  if (opaque.startsWith('http')) return opaque
-  const match = opaque.match(/^(\d+)\|([a-z0-9_]+)$/)
-  if (!match) return null
-  const [, channelId, field] = match
-  if (!channelId || !field || !MIRROR_FIELDS.some(entry => entry.field === field)) return null
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.gen(function* () {
+    if (opaque.startsWith('http')) return opaque
+    const match = opaque.match(/^(\d+)\|([a-z0-9_]+)$/)
+    if (!match) return null
+    const [, channelId, field] = match
+    if (!channelId || !field || !MIRROR_FIELDS.some(entry => entry.field === field)) return null
 
-  const data = await postEndpoint<EpisodeResponse>('get_post_description', {
-    channel_id: channelId,
-    isAPKvalid: 'true',
+    const data = yield* postEndpoint<EpisodeResponse>('get_post_description', {
+      channel_id: channelId,
+      isAPKvalid: 'true',
+    })
+    const payload = data?.[field]
+    if (!data?.secretKey || typeof payload !== 'string') return null
+    const url = yield* decrypt(data.secretKey, payload)
+    if (!url) return null
+    if (field === 'gdrive_url') return gdriveDirect(url)
+    return /^https?:\/\//.test(url) ? url : null
   })
-  const payload = data?.[field]
-  if (!data?.secretKey || typeof payload !== 'string') return null
-  const url = await decrypt(data.secretKey, payload)
-  if (!url) return null
-  if (field === 'gdrive_url') return gdriveDirect(url)
-  return /^https?:\/\//.test(url) ? url : null
 }
 
-async function proxyHeaders(url: string): Promise<{ headers?: Record<string, string> } | null> {
-  let host = ''
-  try {
-    host = new URL(url).host
-  } catch {
-    return null
-  }
-  if (!host.includes(ORIGIN_HOST)) return null
-  const { auth } = await loadConfig()
-  return { headers: { ...(auth ? { Authorization: auth } : {}), 'User-Agent': PLAYER_UA, Referer: '' } }
+function proxyHeaders(url: string): Effect.Effect<{ headers?: Record<string, string> } | null, never, Http> {
+  return Effect.gen(function* () {
+    let host = ''
+    try {
+      host = new URL(url).host
+    } catch {
+      return null
+    }
+    if (!host.includes(ORIGIN_HOST)) return null
+    const { auth } = yield* loadConfig()
+    return { headers: { ...(auth ? { Authorization: auth } : {}), 'User-Agent': PLAYER_UA, Referer: '' } }
+  })
 }
 
 export const animexnonton: AnimeSource = {

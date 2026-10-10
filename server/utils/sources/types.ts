@@ -1,3 +1,9 @@
+import type { Effect } from 'effect'
+import type { Http } from '../net/http'
+import type { NetError } from '../net/rate'
+
+export type SourceEffect<A> = Effect.Effect<A, NetError, Http>
+
 export interface ScrapedAnimeCard {
   slug: string
   date: string
@@ -33,10 +39,10 @@ export interface AnimeSource {
   id: string
   name: string
   baseUrl: string
-  ongoingFresh(page: number): Promise<ListResult>
-  completedFresh(page: number): Promise<ListResult>
-  detailFresh(slug: string): Promise<ScrapedAnimeDetail | null>
-  episodeFresh(slug: string): Promise<EpisodeData | null>
-  resolveMirror(opaque: string): Promise<string | null>
-  proxy?(url: string): Promise<{ headers?: Record<string, string> } | null>
+  ongoingFresh(page: number): SourceEffect<ListResult>
+  completedFresh(page: number): SourceEffect<ListResult>
+  detailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null>
+  episodeFresh(slug: string): SourceEffect<EpisodeData | null>
+  resolveMirror(opaque: string): SourceEffect<string | null>
+  proxy?(url: string): Effect.Effect<{ headers?: Record<string, string> } | null, never, Http>
 }

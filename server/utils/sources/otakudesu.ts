@@ -1,7 +1,9 @@
 import * as cheerio from 'cheerio/slim'
+import { Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
-import { cleanTitleWithRules, fetchHTML, postForm, type TitleCleanupRule } from './shared'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import { Http } from '../net/http'
+import { cleanTitleWithRules, type TitleCleanupRule } from './shared'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const BASE_URL = 'https://otakudesu.blog'
 
@@ -82,44 +84,34 @@ function titleFromInfo(info: Record<string, string>, fallback: string): string {
   return infoValue(info, 'Judul') || fallback
 }
 
-async function scrapeAnimeListFresh(path: string, page: number): Promise<ListResult> {
-  const url = page > 1 ? `${BASE_URL}/${path}/page/${page}/` : `${BASE_URL}/${path}/`
-  const html = await fetchHTML(url)
-  const $ = cheerio.load(html)
-  return { anime: parseAnimeCards($), totalPages: getTotalPages($) }
+function scrapeAnimeListFresh(path: string, page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const url = page > 1 ? `${BASE_URL}/${path}/page/${page}/` : `${BASE_URL}/${path}/`
+    const http = yield* Http
+    const html = yield* http.html(url)
+    const $ = cheerio.load(html)
+    return { anime: parseAnimeCards($), totalPages: getTotalPages($) }
+  })
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`)
-  const $ = cheerio.load(html)
-  const h1Title = cleanTitle($('.jdlrx h1').text().trim())
-  if (!h1Title) return null
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const html = yield* http.html(`${BASE_URL}/anime/${slug}/`)
+    const $ = cheerio.load(html)
+    const h1Title = cleanTitle($('.jdlrx h1').text().trim())
+    if (!h1Title) return null
 
-  const info = parseInfo($)
+    const info = parseInfo($)
 
-  return {
-    title: titleFromInfo(info, h1Title),
-    japanese: infoValue(info, 'Japanese'),
-    status: infoValue(info, 'Status'),
-    releaseDate: infoValue(info, 'Tanggal Rilis'),
-    episodes: parseDetailEpisodes($),
-  }
-}
-
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${BASE_URL}/episode/${slug}/`)
-  const $ = cheerio.load(html)
-  const title = $('.posttl').text().trim()
-  if (!title) return null
-
-  return {
-    title,
-    animeSlug: parseEpisodeAnimeSlug($),
-    animeTitle: $('.cukder .infozingle p span').first().text().replace('Credit:', '').trim(),
-    mirrors: await parseEpisodeMirrors($),
-    episodeNav: parseEpisodeNav($),
-    thumbnail: $('.cukder img').attr('src') || '',
-  }
+    return {
+      title: titleFromInfo(info, h1Title),
+      japanese: infoValue(info, 'Japanese'),
+      status: infoValue(info, 'Status'),
+      releaseDate: infoValue(info, 'Tanggal Rilis'),
+      episodes: parseDetailEpisodes($),
+    }
+  })
 }
 
 function parseEpisodeAnimeSlug($: cheerio.CheerioAPI): string {
@@ -138,7 +130,7 @@ function parseMirrorQuality($ul: ReturnType<cheerio.CheerioAPI>): string {
   return classMatch?.[1] ?? textMatch?.[1] ?? qualityText
 }
 
-async function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio.CheerioAPI>) {
+function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio.CheerioAPI>) {
   const sources = $ul
     .find('a[data-content]')
     .map((_, a) => ({
@@ -147,25 +139,31 @@ async function parseMirrorSources($: cheerio.CheerioAPI, $ul: ReturnType<cheerio
     }))
     .get()
     .filter(source => source.name && source.dataContent)
-  return Promise.all(
-    sources.map(async source => ({
-      ...source,
-      dataContent: await sealStreamToken(`otakudesu:${source.dataContent}`),
-    })),
+  return Effect.forEach(
+    sources,
+    source =>
+      Effect.promise(async () => ({
+        ...source,
+        dataContent: await sealStreamToken(`otakudesu:${source.dataContent}`),
+      })),
+    { concurrency: 'unbounded' },
   )
 }
 
-async function parseEpisodeMirrors($: cheerio.CheerioAPI): Promise<EpisodeData['mirrors']> {
-  const uls = $('.mirrorstream ul').toArray()
-  const mirrors = await Promise.all(
-    uls.map(async ul => {
-      const $ul = $(ul)
-      const quality = parseMirrorQuality($ul)
-      const sources = await parseMirrorSources($, $ul)
-      return sources.length > 0 && quality !== '360p' ? { quality, sources } : null
-    }),
+function parseEpisodeMirrors($: cheerio.CheerioAPI): Effect.Effect<EpisodeData['mirrors']> {
+  return Effect.forEach(
+    $('.mirrorstream ul').toArray(),
+    ul =>
+      Effect.gen(function* () {
+        const $ul = $(ul)
+        const quality = parseMirrorQuality($ul)
+        const sources = yield* parseMirrorSources($, $ul)
+        return sources.length > 0 && quality !== '360p' ? { quality, sources } : null
+      }),
+    { concurrency: 'unbounded' },
+  ).pipe(
+    Effect.map(mirrors => mirrors.filter((mirror): mirror is EpisodeData['mirrors'][number] => mirror !== null)),
   )
-  return mirrors.filter((mirror): mirror is EpisodeData['mirrors'][number] => mirror !== null)
 }
 
 function parseEpisodeNav($: cheerio.CheerioAPI): EpisodeData['episodeNav'] {
@@ -179,29 +177,52 @@ function parseEpisodeNav($: cheerio.CheerioAPI): EpisodeData['episodeNav'] {
     .get()
 }
 
-async function resolveMirror(opaque: string): Promise<string | null> {
-  try {
-    const nonceData = await postForm(
-      `${BASE_URL}/wp-admin/admin-ajax.php`,
-      'action=aa1208d27f29ca340c92c66d1926f13f',
-      `${BASE_URL}/`,
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const html = yield* http.html(`${BASE_URL}/episode/${slug}/`)
+    const $ = cheerio.load(html)
+    const title = $('.posttl').text().trim()
+    if (!title) return null
+
+    return {
+      title,
+      animeSlug: parseEpisodeAnimeSlug($),
+      animeTitle: $('.cukder .infozingle p span').first().text().replace('Credit:', '').trim(),
+      mirrors: yield* parseEpisodeMirrors($),
+      episodeNav: parseEpisodeNav($),
+      thumbnail: $('.cukder img').attr('src') || '',
+    }
+  })
+}
+
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const result = yield* Effect.result(
+      Effect.gen(function* () {
+        const nonceData = yield* http.form(
+          `${BASE_URL}/wp-admin/admin-ajax.php`,
+          'action=aa1208d27f29ca340c92c66d1926f13f',
+          `${BASE_URL}/`,
+        )
+        const nonce = nonceData.data as string
+        const decoded = JSON.parse(atob(opaque)) as { id?: string | number; i?: string | number; q?: string }
+        const params = new URLSearchParams({
+          id: decoded.id?.toString() || '',
+          i: decoded.i?.toString() || '',
+          q: decoded.q ?? '',
+          nonce,
+          action: '2a3505c93b0035d3f455df82bf976b84',
+        })
+        const mirrorData = yield* http.form(`${BASE_URL}/wp-admin/admin-ajax.php`, params.toString(), `${BASE_URL}/`)
+        if (!mirrorData.data) return null
+        const html = atob(mirrorData.data as string)
+        return cheerio.load(html)('iframe').attr('src') || ''
+      }),
     )
-    const nonce = nonceData.data as string
-    const decoded = JSON.parse(atob(opaque))
-    const params = new URLSearchParams({
-      id: decoded.id?.toString() || '',
-      i: decoded.i?.toString() || '',
-      q: decoded.q || '',
-      nonce,
-      action: '2a3505c93b0035d3f455df82bf976b84',
-    })
-    const mirrorData = await postForm(`${BASE_URL}/wp-admin/admin-ajax.php`, params.toString(), `${BASE_URL}/`)
-    if (!mirrorData.data) return null
-    const html = atob(mirrorData.data as string)
-    return cheerio.load(html)('iframe').attr('src') || ''
-  } catch {
-    return null
-  }
+    return result._tag === 'Success' ? result.success : null
+  })
 }
 
 export const otakudesu: AnimeSource = {

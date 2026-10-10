@@ -1,15 +1,12 @@
 import * as cheerio from 'cheerio/slim'
-import { Effect, Result } from 'effect'
-import { proxyFetch } from '../media/proxy'
+import { Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
-import { runGuarded } from '../net/rate'
-import { getSpoofHeaders } from '../net/spoof'
-import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import { Http } from '../net/http'
+import { cleanTitleWithRules, type TitleCleanupRule } from './shared'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const BASE_URL = 'https://astronime.id'
 const TIMEOUT_MS = 12000
-const PLAYER_TIMEOUT_MS = 8000
 
 const TITLE_CLEANUP: TitleCleanupRule[] = [/\s*Sub(title)?\s*Indo(nesia)?/gi]
 
@@ -56,50 +53,56 @@ function parseCards($: cheerio.CheerioAPI): ScrapedAnimeCard[] {
   return cards
 }
 
-async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
-  const statusParam = status === 'ongoing' ? 'Currently Airing' : 'Finished Airing'
-  const query = `title=&order=&status=${encodeURIComponent(statusParam)}&type=`
-  const url = page > 1 ? `${BASE_URL}/daftar-anime/page/${page}/?${query}` : `${BASE_URL}/daftar-anime/?${query}`
-  const html = await fetchHTML(url, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  let totalPages = page
-  $('a[href]').each((_, el) => {
-    const match = ($(el).attr('href') || '').match(/\/daftar-anime\/page\/(\d+)/)
-    if (match) totalPages = Math.max(totalPages, Number(match[1]))
+function scrapeListFresh(status: 'ongoing' | 'completed', page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const statusParam = status === 'ongoing' ? 'Currently Airing' : 'Finished Airing'
+    const query = `title=&order=&status=${encodeURIComponent(statusParam)}&type=`
+    const url = page > 1 ? `${BASE_URL}/daftar-anime/page/${page}/?${query}` : `${BASE_URL}/daftar-anime/?${query}`
+    const http = yield* Http
+    const html = yield* http.html(url, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    let totalPages = page
+    $('a[href]').each((_, el) => {
+      const match = ($(el).attr('href') || '').match(/\/daftar-anime\/page\/(\d+)/)
+      if (match) totalPages = Math.max(totalPages, Number(match[1]))
+    })
+    return { anime: parseCards($), totalPages }
   })
-  return { anime: parseCards($), totalPages }
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const title = cleanTitle($('h1.entry-title').first().text())
-  if (!title) return null
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const html = yield* http.html(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    const title = cleanTitle($('h1.entry-title').first().text())
+    if (!title) return null
 
-  const info = $('.alternati > span')
-    .not('.type')
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean)
-  const episodes = $('.epsleft')
-    .map((_, el) => {
-      const $el = $(el)
-      const href = $el.find('.lchx a').attr('href') || ''
-      const episodeSlug = episodeSlugFromHref(href)
-      const episodeTitle = cleanTitle($el.find('.lchx a').text())
-      if (!episodeSlug || !episodeTitle) return null
-      return { title: episodeTitle, slug: episodeSlug, date: $el.find('.date').text().trim() }
-    })
-    .get()
-    .filter((episode): episode is { title: string; slug: string; date: string } => episode !== null)
+    const info = $('.alternati > span')
+      .not('.type')
+      .map((_, el) => $(el).text().trim())
+      .get()
+      .filter(Boolean)
+    const episodes = $('.epsleft')
+      .map((_, el) => {
+        const $el = $(el)
+        const href = $el.find('.lchx a').attr('href') || ''
+        const episodeSlug = episodeSlugFromHref(href)
+        const episodeTitle = cleanTitle($el.find('.lchx a').text())
+        if (!episodeSlug || !episodeTitle) return null
+        return { title: episodeTitle, slug: episodeSlug, date: $el.find('.date').text().trim() }
+      })
+      .get()
+      .filter((episode): episode is { title: string; slug: string; date: string } => episode !== null)
 
-  return {
-    title,
-    japanese: '',
-    status: info[0] ?? '',
-    releaseDate: info[2] ?? '',
-    episodes,
-  }
+    return {
+      title,
+      japanese: '',
+      status: info[0] ?? '',
+      releaseDate: info[2] ?? '',
+      episodes,
+    }
+  })
 }
 
 interface ServerOption {
@@ -109,83 +112,72 @@ interface ServerOption {
   name: string
 }
 
-async function resolvePlayer(option: ServerOption): Promise<string | null> {
-  const body = `action=player_ajax&post=${encodeURIComponent(option.post)}&nume=${encodeURIComponent(option.nume)}&type=${encodeURIComponent(option.type)}`
-  const result = await Effect.runPromise(
-    Effect.result(
-      runGuarded({
-        url: BASE_URL,
-        task: signal =>
-          proxyFetch(`${BASE_URL}/wp-admin/admin-ajax.php`, {
-            method: 'POST',
-            headers: { ...getSpoofHeaders(BASE_URL, 'cors'), 'Content-Type': 'application/x-www-form-urlencoded' },
-            body,
-            signal,
-          }),
-        timeoutMs: PLAYER_TIMEOUT_MS,
-        status: response => response.status,
-      }),
-    ),
-  )
-  if (Result.isFailure(result)) return null
-  try {
-    const html = await result.success.text()
+function resolvePlayer(option: ServerOption): SourceEffect<string | null> {
+  return Effect.gen(function* () {
+    const body = `action=player_ajax&post=${encodeURIComponent(option.post)}&nume=${encodeURIComponent(option.nume)}&type=${encodeURIComponent(option.type)}`
+    const http = yield* Http
+    const html = yield* http.formText(`${BASE_URL}/wp-admin/admin-ajax.php`, body, BASE_URL)
     return html.match(/src=['"]([^'"]+)['"]/)?.[1] ?? null
-  } catch {
-    return null
-  }
+  }).pipe(Effect.catch(() => Effect.succeed(null)))
 }
 
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${BASE_URL}/${slug}/`, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const title = cleanTitle($('h1.entry-title').first().text())
-  if (!title) return null
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const html = yield* http.html(`${BASE_URL}/${slug}/`, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    const title = cleanTitle($('h1.entry-title').first().text())
+    if (!title) return null
 
-  let animeSlug = ''
-  let animeTitle = ''
-  $('a[href*="/anime/"]').each((_, el) => {
-    if (animeSlug) return
-    const href = $(el).attr('href') || ''
-    const candidate = seriesSlugFromHref(href)
-    const text = $(el).text().trim()
-    if (!candidate || !text || /^(anime|semua episode|view all)$/i.test(text)) return
-    animeSlug = candidate
-    animeTitle = text
-  })
-
-  const options: ServerOption[] = $('.east_player_option')
-    .map((_, el) => {
-      const $el = $(el)
-      return {
-        post: $el.attr('data-post') || '',
-        nume: $el.attr('data-nume') || '',
-        type: $el.attr('data-type') || 'urliframe',
-        name: $el.find('span').first().text().trim() || 'Server',
-      }
+    let animeSlug = ''
+    let animeTitle = ''
+    $('a[href*="/anime/"]').each((_, el) => {
+      if (animeSlug) return
+      const href = $(el).attr('href') || ''
+      const candidate = seriesSlugFromHref(href)
+      const text = $(el).text().trim()
+      if (!candidate || !text || /^(anime|semua episode|view all)$/i.test(text)) return
+      animeSlug = candidate
+      animeTitle = text
     })
-    .get()
-    .filter(option => option.post && option.nume)
 
-  const sources: { name: string; dataContent: string }[] = []
-  for (const option of options) {
-    const embedUrl = await resolvePlayer(option).catch(() => null)
-    if (!embedUrl) continue
-    sources.push({ name: option.name, dataContent: await sealStreamToken(`astronime:${embedUrl}`) })
-  }
+    const options: ServerOption[] = $('.east_player_option')
+      .map((_, el) => {
+        const $el = $(el)
+        return {
+          post: $el.attr('data-post') || '',
+          nume: $el.attr('data-nume') || '',
+          type: $el.attr('data-type') || 'urliframe',
+          name: $el.find('span').first().text().trim() || 'Server',
+        }
+      })
+      .get()
+      .filter(option => option.post && option.nume)
 
-  return {
-    title,
-    animeSlug,
-    animeTitle,
-    mirrors: sources.length > 0 ? [{ quality: 'default', sources }] : [],
-    episodeNav: [],
-    thumbnail: $('.info_episode img').first().attr('src') || '',
-  }
+    const resolved = yield* Effect.forEach(
+      options,
+      option => resolvePlayer(option).pipe(Effect.map(embedUrl => ({ option, embedUrl }))),
+      { concurrency: 'unbounded' },
+    )
+    const sources: { name: string; dataContent: string }[] = []
+    for (const { option, embedUrl } of resolved) {
+      if (!embedUrl) continue
+      sources.push({ name: option.name, dataContent: yield* Effect.promise(() => sealStreamToken(`astronime:${embedUrl}`)) })
+    }
+
+    return {
+      title,
+      animeSlug,
+      animeTitle,
+      mirrors: sources.length > 0 ? [{ quality: 'default', sources }] : [],
+      episodeNav: [],
+      thumbnail: $('.info_episode img').first().attr('src') || '',
+    }
+  })
 }
 
-async function resolveMirror(opaque: string): Promise<string | null> {
-  return opaque.startsWith('http') ? opaque : null
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.succeed(opaque.startsWith('http') ? opaque : null)
 }
 
 export const astronime: AnimeSource = {

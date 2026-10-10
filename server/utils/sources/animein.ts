@@ -1,6 +1,7 @@
+import { Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
-import { plainGet } from '../net/fetch'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import { Http } from '../net/http'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const ASSET_BASE = 'https://xyz-api.animein.net'
 const API_BASE = ASSET_BASE
@@ -43,17 +44,19 @@ interface AnimeinServer {
   type?: string
 }
 
-async function apiGet<T>(path: string): Promise<T | null> {
-  const res = await plainGet(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
-  if (res && res.status === 200) {
-    try {
-      const body = JSON.parse(res.text) as { status?: number; error?: boolean; data?: T }
-      if (!body.error && body.status === 200 && body.data) return body.data
-    } catch {
-      return null
-    }
-  }
-  return null
+function apiGet<T>(path: string): Effect.Effect<T | null, never, Http> {
+  return Effect.gen(function* () {
+    const http = yield* Http
+    const res = yield* http.text(`${API_BASE}${path}`, { timeoutMs: REQUEST_TIMEOUT_MS, proxy: true })
+    if (!res || res.status !== 200) return null
+    return yield* Effect.try({
+      try: () => {
+        const body = JSON.parse(res.text) as { status?: number; error?: boolean; data?: T }
+        return !body.error && body.status === 200 && body.data ? body.data : null
+      },
+      catch: () => new Error('invalid animein payload'),
+    }).pipe(Effect.catch(() => Effect.succeed(null)))
+  })
 }
 
 function wibDay(): string {
@@ -71,32 +74,35 @@ function episodeSlug(movieId: string, index: string, episodeId: string): string 
   return `${movieId}-episode-${index}-${episodeId}`
 }
 
-async function fetchEpisodePage(movieId: string, page: number): Promise<AnimeinEpisode[]> {
-  const data = await apiGet<{ episode?: AnimeinEpisode[] }>(
+function fetchEpisodePage(movieId: string, page: number): Effect.Effect<AnimeinEpisode[], never, Http> {
+  return apiGet<{ episode?: AnimeinEpisode[] }>(
     `/3/2/movie/episode/${encodeURIComponent(movieId)}?page=${page}&search=`,
-  )
-  return data?.episode ?? []
+  ).pipe(Effect.map(data => data?.episode ?? []))
 }
 
-async function collectEpisodes(movieId: string): Promise<AnimeinEpisode[]> {
-  const all: AnimeinEpisode[] = []
-  const first = await fetchEpisodePage(movieId, 0)
-  all.push(...first)
-  if (first.length < EPISODE_PAGE_SIZE) return all
-  for (let start = 1; start < EPISODE_LIST_MAX_PAGES; start += EPISODE_FETCH_BATCH) {
-    const pages = Array.from(
-      { length: Math.min(EPISODE_FETCH_BATCH, EPISODE_LIST_MAX_PAGES - start) },
-      (_, offset) => start + offset,
-    )
-    const results = await Promise.all(pages.map(page => fetchEpisodePage(movieId, page)))
-    let reachedEnd = false
-    for (const list of results) {
-      all.push(...list)
-      if (list.length < EPISODE_PAGE_SIZE) reachedEnd = true
+function collectEpisodes(movieId: string): Effect.Effect<AnimeinEpisode[], never, Http> {
+  return Effect.gen(function* () {
+    const all: AnimeinEpisode[] = []
+    const first = yield* fetchEpisodePage(movieId, 0)
+    all.push(...first)
+    if (first.length < EPISODE_PAGE_SIZE) return all
+    for (let start = 1; start < EPISODE_LIST_MAX_PAGES; start += EPISODE_FETCH_BATCH) {
+      const pages = Array.from(
+        { length: Math.min(EPISODE_FETCH_BATCH, EPISODE_LIST_MAX_PAGES - start) },
+        (_, offset) => start + offset,
+      )
+      const results = yield* Effect.forEach(pages, page => fetchEpisodePage(movieId, page), {
+        concurrency: 'unbounded',
+      })
+      let reachedEnd = false
+      for (const list of results) {
+        all.push(...list)
+        if (list.length < EPISODE_PAGE_SIZE) reachedEnd = true
+      }
+      if (reachedEnd) break
     }
-    if (reachedEnd) break
-  }
-  return all
+    return all
+  })
 }
 
 interface LatestEpisode {
@@ -104,105 +110,115 @@ interface LatestEpisode {
   date: string
 }
 
-async function latestEpisode(movieId: string): Promise<LatestEpisode | null> {
-  const list = await fetchEpisodePage(movieId, 0)
-  let best: AnimeinEpisode | null = null
-  for (const entry of list) {
-    const index = Number(entry.index)
-    if (!Number.isFinite(index)) continue
-    if (!best || index > Number(best.index)) best = entry
-  }
-  return best ? { index: best.index, date: best.key_time ?? '' } : null
+function latestEpisode(movieId: string): Effect.Effect<LatestEpisode | null, never, Http> {
+  return fetchEpisodePage(movieId, 0).pipe(
+    Effect.map(list => {
+      let best: AnimeinEpisode | null = null
+      for (const entry of list) {
+        const index = Number(entry.index)
+        if (!Number.isFinite(index)) continue
+        if (!best || index > Number(best.index)) best = entry
+      }
+      return best ? { index: best.index, date: best.key_time ?? '' } : null
+    }),
+  )
 }
 
-async function scrapeOngoingFresh(page: number): Promise<ListResult> {
-  if (page > 1) return { anime: [], totalPages: 1 }
-  const day = wibDay()
-  const data = await apiGet<{ movie?: AnimeinMovie[] }>(`/3/2/schedule/data?day=${day}`)
-  const movies = (data?.movie ?? []).filter(movie => movie.status === 'ONGOING')
-  const latest = await Promise.all(movies.map(movie => latestEpisode(String(movie.id))))
+function scrapeOngoingFresh(page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    if (page > 1) return { anime: [], totalPages: 1 }
+    const day = wibDay()
+    const data = yield* apiGet<{ movie?: AnimeinMovie[] }>(`/3/2/schedule/data?day=${day}`)
+    const movies = (data?.movie ?? []).filter(movie => movie.status === 'ONGOING')
+    const latest = yield* Effect.forEach(movies, movie => latestEpisode(String(movie.id)), { concurrency: 'unbounded' })
 
-  const anime: ScrapedAnimeCard[] = movies.map((movie, index) => {
-    const episode = latest[index]
+    const anime: ScrapedAnimeCard[] = movies.map((movie, index) => {
+      const episode = latest[index]
+      return {
+        slug: String(movie.id),
+        date: episode?.date ?? '',
+      }
+    })
+    return { anime, totalPages: 1 }
+  })
+}
+
+function scrapeCompletedFresh(page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const data = yield* apiGet<{ movie?: AnimeinMovie[] }>(
+      `/3/2/explore/movie?page=${Math.max(0, page - 1)}&sort=latest&keyword=`,
+    )
+    const anime: ScrapedAnimeCard[] = (data?.movie ?? [])
+      .filter(movie => movie.status === 'FINISHED')
+      .map(movie => ({
+        slug: String(movie.id),
+        date: movie.aired_start || '',
+      }))
+    return { anime, totalPages: COMPLETED_PAGE_LIMIT }
+  })
+}
+
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const data = yield* apiGet<{ movie?: AnimeinMovie }>(`/3/2/movie/detail/${encodeURIComponent(slug)}`)
+    const movie = data?.movie
+    if (!movie) return null
+
+    const episodes = yield* collectEpisodes(String(movie.id))
+    const ordered = episodes.toSorted((a, b) => Number(a.index) - Number(b.index))
+
     return {
-      slug: String(movie.id),
-      date: episode?.date ?? '',
+      title: movie.title,
+      japanese: movie.synonyms || '',
+      status: movie.status === 'FINISHED' ? 'Completed' : 'Ongoing',
+      releaseDate: movie.aired_start || movie.year || '',
+      episodes: ordered.map(entry => ({
+        title: entry.title || `Episode ${entry.index}`,
+        slug: episodeSlug(String(movie.id), entry.index, entry.id),
+        date: entry.key_time || '',
+      })),
     }
   })
-  return { anime, totalPages: 1 }
 }
 
-async function scrapeCompletedFresh(page: number): Promise<ListResult> {
-  const data = await apiGet<{ movie?: AnimeinMovie[] }>(
-    `/3/2/explore/movie?page=${Math.max(0, page - 1)}&sort=latest&keyword=`,
-  )
-  const anime: ScrapedAnimeCard[] = (data?.movie ?? [])
-    .filter(movie => movie.status === 'FINISHED')
-    .map(movie => ({
-      slug: String(movie.id),
-      date: movie.aired_start || '',
-    }))
-  return { anime, totalPages: COMPLETED_PAGE_LIMIT }
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const match = slug.match(/^(\d+)-episode-(\d+)-(\d+)$/)
+    if (!match) return null
+    const movieId = match[1]!
+    const index = match[2]!
+    const episodeId = match[3]!
+
+    const data = yield* apiGet<{ episode?: AnimeinEpisode; server?: AnimeinServer[] }>(
+      `/3/2/episode/streamnew/${encodeURIComponent(episodeId)}`,
+    )
+    const episode = data?.episode
+    if (!episode) return null
+
+    const servers = (data?.server ?? []).filter(server => server.type === 'direct' && server.link)
+
+    const grouped = new Map<string, { name: string; dataContent: string }[]>()
+    for (const server of servers) {
+      const quality = server.quality || 'HD'
+      const sealed = yield* Effect.promise(() => sealStreamToken(`animein:${server.link}`))
+      const list = grouped.get(quality) ?? []
+      list.push({ name: server.name || 'Server', dataContent: sealed })
+      grouped.set(quality, list)
+    }
+
+    return {
+      title: episode.title || `Episode ${index}`,
+      animeSlug: movieId,
+      animeTitle: '',
+      mirrors: [...grouped.entries()].map(([quality, sources]) => ({ quality, sources })),
+      episodeNav: [],
+      thumbnail: absoluteAsset(episode.image),
+    }
+  })
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const data = await apiGet<{ movie?: AnimeinMovie }>(`/3/2/movie/detail/${encodeURIComponent(slug)}`)
-  const movie = data?.movie
-  if (!movie) return null
-
-  const episodes = await collectEpisodes(String(movie.id))
-  const ordered = episodes.toSorted((a, b) => Number(a.index) - Number(b.index))
-
-  return {
-    title: movie.title,
-    japanese: movie.synonyms || '',
-    status: movie.status === 'FINISHED' ? 'Completed' : 'Ongoing',
-    releaseDate: movie.aired_start || movie.year || '',
-    episodes: ordered.map(entry => ({
-      title: entry.title || `Episode ${entry.index}`,
-      slug: episodeSlug(String(movie.id), entry.index, entry.id),
-      date: entry.key_time || '',
-    })),
-  }
-}
-
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const match = slug.match(/^(\d+)-episode-(\d+)-(\d+)$/)
-  if (!match) return null
-  const movieId = match[1]!
-  const index = match[2]!
-  const episodeId = match[3]!
-
-  const data = await apiGet<{ episode?: AnimeinEpisode; server?: AnimeinServer[] }>(
-    `/3/2/episode/streamnew/${encodeURIComponent(episodeId)}`,
-  )
-  const episode = data?.episode
-  if (!episode) return null
-
-  const servers = (data?.server ?? []).filter(server => server.type === 'direct' && server.link)
-
-  const grouped = new Map<string, { name: string; dataContent: string }[]>()
-  for (const server of servers) {
-    const quality = server.quality || 'HD'
-    const sealed = await sealStreamToken(`animein:${server.link}`)
-    const list = grouped.get(quality) ?? []
-    list.push({ name: server.name || 'Server', dataContent: sealed })
-    grouped.set(quality, list)
-  }
-
-  return {
-    title: episode?.title || `Episode ${index}`,
-    animeSlug: movieId,
-    animeTitle: '',
-    mirrors: [...grouped.entries()].map(([quality, sources]) => ({ quality, sources })),
-    episodeNav: [],
-    thumbnail: absoluteAsset(episode?.image),
-  }
-}
-
-async function resolveMirror(opaque: string): Promise<string | null> {
-  if (!opaque.startsWith('http')) return null
-  return opaque
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.succeed(opaque.startsWith('http') ? opaque : null)
 }
 
 export const animein: AnimeSource = {

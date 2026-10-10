@@ -1,34 +1,37 @@
 import * as cheerio from 'cheerio/slim'
-import { Effect, Result } from 'effect'
-import { proxyFetch, proxyUrl } from '../media/proxy'
+import { Effect, Ref } from 'effect'
+import { proxyUrl } from '../media/proxy'
 import { sealStreamToken } from '../media/stream'
-import { runGuarded } from '../net/rate'
+import { Http } from '../net/http'
 import { getSpoofHeaders } from '../net/spoof'
-import { cleanTitleWithRules, fetchHTML, type TitleCleanupRule } from './shared'
-import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail } from './types'
+import { cleanTitleWithRules, type TitleCleanupRule } from './shared'
+import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const ENTRY_URL = 'https://sokuja.net'
 const CANONICAL_URL = 'https://x6.sokuja.uk'
 const TIMEOUT_MS = 12000
-const MIRROR_TIMEOUT_MS = 8000
 
-let basePromise: Promise<string> | null = null
+const baseUrlRef = Ref.makeUnsafe<string | null>(null)
 
-async function baseUrl(): Promise<string> {
-  basePromise ??= (async () => {
-    try {
-      const res = await fetch(proxyUrl(ENTRY_URL), {
-        redirect: 'manual',
-        headers: getSpoofHeaders(ENTRY_URL, 'navigate'),
-        signal: AbortSignal.timeout(8000),
-      })
-      const location = res.headers.get('location')
-      return location ? new URL(location, ENTRY_URL).origin : CANONICAL_URL
-    } catch {
-      return CANONICAL_URL
-    }
-  })()
-  return basePromise
+function resolveBaseUrl(): SourceEffect<string> {
+  return Effect.gen(function* () {
+    const cached = yield* Ref.get(baseUrlRef)
+    if (cached) return cached
+    const resolved = yield* Effect.tryPromise({
+      try: async () => {
+        const res = await fetch(proxyUrl(ENTRY_URL), {
+          redirect: 'manual',
+          headers: getSpoofHeaders(ENTRY_URL, 'navigate'),
+          signal: AbortSignal.timeout(8000),
+        })
+        const location = res.headers.get('location')
+        return location ? new URL(location, ENTRY_URL).origin : CANONICAL_URL
+      },
+      catch: () => new Error('sokuja entry unreachable'),
+    }).pipe(Effect.catch(() => Effect.succeed(CANONICAL_URL)))
+    yield* Ref.set(baseUrlRef, resolved)
+    return resolved
+  })
 }
 
 const SCRAPER_TITLE_CLEANUP: TitleCleanupRule[] = [/\s*Subtitle\s+Indonesia/gi, /\s*Sub\s+Indo(nesia)?/gi]
@@ -98,12 +101,16 @@ function parseTotalPages($: cheerio.CheerioAPI, page: number): number {
   return total
 }
 
-async function scrapeListFresh(status: 'ongoing' | 'completed', page: number): Promise<ListResult> {
-  const url = `${await baseUrl()}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
-  const html = await fetchHTML(url, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const anime = parseCards($)
-  return { anime, totalPages: parseTotalPages($, page) }
+function scrapeListFresh(status: 'ongoing' | 'completed', page: number): SourceEffect<ListResult> {
+  return Effect.gen(function* () {
+    const base = yield* resolveBaseUrl()
+    const url = `${base}/anime/?status=${status}&order=update${page > 1 ? `&page=${page}` : ''}`
+    const http = yield* Http
+    const html = yield* http.html(url, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    const anime = parseCards($)
+    return { anime, totalPages: parseTotalPages($, page) }
+  })
 }
 
 function parseInfo($: cheerio.CheerioAPI): Record<string, string> {
@@ -137,23 +144,27 @@ function parseDetailEpisodes($: cheerio.CheerioAPI): { title: string; slug: stri
   return episodes
 }
 
-async function scrapeAnimeDetailFresh(slug: string): Promise<ScrapedAnimeDetail | null> {
-  const html = await fetchHTML(`${await baseUrl()}/anime/${slug}/`, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const series = jsonLd($).find(entry => entry['@type'] === 'TVSeries') as JsonLdTvSeries | undefined
-  const title = cleanTitle(String(series?.name ?? $('h1').first().text()).trim())
-  if (!title) return null
+function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
+  return Effect.gen(function* () {
+    const base = yield* resolveBaseUrl()
+    const http = yield* Http
+    const html = yield* http.html(`${base}/anime/${slug}/`, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    const series = jsonLd($).find(entry => entry['@type'] === 'TVSeries') as JsonLdTvSeries | undefined
+    const title = cleanTitle(String(series?.name ?? $('h1').first().text()).trim())
+    if (!title) return null
 
-  const info = parseInfo($)
-  const episodes = parseDetailEpisodes($)
+    const info = parseInfo($)
+    const episodes = parseDetailEpisodes($)
 
-  return {
-    title,
-    japanese: '',
-    status: info.Status ?? '',
-    releaseDate: String(series?.datePublished ?? info.Tahun ?? ''),
-    episodes,
-  }
+    return {
+      title,
+      japanese: '',
+      status: info.Status ?? '',
+      releaseDate: String(series?.datePublished ?? info.Tahun ?? ''),
+      episodes,
+    }
+  })
 }
 
 interface MirrorApiEntry {
@@ -163,59 +174,57 @@ interface MirrorApiEntry {
   embedType?: string
 }
 
-async function fetchMirrors(episodeId: number): Promise<EpisodeData['mirrors']> {
-  const url = `${await baseUrl()}/api/video-mirrors/?e=${episodeId}`
-  const result = await Effect.runPromise(
-    Effect.result(
-      runGuarded({
-        url,
-        task: signal => proxyFetch(url, { headers: getSpoofHeaders(url, 'cors'), signal }),
-        timeoutMs: MIRROR_TIMEOUT_MS,
-        status: response => response.status,
-      }),
-    ),
-  )
-  if (Result.isFailure(result)) return []
-  try {
-    const data = (await result.success.json()) as { mirrors?: MirrorApiEntry[] }
+function fetchMirrors(episodeId: number): SourceEffect<EpisodeData['mirrors']> {
+  return Effect.gen(function* () {
+    const base = yield* resolveBaseUrl()
+    const url = `${base}/api/video-mirrors/?e=${episodeId}`
+    const http = yield* Http
+    const data = yield* http
+      .text(url, { timeoutMs: 8000, headers: getSpoofHeaders(url, 'cors') })
+      .pipe(Effect.map(response => (response?.status === 200 ? response.text : null)))
+    if (!data) return []
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(data) as { mirrors?: MirrorApiEntry[] },
+      catch: () => new Error('invalid mirror payload'),
+    }).pipe(Effect.catch(() => Effect.succeed(null)))
     const grouped = new Map<string, { name: string; dataContent: string }[]>()
-    for (const mirror of data.mirrors ?? []) {
+    for (const mirror of parsed?.mirrors ?? []) {
       if (!mirror.embedUrl) continue
       const quality = mirror.quality || 'default'
+      const dataContent = yield* Effect.promise(() => sealStreamToken(`sokuja:${mirror.embedUrl}`))
       const list = grouped.get(quality) ?? []
-      list.push({
-        name: mirror.serverName || 'SOKUJA',
-        dataContent: await sealStreamToken(`sokuja:${mirror.embedUrl}`),
-      })
+      list.push({ name: mirror.serverName || 'SOKUJA', dataContent })
       grouped.set(quality, list)
     }
     return [...grouped].map(([quality, sources]) => ({ quality, sources }))
-  } catch {
-    return []
-  }
+  })
 }
 
-async function scrapeEpisodeFresh(slug: string): Promise<EpisodeData | null> {
-  const html = await fetchHTML(`${await baseUrl()}/${slug}/`, TIMEOUT_MS)
-  const $ = cheerio.load(html)
-  const title = $('h1').first().text().trim()
-  const video = jsonLd($).find(entry => entry.partOfSeries) as JsonLdVideo | undefined
-  const episodeId = html.match(/episodeId[\\"]*:(\d+)/)?.[1]
-  if (!title && !episodeId) return null
+function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
+  return Effect.gen(function* () {
+    const base = yield* resolveBaseUrl()
+    const http = yield* Http
+    const html = yield* http.html(`${base}/${slug}/`, TIMEOUT_MS)
+    const $ = cheerio.load(html)
+    const title = $('h1').first().text().trim()
+    const video = jsonLd($).find(entry => entry.partOfSeries) as JsonLdVideo | undefined
+    const episodeId = html.match(/episodeId[\\"]*:(\d+)/)?.[1]
+    if (!title && !episodeId) return null
 
-  const seriesUrl = String(video?.partOfSeries?.url ?? '')
-  return {
-    title,
-    animeSlug: seriesUrl.match(/\/anime\/([^/]+)\/?$/)?.[1] ?? '',
-    animeTitle: String(video?.partOfSeries?.name ?? ''),
-    mirrors: episodeId ? await fetchMirrors(Number(episodeId)) : [],
-    episodeNav: [],
-    thumbnail: String(video?.thumbnailUrl ?? ''),
-  }
+    const seriesUrl = String(video?.partOfSeries?.url ?? '')
+    return {
+      title,
+      animeSlug: seriesUrl.match(/\/anime\/([^/]+)\/?$/)?.[1] ?? '',
+      animeTitle: String(video?.partOfSeries?.name ?? ''),
+      mirrors: episodeId ? yield* fetchMirrors(Number(episodeId)) : [],
+      episodeNav: [],
+      thumbnail: String(video?.thumbnailUrl ?? ''),
+    }
+  })
 }
 
-async function resolveMirror(opaque: string): Promise<string | null> {
-  return opaque.startsWith('http') ? opaque : null
+function resolveMirror(opaque: string): SourceEffect<string | null> {
+  return Effect.succeed(opaque.startsWith('http') ? opaque : null)
 }
 
 export const sokuja: AnimeSource = {

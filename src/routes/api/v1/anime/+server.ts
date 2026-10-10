@@ -6,7 +6,8 @@ import type { RequestHandler } from './$types'
 export const GET: RequestHandler = async ({ url }) => {
   const q = (url.searchParams.get('q') ?? '').trim()
   if (q) {
-    const rows = await searchAnime(q)
+    const genreSlug = (url.searchParams.get('genre') ?? '').trim().toLowerCase() || undefined
+    const rows = await searchAnime({ query: q, genreSlug })
     return json({ data: rows, page: 1, totalPages: 1 })
   }
 

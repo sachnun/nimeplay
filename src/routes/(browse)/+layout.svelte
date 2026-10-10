@@ -18,5 +18,10 @@
 
   {@render children()}
 
-  <SearchBar open={searchOpen} onclose={() => (searchOpen = false)} onopen={() => (searchOpen = true)} />
+  <SearchBar
+    open={searchOpen}
+    onclose={() => (searchOpen = false)}
+    onopen={() => (searchOpen = true)}
+    genreSlug={selectedGenre?.slug}
+  />
 </div>

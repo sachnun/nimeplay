@@ -1,8 +1,13 @@
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import type { SearchResult } from '#lib/shared/types'
 import { db, resultRows } from '../../db'
 import { posterSrc } from '../../media'
 import { notBlockedGenre, playableEpisodeExists } from './shared'
+
+export interface SearchOptions {
+  query: string
+  genreSlug?: string
+}
 
 interface SearchRow {
   malId: number
@@ -11,6 +16,15 @@ interface SearchRow {
   status: string
   rating: string
   genres: string
+}
+
+interface RankedRow extends SearchRow {
+  genreMatch: boolean
+  titleMatch: boolean
+}
+
+interface ScoredRow extends RankedRow {
+  sim: number
 }
 
 const SEARCH_COLUMNS = sql`
@@ -27,10 +41,46 @@ const SEARCH_COLUMNS = sql`
   ), '') as genres
 `
 
-function toFtsQuery(query: string): string | null {
-  const tokens = query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 5) ?? []
+const TITLE_DOC = sql`(
+  setweight(to_tsvector('simple', coalesce(a.title, '')), 'A') ||
+  setweight(to_tsvector('simple', coalesce((
+    select string_agg(t.value, ' ') from jsonb_array_elements_text(a.extra -> 'titles') t(value)
+  ), '')), 'A')
+)`
+
+const CATALOG_READY = sql`
+  a.mal_id is not null
+  and ${playableEpisodeExists(sql.raw('a.id'))}
+  and ${notBlockedGenre(sql.raw('a.id'))}
+  and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
+`
+
+function genreMatch(genreSlug?: string): SQL {
+  if (!genreSlug) return sql`false`
+  return sql`exists (
+    select 1 from anime_genres ag
+    join genres g on g.id = ag.genre_id
+    where ag.anime_id = a.id and g.slug = ${genreSlug}
+  )`
+}
+
+function titleMatch(match: string | null): SQL {
+  if (!match) return sql`false`
+  return sql`${TITLE_DOC} @@ to_tsquery('simple', ${match})`
+}
+
+export function searchTokens(query: string): string[] {
+  return query.match(/[\p{L}\p{N}]+/gu)?.slice(0, 5) ?? []
+}
+
+export function toFtsQuery(tokens: string[]): string | null {
   if (tokens.length === 0) return null
   return tokens.map(token => `${token}:*`).join(' & ')
+}
+
+export function toAnyFtsQuery(tokens: string[]): string | null {
+  if (tokens.length === 0) return null
+  return tokens.map(token => `${token}:*`).join(' | ')
 }
 
 function toSearchResult(row: SearchRow): SearchResult {
@@ -44,49 +94,98 @@ function toSearchResult(row: SearchRow): SearchResult {
   }
 }
 
-async function searchByFullText(match: string): Promise<SearchResult[]> {
-  const result = await db().execute(sql`
-    select ${SEARCH_COLUMNS}
-    from anime a
-    where a.search_doc @@ to_tsquery('simple', ${match})
-      and a.mal_id is not null
-      and ${playableEpisodeExists(sql.raw('a.id'))}
-      and ${notBlockedGenre(sql.raw('a.id'))}
-      and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
-    order by ts_rank(a.search_doc, to_tsquery('simple', ${match})) desc, a.rating desc nulls last
-    limit 20
-  `)
-  return resultRows<SearchRow>(result).map(toSearchResult)
+function compareRows(a: ScoredRow, b: ScoredRow): number {
+  if (a.genreMatch !== b.genreMatch) return a.genreMatch ? -1 : 1
+  if (a.titleMatch !== b.titleMatch) return a.titleMatch ? -1 : 1
+  return b.sim - a.sim || Number(b.rating || 0) - Number(a.rating || 0)
 }
 
-async function searchBySimilarity(raw: string): Promise<SearchResult[]> {
+async function searchByFullText(match: string, genreSlug?: string): Promise<ScoredRow[]> {
   const result = await db().execute(sql`
     select
       ${SEARCH_COLUMNS},
-      greatest(similarity(coalesce(a.title, ''), ${raw}), coalesce(alt.sim, 0)) as sim
+      ts_rank(a.search_doc, to_tsquery('simple', ${match})) as sim,
+      ${genreMatch(genreSlug)} as "genreMatch",
+      ${titleMatch(match)} as "titleMatch"
+    from anime a
+    where a.search_doc @@ to_tsquery('simple', ${match})
+      and ${CATALOG_READY}
+    order by "genreMatch" desc, "titleMatch" desc, sim desc, a.rating desc nulls last
+    limit 20
+  `)
+  return resultRows<ScoredRow>(result)
+}
+
+async function searchByTitleSimilarity(raw: string, genreSlug?: string): Promise<ScoredRow[]> {
+  const result = await db().execute(sql`
+    select
+      ${SEARCH_COLUMNS},
+      greatest(similarity(coalesce(a.title, ''), ${raw}), coalesce(alt.sim, 0)) as sim,
+      ${genreMatch(genreSlug)} as "genreMatch",
+      true as "titleMatch"
     from anime a
     left join lateral (
       select max(similarity(title_value, ${raw})) as sim
       from jsonb_array_elements_text(a.extra -> 'titles') as titles(title_value)
     ) alt on true
-    where a.mal_id is not null
-      and ${playableEpisodeExists(sql.raw('a.id'))}
-      and ${notBlockedGenre(sql.raw('a.id'))}
-      and (a.status is distinct from 'COMPLETED' or (a.extra ->> 'episodeTotal') is null or a.episode_count >= (a.extra ->> 'episodeTotal')::int)
+    where ${CATALOG_READY}
       and (a.title % ${raw} or coalesce(alt.sim, 0) >= 0.3)
-    order by sim desc, a.rating desc nulls last
+    order by "genreMatch" desc, sim desc, a.rating desc nulls last
     limit 20
   `)
-  return resultRows<SearchRow>(result).map(toSearchResult)
+  return resultRows<ScoredRow>(result)
 }
 
-export async function searchAnime(query: string): Promise<SearchResult[]> {
+async function searchByCharacterSimilarity(
+  raw: string,
+  match: string | null,
+  genreSlug?: string,
+): Promise<ScoredRow[]> {
+  const result = await db().execute(sql`
+    select
+      ${SEARCH_COLUMNS},
+      matches.sim,
+      ${genreMatch(genreSlug)} as "genreMatch",
+      ${titleMatch(match)} as "titleMatch"
+    from (
+      select ch.anime_id, max(similarity(ch.name, ${raw})) as sim
+      from characters ch
+      where ch.name % ${raw}
+      group by ch.anime_id
+    ) matches
+    join anime a on a.id = matches.anime_id
+    where ${CATALOG_READY}
+    order by "genreMatch" desc, "titleMatch" desc, matches.sim desc, a.rating desc nulls last
+    limit 20
+  `)
+  return resultRows<ScoredRow>(result)
+}
+
+async function searchBySimilarity(raw: string, match: string | null, genreSlug?: string): Promise<SearchResult[]> {
+  const [titleRows, characterRows] = await Promise.all([
+    searchByTitleSimilarity(raw, genreSlug),
+    searchByCharacterSimilarity(raw, match, genreSlug),
+  ])
+  const best = new Map<number, ScoredRow>()
+  for (const row of [...titleRows, ...characterRows]) {
+    const current = best.get(row.malId)
+    if (!current || compareRows(row, current) < 0) best.set(row.malId, row)
+  }
+  return [...best.values()].toSorted(compareRows).slice(0, 20).map(toSearchResult)
+}
+
+export async function searchAnime({ query, genreSlug }: SearchOptions): Promise<SearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) return []
-  const match = toFtsQuery(trimmed)
+  const tokens = searchTokens(trimmed)
+  const match = toFtsQuery(tokens)
   if (match) {
-    const rows = await searchByFullText(match)
-    if (rows.length > 0) return rows
+    const rows = await searchByFullText(match, genreSlug)
+    if (rows.length > 0) return rows.map(toSearchResult)
   }
-  return searchBySimilarity(trimmed)
+  const similar = await searchBySimilarity(trimmed, match, genreSlug)
+  if (similar.length > 0) return similar
+  const anyMatch = toAnyFtsQuery(tokens)
+  if (anyMatch) return (await searchByFullText(anyMatch, genreSlug)).map(toSearchResult)
+  return []
 }

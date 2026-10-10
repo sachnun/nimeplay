@@ -4,7 +4,12 @@
   import { MediaQuery } from 'svelte/reactivity'
   import { onMount } from 'svelte'
 
-  let { open, onclose, onopen }: { open: boolean; onclose: () => void; onopen: () => void } = $props()
+  let { open, onclose, onopen, genreSlug }: {
+    open: boolean
+    onclose: () => void
+    onopen: () => void
+    genreSlug?: string
+  } = $props()
 
   let query = $state('')
   let results = $state<SearchResult[]>([])
@@ -33,7 +38,7 @@
     onopen()
   }
 
-  async function runSearch(value: string) {
+  async function runSearch(value: string, genre: string | undefined) {
     const token = ++searchToken
     const trimmed = value.trim()
     if (!trimmed) {
@@ -43,7 +48,7 @@
     }
     loading = true
     try {
-      const result = await searchAnime(trimmed)
+      const result = await searchAnime({ query: trimmed, genreSlug: genre })
       if (token !== searchToken) return
       results = result
     } catch {
@@ -69,8 +74,9 @@
 
   $effect(() => {
     const value = query
+    const genre = genreSlug
     if (debounce) clearTimeout(debounce)
-    debounce = setTimeout(() => void runSearch(value), value.trim() ? 500 : 0)
+    debounce = setTimeout(() => void runSearch(value, genre), value.trim() ? 500 : 0)
   })
 
   onMount(() => {

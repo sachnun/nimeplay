@@ -2,14 +2,19 @@ import { describe, expect, test } from 'bun:test'
 import { animePageSchema, episodeSchema, genrePageSchema, malIdSchema, searchSchema } from './schemas'
 
 describe('searchSchema', () => {
-  test('accepts any string including empty', () => {
-    expect(searchSchema.parse('kaguya')).toBe('kaguya')
-    expect(searchSchema.parse('')).toBe('')
+  test('accepts a query with and without a genre', () => {
+    expect(searchSchema.parse({ query: 'kaguya' })).toEqual({ query: 'kaguya' })
+    expect(searchSchema.parse({ query: 'kaguya', genreSlug: 'romance' })).toEqual({
+      query: 'kaguya',
+      genreSlug: 'romance',
+    })
+    expect(searchSchema.parse({ query: '' })).toEqual({ query: '' })
   })
 
-  test('rejects non strings', () => {
-    expect(searchSchema.safeParse(42).success).toBe(false)
-    expect(searchSchema.safeParse(undefined).success).toBe(false)
+  test('rejects non objects and bad genre values', () => {
+    expect(searchSchema.safeParse('kaguya').success).toBe(false)
+    expect(searchSchema.safeParse({ query: 42 }).success).toBe(false)
+    expect(searchSchema.safeParse({ query: 'kaguya', genreSlug: 1 }).success).toBe(false)
   })
 })
 

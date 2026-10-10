@@ -237,6 +237,14 @@ export const openApiDocument = {
             description: 'Search anime across titles, studio, genres, characters, and synopsis',
             example: 'frieren',
           },
+          {
+            name: 'genre',
+            in: 'query',
+            required: false,
+            schema: { type: 'string' },
+            description: 'Genre slug used to rank matching anime first when q is set',
+            example: 'action',
+          },
         ],
         responses: {
           '200': {

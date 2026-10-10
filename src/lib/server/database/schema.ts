@@ -146,7 +146,10 @@ export const characters = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  table => [uniqueIndex('characters_anime_id_name_key').on(table.animeId, table.name)],
+  table => [
+    uniqueIndex('characters_anime_id_name_key').on(table.animeId, table.name),
+    index('characters_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
+  ],
 )
 
 export const media = pgTable(

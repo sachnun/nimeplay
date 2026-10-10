@@ -3,13 +3,22 @@
   import { listAnime } from '#lib/remote/catalog.remote'
   import { isServerError } from '#lib/error'
   import { progressMap, syncProgressMap } from '#lib/progress-map'
-  import { onMount } from 'svelte'
+  import { snapshot, afterNavigate } from '$app/navigation'
+  import { onMount, tick } from 'svelte'
   import AnimePosterCard from './AnimePosterCard.svelte'
   import EmptyState from './EmptyState.svelte'
 
   interface PageData {
     anime: AnimeCard[]
     totalPages: number
+  }
+
+  interface GridSnapshot {
+    primaryPages: PageData[]
+    nextPages: PageData[]
+    primarySize: number
+    nextSize: number
+    scrollY: number
   }
 
   let {
@@ -37,6 +46,29 @@
   let loading = $state(false)
   let loadError = $state(false)
   let loadServerError = $state(false)
+
+  function gridId(): string {
+    return `anime-grid:${pageType}:${nextPageType ?? ''}`
+  }
+
+  let restored = false
+  afterNavigate(navigation => {
+    restored = navigation.type === 'popstate'
+  })
+
+  snapshot<GridSnapshot>({
+    id: gridId(),
+    capture: () => ({ primaryPages, nextPages, primarySize, nextSize, scrollY: window.scrollY }),
+    restore: async value => {
+      if (!restored) return
+      primaryPages = value.primaryPages
+      nextPages = value.nextPages
+      primarySize = value.primarySize
+      nextSize = value.nextSize
+      await tick()
+      window.scrollTo(0, value.scrollY)
+    },
+  })
 
   const primaryAnime = $derived(primaryPages.flatMap(d => d.anime))
   const totalPages = $derived(primaryPages[0]?.totalPages ?? 1)

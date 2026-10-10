@@ -3,13 +3,20 @@
   import { listGenrePage } from '#lib/remote/genre.remote'
   import { isServerError } from '#lib/error'
   import { progressMap, syncProgressMap } from '#lib/progress-map'
-  import { onMount } from 'svelte'
+  import { snapshot, afterNavigate } from '$app/navigation'
+  import { onMount, tick } from 'svelte'
   import AnimePosterCard from './AnimePosterCard.svelte'
   import EmptyState from './EmptyState.svelte'
 
   interface PageData {
     anime: GenreAnimeCard[]
     totalPages: number
+  }
+
+  interface GridSnapshot {
+    pages: PageData[]
+    size: number
+    scrollY: number
   }
 
   let { genreSlug, initialData }: { genreSlug: string; initialData?: PageData } = $props()
@@ -21,6 +28,27 @@
   let loading = $state(false)
   let loadError = $state(false)
   let loadServerError = $state(false)
+
+  function gridId(): string {
+    return `genre-grid:${genreSlug}`
+  }
+
+  let restored = false
+  afterNavigate(navigation => {
+    restored = navigation.type === 'popstate'
+  })
+
+  snapshot<GridSnapshot>({
+    id: gridId(),
+    capture: () => ({ pages, size, scrollY: window.scrollY }),
+    restore: async value => {
+      if (!restored) return
+      pages = value.pages
+      size = value.size
+      await tick()
+      window.scrollTo(0, value.scrollY)
+    },
+  })
 
   const allAnime = $derived(pages.flatMap(d => d.anime))
   const showPlane = $derived(loadError && loadServerError && allAnime.length === 0)

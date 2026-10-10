@@ -40,14 +40,10 @@ export async function resolveEpisode(
 
 export async function getEpisodeNumbers(animeId: number): Promise<number[]> {
   const rows = await db()
-    .select({ number: episodes.number })
+    .selectDistinct({ number: episodes.number })
     .from(episodes)
     .innerJoin(animeSources, eq(animeSources.id, episodes.sourceId))
     .where(eq(animeSources.animeId, animeId))
 
-  const numbers = new Set<number>()
-  for (const entry of rows) {
-    numbers.add(entry.number)
-  }
-  return [...numbers].toSorted((a, b) => a - b)
+  return rows.map(row => row.number).toSorted((a, b) => a - b)
 }

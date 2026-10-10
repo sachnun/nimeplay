@@ -12,7 +12,7 @@
     "build": "vite build",
     "preview": "bun --env-file=.env.local vite preview",
     "lint": "oxlint .",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --incremental",
     "test": "bun test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

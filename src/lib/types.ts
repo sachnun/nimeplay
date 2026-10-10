@@ -59,6 +59,12 @@ export interface PageData<T> {
   totalPages: number
 }
 
+export interface AnimeSummary {
+  malId: number
+  title: string
+  thumbnail: string
+}
+
 export interface EpisodeResponse {
   anime: { malId: number; title: string; thumbnail: string }
   episodeNumber: number

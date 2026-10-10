@@ -28,10 +28,11 @@
     navigation.cancel()
   })
 
+  function onPopstate() {
+    if (animeSheet.open) requestAnimeSheetClosing()
+  }
+
   onMount(() => {
-    const onPopstate = () => {
-      if (animeSheet.open) requestAnimeSheetClosing()
-    }
     window.addEventListener('popstate', onPopstate)
 
     if ('scrollRestoration' in window.history) {

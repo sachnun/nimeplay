@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { AnimeCharacter, AnimeDetail, Genre } from '#lib/shared/types'
 import { anime, animeGenres, animeSources, characters, episodes, genres, media } from '../../../database/schema'
 import { db } from '../../db'
@@ -70,6 +70,26 @@ async function getAnimeByMalId(malId: number): Promise<AnimeRecord | null> {
     .where(and(eq(anime.malId, malId), CATALOG_READY))
     .limit(1)
   return row ? { ...row, malId: row.malId } : null
+}
+
+export interface AnimeSummary {
+  malId: number
+  title: string
+  thumbnail: string
+}
+
+export async function getAnimeSummaries(malIds: number[]): Promise<AnimeSummary[]> {
+  const ids = [...new Set(malIds)].filter(id => Number.isInteger(id) && id > 0)
+  if (ids.length === 0) return []
+  const rows = await db()
+    .select({
+      malId: anime.malId,
+      title: sql<string>`coalesce(${anime.title}, '')`,
+      posterKey: anime.posterKey,
+    })
+    .from(anime)
+    .where(and(inArray(anime.malId, ids), CATALOG_READY))
+  return rows.map(row => ({ malId: row.malId, title: row.title, thumbnail: posterSrc(row.posterKey) }))
 }
 
 export async function getAnimeDetail(malId: number): Promise<AnimeDetail | null> {

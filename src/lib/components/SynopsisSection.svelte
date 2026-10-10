@@ -3,7 +3,7 @@
 
   let expanded = $state(false)
   let clamped = $state(false)
-  let textEl: HTMLParagraphElement | null = $state(null)
+  let textEl: HTMLButtonElement | null = $state(null)
 
   const hasSynopsis = $derived(!!synopsis?.trim())
   const text = $derived(synopsis ?? '')
@@ -27,13 +27,14 @@
       </h2>
     </div>
     <div>
-      <p
+      <button
+        type="button"
         bind:this={textEl}
-        class="text-sm text-zinc-300 leading-relaxed whitespace-pre-line [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] {!expanded ? 'lg:line-clamp-none line-clamp-4' : ''} {clamped && !expanded ? 'cursor-pointer' : ''}"
+        class="block w-full text-left text-sm text-zinc-300 leading-relaxed whitespace-pre-line [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] {!expanded ? 'lg:line-clamp-none line-clamp-4' : ''} {clamped && !expanded ? 'cursor-pointer' : ''}"
         onclick={() => clamped && !expanded && (expanded = true)}
       >
         {text}
-      </p>
+      </button>
       {#if clamped && !expanded}
         <button
           class="lg:hidden mt-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"

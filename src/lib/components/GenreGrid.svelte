@@ -15,9 +15,9 @@
   let { genreSlug, initialData }: { genreSlug: string; initialData?: PageData } = $props()
 
   let sentinelRef: HTMLDivElement | null = $state(null)
-  let gridRef: HTMLDivElement | null = $state(null)
-  let pages = $state<PageData[]>(initialData ? [initialData] : [])
-  let size = $state(initialData ? 1 : 0)
+  const initialPages = () => (initialData ? [initialData] : [])
+  let pages = $state<PageData[]>(initialPages())
+  let size = $state(initialPages().length)
   let loading = $state(false)
   let loadError = $state(false)
   let loadServerError = $state(false)
@@ -74,6 +74,10 @@
 
   let observer: IntersectionObserver | null = null
 
+  function onVisibility() {
+    if (document.visibilityState === 'visible') void syncProgressMap()
+  }
+
   onMount(() => {
     void syncProgressMap()
     observer = new IntersectionObserver(
@@ -84,9 +88,6 @@
     )
     if (sentinelRef) observer.observe(sentinelRef)
 
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') void syncProgressMap()
-    }
     document.addEventListener('visibilitychange', onVisibility)
     if (pages.length === 0) void loadMore()
 
@@ -99,7 +100,6 @@
 
 <div>
   <div
-    bind:this={gridRef}
     class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4"
   >
     {#each animeCards as card, i (card.anime.malId + '-' + i)}

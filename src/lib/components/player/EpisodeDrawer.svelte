@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getEpisodeStatus, progressKey } from '#lib/storage'
+  import { getEpisodeStatusMap } from '#lib/storage'
   import { onMount } from 'svelte'
 
   let {
@@ -20,17 +20,11 @@
   let statuses = $state<Record<string, import('#lib/types').WatchProgressStatus>>({})
 
   async function loadStatuses() {
-    const entries = await Promise.all(
-      episodes.map(async number => {
-        const key = progressKey(malId, number)
-        return [key, await getEpisodeStatus(key)] as const
-      }),
-    )
-    statuses = Object.fromEntries(entries)
+    statuses = await getEpisodeStatusMap(malId)
   }
 
   function epStatus(number: number): import('#lib/types').WatchProgressStatus {
-    return statuses[progressKey(malId, number)] ?? 'unstarted'
+    return statuses[`${malId}:${number}`] ?? 'unstarted'
   }
 
   onMount(() => {

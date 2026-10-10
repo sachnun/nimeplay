@@ -15,6 +15,10 @@
     episodeStatuses = await getEpisodeStatusMap(malId)
   }
 
+  function onVisibility() {
+    if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
+  }
+
   function prefetchEpisode(number: number) {
     if (prefetched.has(number)) return
     prefetched.add(number)
@@ -41,9 +45,6 @@
   })
 
   onMount(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
-    }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   })

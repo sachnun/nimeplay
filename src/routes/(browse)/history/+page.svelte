@@ -1,6 +1,5 @@
 <script lang="ts">
-  import type { AnimeDetail } from '#lib/shared/types'
-  import { fetchAnimeDetail } from '#lib/api'
+  import { fetchAnimeSummaries } from '#lib/summaries'
   import { getContinueWatching, removeAnimeProgress, clearAllProgress, type WatchProgress } from '#lib/storage'
   import { goto } from '$app/navigation'
   import { onMount } from 'svelte'
@@ -15,14 +14,6 @@
   let loading = $state(true)
   let clearing = $state(false)
 
-  async function fetchDetail(malId: number): Promise<AnimeDetail | null> {
-    try {
-      return await fetchAnimeDetail(fetch, malId)
-    } catch {
-      return null
-    }
-  }
-
   async function loadHistory() {
     loading = true
     try {
@@ -32,19 +23,14 @@
         await goto('/', { replaceState: true })
         return
       }
-      const loaded = new Map<number, HistoryItem>()
-      const queue = [...progressList]
-      const workers = Array.from({ length: Math.min(6, queue.length) }, async () => {
-        while (queue.length > 0) {
-          const entry = queue.shift()
-          if (!entry) break
-          const detail = await fetchDetail(entry.malId)
-          if (!detail) continue
-          loaded.set(entry.malId, { ...entry, title: detail.title, thumbnail: detail.thumbnail })
-        }
-      })
-      await Promise.all(workers)
-      items = [...loaded.values()].toSorted((a, b) => b.updatedAt - a.updatedAt)
+      const summaries = await fetchAnimeSummaries(fetch, progressList.map(entry => entry.malId)).catch(() => [])
+      const summaryById = new Map(summaries.map(summary => [summary.malId, summary]))
+      items = progressList
+        .flatMap(entry => {
+          const summary = summaryById.get(entry.malId)
+          return summary ? [{ ...entry, title: summary.title, thumbnail: summary.thumbnail }] : []
+        })
+        .toSorted((a, b) => b.updatedAt - a.updatedAt)
     } finally {
       loading = false
     }

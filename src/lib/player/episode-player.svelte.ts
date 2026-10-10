@@ -74,6 +74,64 @@ function networkBandwidth(): number | null {
   return connection.effectiveType ? (NETWORK_RATES[connection.effectiveType] ?? null) : null
 }
 
+function controlsIdleMs() {
+  if (typeof window === 'undefined') return CONTROLS_IDLE_MS
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches ? MOBILE_CONTROLS_IDLE_MS : CONTROLS_IDLE_MS
+}
+
+function shouldSkipSegment(skipTime: SkipTime, time: number) {
+  return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
+}
+
+async function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
+  video.src = url
+  video.addEventListener('error', onVideoError, { once: true })
+}
+
+async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
+  try {
+    if (orientation === 'landscape')
+      await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
+    else (screen.orientation as unknown as { unlock: () => void }).unlock()
+  } catch (error) {
+    console.warn('screen.orientation lock/unlock failed', error)
+  }
+}
+
+function setMediaPlaybackState(playing: boolean) {
+  if (typeof navigator !== 'undefined' && 'mediaSession' in navigator)
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
+}
+
+function setMediaHandler(action: MediaSessionAction, handler: MediaSessionActionHandler | null) {
+  try {
+    navigator.mediaSession.setActionHandler(action, handler)
+  } catch (error) {
+    console.warn('mediaSession.setActionHandler failed', error)
+  }
+}
+
+function getZone(clientX: number, el: HTMLElement): TapZone {
+  const box = el.getBoundingClientRect()
+  if (!box || box.width <= 0 || box.height <= 0) return 'center'
+  const ratio = (clientX - box.left) / box.width
+  if (ratio < CENTER_BAND_RATIO) return 'left'
+  if (ratio < 1 - CENTER_BAND_RATIO) return 'center'
+  return 'right'
+}
+
+function isInCenterHitbox(clientX: number, clientY: number, el: HTMLElement): boolean {
+  const box = el.getBoundingClientRect()
+  if (!box || box.width <= 0 || box.height <= 0) return false
+  const dx = clientX - (box.left + box.width / 2)
+  const dy = clientY - (box.top + box.height / 2)
+  return Math.abs(dx) <= CENTER_HIT_PX / 2 && Math.abs(dy) <= CENTER_HIT_PX / 2
+}
+
+function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
+  if (timer) clearTimeout(timer)
+}
+
 export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNavigate: (url: string) => void) {
   let episode = $state<EpisodeData>({ ...getProps().episode })
   let currentEpisodeNum = $state(getProps().episodeNumber)
@@ -178,11 +236,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   const progress = $derived(duration > 0 ? (currentTime / duration) * 100 : 0)
   const bufferedPct = $derived(duration > 0 ? (buffered / duration) * 100 : 0)
 
-  function controlsIdleMs() {
-    if (typeof window === 'undefined') return CONTROLS_IDLE_MS
-    return window.matchMedia('(hover: none) and (pointer: coarse)').matches ? MOBILE_CONTROLS_IDLE_MS : CONTROLS_IDLE_MS
-  }
-
   function bufferAhead() {
     const video = videoRef
     if (!video || video.buffered.length === 0) return 0
@@ -231,10 +284,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     watchedMarked = true
     await markWatched(progressStoreKey, currentProgressPayload())
     clearWatchedTimer()
-  }
-
-  function shouldSkipSegment(skipTime: SkipTime, time: number) {
-    return time >= skipTime.interval.startTime && time < skipTime.interval.endTime - 1
   }
 
   function autoSkipCurrentSegment(video: HTMLVideoElement) {
@@ -556,11 +605,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     }
   }
 
-  async function attachNativeSource(video: HTMLVideoElement, url: string, onVideoError: () => void) {
-    video.src = url
-    video.addEventListener('error', onVideoError, { once: true })
-  }
-
   async function attachHlsSource(video: HTMLVideoElement, url: string, handleError: () => void) {
     const HlsModule = (await loadHls()).default
     if (HlsModule.isSupported()) {
@@ -716,16 +760,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   // fullscreen
-  async function lockPlayerOrientation(orientation: 'landscape' | 'portrait') {
-    try {
-      if (orientation === 'landscape')
-        await (screen.orientation as unknown as { lock: (o: string) => Promise<void> }).lock('landscape')
-      else (screen.orientation as unknown as { unlock: () => void }).unlock()
-    } catch (error) {
-      console.warn('screen.orientation lock/unlock failed', error)
-    }
-  }
-
   async function exitPlayerFullscreen() {
     if (document.fullscreenElement) {
       try {
@@ -788,11 +822,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   // media session
-  function setMediaPlaybackState(playing: boolean) {
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator)
-      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
-  }
-
   function artwork() {
     const url = episode.thumbnail || getProps().animeThumbnail
     if (!url) return []
@@ -811,14 +840,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       album: getProps().animeTitle,
       artwork: artwork(),
     })
-  }
-
-  function setMediaHandler(action: MediaSessionAction, handler: MediaSessionActionHandler | null) {
-    try {
-      navigator.mediaSession.setActionHandler(action, handler)
-    } catch (error) {
-      console.warn('mediaSession.setActionHandler failed', error)
-    }
   }
 
   function installMediaHandlers() {
@@ -935,23 +956,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   // gestures
-  function getZone(clientX: number, el: HTMLElement): TapZone {
-    const box = el.getBoundingClientRect()
-    if (!box || box.width <= 0 || box.height <= 0) return 'center'
-    const ratio = (clientX - box.left) / box.width
-    if (ratio < CENTER_BAND_RATIO) return 'left'
-    if (ratio < 1 - CENTER_BAND_RATIO) return 'center'
-    return 'right'
-  }
-
-  function isInCenterHitbox(clientX: number, clientY: number, el: HTMLElement): boolean {
-    const box = el.getBoundingClientRect()
-    if (!box || box.width <= 0 || box.height <= 0) return false
-    const dx = clientX - (box.left + box.width / 2)
-    const dy = clientY - (box.top + box.height / 2)
-    return Math.abs(dx) <= CENTER_HIT_PX / 2 && Math.abs(dy) <= CENTER_HIT_PX / 2
-  }
-
   function clearPendingTap() {
     if (pendingSingleTap) clearTimeout(pendingSingleTap)
     pendingSingleTap = null
@@ -1226,10 +1230,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   }
 
   // episode lifecycle
-  function clearAnyTimer(timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null) {
-    if (timer) clearTimeout(timer)
-  }
-
   async function resetForEpisode() {
     const epoch = ++resetEpoch
     clearAnyTimer(countdownTimer)

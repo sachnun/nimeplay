@@ -29,10 +29,10 @@
   } = $props()
 
   let sentinelRef: HTMLDivElement | null = $state(null)
-  let gridRef: HTMLDivElement | null = $state(null)
-  let primaryPages = $state<PageData[]>([initialData])
+  const initialPrimaryPages = () => [initialData]
+  let primaryPages = $state<PageData[]>(initialPrimaryPages())
   let nextPages = $state<PageData[]>([])
-  let primarySize = $state(1)
+  let primarySize = $state(initialPrimaryPages().length)
   let nextSize = $state(0)
   let loading = $state(false)
   let loadError = $state(false)
@@ -124,6 +124,10 @@
 
   let observer: IntersectionObserver | null = null
 
+  function onVisibility() {
+    if (document.visibilityState === 'visible') void syncProgressMap()
+  }
+
   onMount(() => {
     void syncProgressMap()
     observer = new IntersectionObserver(
@@ -134,9 +138,6 @@
     )
     if (sentinelRef) observer.observe(sentinelRef)
 
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') void syncProgressMap()
-    }
     document.addEventListener('visibilitychange', onVisibility)
     void fillViewport()
 
@@ -149,7 +150,6 @@
 
 <div>
   <div
-    bind:this={gridRef}
     class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4"
   >
     {#each displayCards as card, i (card.anime.malId + '-' + i)}

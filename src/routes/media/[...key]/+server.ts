@@ -10,7 +10,10 @@ export const GET: RequestHandler = async ({ params }) => {
   const cached = await getCachedMedia(key)
   if (!cached) error(404, 'Not found')
 
-  const headers: Record<string, string> = { 'Content-Type': cached.contentType }
+  const headers: Record<string, string> = {
+    'Content-Type': cached.contentType,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  }
   if (cached.etag) headers.ETag = cached.etag
   return new Response(cached.body, { headers })
 }

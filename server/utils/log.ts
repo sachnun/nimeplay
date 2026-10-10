@@ -1,12 +1,14 @@
 type Fields = Record<string, unknown>
 
+export type Level = 'info' | 'ok' | 'warn' | 'error'
+
 const VERBOSE = process.env.LOG_VERBOSE !== '0'
 const ACTIONS = process.env.GITHUB_ACTIONS === 'true'
 const COLOR = ACTIONS || Boolean(process.stdout.isTTY)
 
-const CODES = { info: 36, ok: 32, warn: 33, error: 31 } as const
+export const CODES: Record<Level, number> = { info: 36, ok: 32, warn: 33, error: 31 }
 
-function emit(level: keyof typeof CODES, message: string, fields?: Fields): void {
+export function emit(level: Level, message: string, fields?: Fields): void {
   if (!VERBOSE && level === 'info') return
   const line = fields ? `${message} ${JSON.stringify(fields)}` : message
   const text = COLOR ? `\u001b[${CODES[level]}m${line}\u001b[0m` : line

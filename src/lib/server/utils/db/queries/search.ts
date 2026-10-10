@@ -18,13 +18,11 @@ interface SearchRow {
   genres: string
 }
 
-interface RankedRow extends SearchRow {
+interface ScoredRow extends SearchRow {
+  sim: number
   genreMatch: boolean
   titleMatch: boolean
-}
-
-interface ScoredRow extends RankedRow {
-  sim: number
+  characterMatch: boolean
 }
 
 const SEARCH_COLUMNS = sql`
@@ -97,7 +95,17 @@ function toSearchResult(row: SearchRow): SearchResult {
 function compareRows(a: ScoredRow, b: ScoredRow): number {
   if (a.genreMatch !== b.genreMatch) return a.genreMatch ? -1 : 1
   if (a.titleMatch !== b.titleMatch) return a.titleMatch ? -1 : 1
+  if (a.characterMatch !== b.characterMatch) return a.characterMatch ? -1 : 1
   return b.sim - a.sim || Number(b.rating || 0) - Number(a.rating || 0)
+}
+
+function mergeRows(groups: ScoredRow[][]): SearchResult[] {
+  const best = new Map<number, ScoredRow>()
+  for (const row of groups.flat()) {
+    const current = best.get(row.malId)
+    if (!current || compareRows(row, current) < 0) best.set(row.malId, row)
+  }
+  return [...best.values()].toSorted(compareRows).slice(0, 20).map(toSearchResult)
 }
 
 async function searchByFullText(match: string, genreSlug?: string): Promise<ScoredRow[]> {
@@ -106,7 +114,8 @@ async function searchByFullText(match: string, genreSlug?: string): Promise<Scor
       ${SEARCH_COLUMNS},
       ts_rank(a.search_doc, to_tsquery('simple', ${match})) as sim,
       ${genreMatch(genreSlug)} as "genreMatch",
-      ${titleMatch(match)} as "titleMatch"
+      ${titleMatch(match)} as "titleMatch",
+      false as "characterMatch"
     from anime a
     where a.search_doc @@ to_tsquery('simple', ${match})
       and ${CATALOG_READY}
@@ -122,7 +131,8 @@ async function searchByTitleSimilarity(raw: string, genreSlug?: string): Promise
       ${SEARCH_COLUMNS},
       greatest(similarity(coalesce(a.title, ''), ${raw}), coalesce(alt.sim, 0)) as sim,
       ${genreMatch(genreSlug)} as "genreMatch",
-      true as "titleMatch"
+      true as "titleMatch",
+      false as "characterMatch"
     from anime a
     left join lateral (
       select max(similarity(title_value, ${raw})) as sim
@@ -146,7 +156,8 @@ async function searchByCharacterSimilarity(
       ${SEARCH_COLUMNS},
       matches.sim,
       ${genreMatch(genreSlug)} as "genreMatch",
-      ${titleMatch(match)} as "titleMatch"
+      ${titleMatch(match)} as "titleMatch",
+      true as "characterMatch"
     from (
       select ch.anime_id, max(similarity(ch.name, ${raw})) as sim
       from characters ch
@@ -161,31 +172,21 @@ async function searchByCharacterSimilarity(
   return resultRows<ScoredRow>(result)
 }
 
-async function searchBySimilarity(raw: string, match: string | null, genreSlug?: string): Promise<SearchResult[]> {
-  const [titleRows, characterRows] = await Promise.all([
-    searchByTitleSimilarity(raw, genreSlug),
-    searchByCharacterSimilarity(raw, match, genreSlug),
-  ])
-  const best = new Map<number, ScoredRow>()
-  for (const row of [...titleRows, ...characterRows]) {
-    const current = best.get(row.malId)
-    if (!current || compareRows(row, current) < 0) best.set(row.malId, row)
-  }
-  return [...best.values()].toSorted(compareRows).slice(0, 20).map(toSearchResult)
-}
-
 export async function searchAnime({ query, genreSlug }: SearchOptions): Promise<SearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) return []
   const tokens = searchTokens(trimmed)
   const match = toFtsQuery(tokens)
-  if (match) {
-    const rows = await searchByFullText(match, genreSlug)
-    if (rows.length > 0) return rows.map(toSearchResult)
-  }
-  const similar = await searchBySimilarity(trimmed, match, genreSlug)
-  if (similar.length > 0) return similar
+
+  const groups = await Promise.all([
+    match ? searchByFullText(match, genreSlug) : Promise.resolve([]),
+    searchByTitleSimilarity(trimmed, genreSlug),
+    searchByCharacterSimilarity(trimmed, match, genreSlug),
+  ])
+  const merged = mergeRows(groups)
+  if (merged.length > 0) return merged
+
   const anyMatch = toAnyFtsQuery(tokens)
-  if (anyMatch) return (await searchByFullText(anyMatch, genreSlug)).map(toSearchResult)
-  return []
+  if (!anyMatch) return []
+  return mergeRows([await searchByFullText(anyMatch, genreSlug)])
 }

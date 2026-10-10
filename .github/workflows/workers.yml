@@ -4,12 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - app/**
-      - server/**
-      - shared/**
+      - src/**
       - scripts/**
-      - public/**
-      - nuxt.config.ts
+      - static/**
+      - vite.config.ts
+      - wrangler.jsonc
       - tsconfig.json
       - package.json
       - bun.lock
@@ -51,7 +50,7 @@ jobs:
       - if: steps.schema.outputs.changed == 'true'
         run: bun run db:migrate
         env:
-          NUXT_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - run: bun run lint
       - run: bun check
       - run: bun test

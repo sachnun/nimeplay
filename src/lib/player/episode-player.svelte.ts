@@ -1,6 +1,6 @@
 import type Hls from 'hls.js'
 import type { EpisodeData, EpisodePageData, MirrorCandidate, SkipTime } from '#lib/types'
-import { fetchEpisode, toEpisodePageData } from '#lib/api'
+import { loadEpisode } from '#lib/remote/episode.remote'
 import { loadHls, preloadHls } from './hls'
 import {
   bufferedEndAt,
@@ -455,11 +455,13 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       return { prepared: cached }
     }
     try {
-      const response = await fetchEpisode(fetch, getProps().malId, currentEpisodeNum, {
+      const response = await loadEpisode({
+        malId: getProps().malId,
+        episodeNumber: currentEpisodeNum,
         server: candidate.server,
         quality: candidate.quality,
       })
-      return { prepared: response.stream }
+      return { prepared: response.episode.stream }
     } catch {
       return null
     }
@@ -1318,7 +1320,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     }
     let data: EpisodePageData | null = null
     try {
-      data = toEpisodePageData(await fetchEpisode(fetch, getProps().malId, epNum))
+      data = await loadEpisode({ malId: getProps().malId, episodeNumber: epNum })
     } catch {
       resolving = false
       return
@@ -1392,7 +1394,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     const target = nextEpisode
     if (!target || typeof window === 'undefined') return
     const run = () => {
-      fetchEpisode(fetch, getProps().malId, target.num, { stream: false }).catch(() => {})
+      loadEpisode({ malId: getProps().malId, episodeNumber: target.num, stream: false }).catch(() => {})
     }
     if ('requestIdleCallback' in window)
       (

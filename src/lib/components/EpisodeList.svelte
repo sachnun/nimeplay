@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fetchEpisode } from '#lib/api'
+  import { loadEpisode } from '#lib/remote/episode.remote'
   import { preloadHls } from '#lib/player/hls'
   import { getEpisodeStatusMap, progressKey } from '#lib/storage'
   import { onMount } from 'svelte'
@@ -22,7 +22,7 @@
   function prefetchEpisode(number: number) {
     if (prefetched.has(number)) return
     prefetched.add(number)
-    fetchEpisode(fetch, malId, number, { stream: false }).catch(() => {
+    loadEpisode({ malId, episodeNumber: number, stream: false }).catch(() => {
       prefetched.delete(number)
     })
     if (!hlsPreloaded) {

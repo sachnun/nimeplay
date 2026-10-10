@@ -33,7 +33,8 @@
     "effect": "^4.0.2",
     "google-translate-api-x": "10.7.3",
     "hls.js": "^1.7.3",
-    "idb": "^8.0.3"
+    "idb": "^8.0.3",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@sveltejs/adapter-cloudflare": "^8.0.0",

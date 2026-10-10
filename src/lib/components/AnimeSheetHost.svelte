@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AnimeDetail } from '#lib/shared/types'
-  import { fetchAnimeDetail } from '#lib/api'
+  import { getAnimeDetail } from '#lib/remote/detail.remote'
   import { animeSheet, dropFakeEntry, hasFakeEntry, markAnimeSheetClosed } from '#lib/anime-sheet.svelte'
   import AnimeDetailContent from './AnimeDetailContent.svelte'
   import AnimeDetailSheet from './AnimeDetailSheet.svelte'
@@ -17,7 +17,7 @@
     anime = null
     if (!malId) return
     let cancelled = false
-    fetchAnimeDetail(fetch, malId)
+    getAnimeDetail({ malId })
       .then(detail => {
         if (!cancelled) anime = detail
       })

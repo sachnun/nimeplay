@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { GenreAnimeCard } from '#lib/shared/types'
-  import { fetchGenrePage } from '#lib/api'
+  import { listGenrePage } from '#lib/remote/genre.remote'
   import { isServerError } from '#lib/error'
   import { progressMap, syncProgressMap } from '#lib/progress-map'
   import { onMount } from 'svelte'
@@ -49,7 +49,7 @@
     let loaded = false
     try {
       const next = size + 1
-      pages = [...pages, await fetchGenrePage(fetch, genreSlug, next)]
+      pages = [...pages, await listGenrePage({ slug: genreSlug, page: next })]
       size = next
       loaded = true
     } catch (err) {

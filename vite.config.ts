@@ -10,6 +10,12 @@ export default defineConfig({
       adapter: adapter(),
       compilerOptions: {
         runes: true,
+        experimental: {
+          async: true,
+        },
+      },
+      experimental: {
+        remoteFunctions: true,
       },
     }),
   ],

@@ -1,14 +1,19 @@
 <script lang="ts">
   import GenreGrid from '#lib/components/GenreGrid.svelte'
+  import { listGenrePage, listGenres } from '#lib/remote/genre.remote'
   import type { PageProps } from './$types'
 
-  let { data }: PageProps = $props()
+  let { params }: PageProps = $props()
+
+  const genreSlug = $derived((params.genreSlug || '').toLowerCase())
+  const genreName = $derived((await listGenres()).find(genre => genre.slug === genreSlug)?.name ?? genreSlug)
+  const genrePage = $derived(await listGenrePage({ slug: genreSlug, page: 1 }))
 </script>
 
 <svelte:head>
-  <title>{data.genreName} - Nimeplay</title>
+  <title>{genreName} - Nimeplay</title>
 </svelte:head>
 
-{#key data.genreSlug}
-  <GenreGrid genreSlug={data.genreSlug} initialData={data.genrePage} />
+{#key genreSlug}
+  <GenreGrid {genreSlug} initialData={genrePage} />
 {/key}

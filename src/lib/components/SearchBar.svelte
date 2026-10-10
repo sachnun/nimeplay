@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SearchResult } from '#lib/shared/types'
-  import { fetchSearch } from '#lib/api'
+  import { searchAnime } from '#lib/remote/search.remote'
   import { MediaQuery } from 'svelte/reactivity'
   import { onMount } from 'svelte'
 
@@ -43,7 +43,7 @@
     }
     loading = true
     try {
-      const result = await fetchSearch(fetch, trimmed)
+      const result = await searchAnime(trimmed)
       if (token !== searchToken) return
       results = result
     } catch {

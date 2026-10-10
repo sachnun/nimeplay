@@ -1,19 +1,23 @@
 <script lang="ts">
   import AnimeDetailContent from '#lib/components/AnimeDetailContent.svelte'
   import EmptyState from '#lib/components/EmptyState.svelte'
+  import { getAnimeDetail } from '#lib/remote/detail.remote'
   import type { PageProps } from './$types'
 
-  let { data }: PageProps = $props()
+  let { params }: PageProps = $props()
+
+  const malId = $derived(Number(params.malId) || 0)
+  const detail = $derived(await getAnimeDetail({ malId }))
 </script>
 
 <svelte:head>
-  <title>{data.anime ? `${data.anime.title} - Nimeplay` : 'Nimeplay'}</title>
+  <title>{detail ? `${detail.title} - Nimeplay` : 'Nimeplay'}</title>
 </svelte:head>
 
-{#if data.detailFailed}
-  <EmptyState />
-{:else if data.anime}
+{#if detail}
   <div class="grid min-h-dvh">
-    <AnimeDetailContent anime={data.anime} />
+    <AnimeDetailContent anime={detail} />
   </div>
+{:else}
+  <EmptyState />
 {/if}

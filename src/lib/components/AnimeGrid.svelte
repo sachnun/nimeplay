@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AnimeCard } from '#lib/shared/types'
-  import { fetchAnimePage } from '#lib/api'
+  import { listAnime } from '#lib/remote/catalog.remote'
   import { isServerError } from '#lib/error'
   import { progressMap, syncProgressMap } from '#lib/progress-map'
   import { onMount } from 'svelte'
@@ -78,7 +78,7 @@
   async function loadNextAvailablePage() {
     if (!primaryEnd) {
       const nextPage = primarySize + 1
-      primaryPages = [...primaryPages, await fetchAnimePage(fetch, pageType, nextPage)]
+      primaryPages = [...primaryPages, await listAnime({ status: pageType, page: nextPage })]
       primarySize = nextPage
       return
     }
@@ -87,7 +87,7 @@
       const data =
         nextPage === 1 && nextInitialData
           ? nextInitialData
-          : await fetchAnimePage(fetch, nextPageType, nextPage)
+          : await listAnime({ status: nextPageType, page: nextPage })
       nextPages = [...nextPages, data]
       nextSize = nextPage
     }

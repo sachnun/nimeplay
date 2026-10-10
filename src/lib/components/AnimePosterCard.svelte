@@ -37,7 +37,7 @@
 
 <a
   href={to}
-  class="block overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10"
+  class="block w-full max-w-[200px] overflow-hidden bg-card relative outline-none group hover:border-accent focus:border-accent hover:z-10 focus:z-10 [@media(max-height:600px)]:max-w-[150px]"
   class:rounded-lg={fullRounded}
   class:rounded-t-lg={!fullRounded}
 >

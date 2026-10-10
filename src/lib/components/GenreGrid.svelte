@@ -128,7 +128,7 @@
 
 <div>
   <div
-    class="grid grid-cols-2 [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(200px,1fr))] [@media(min-width:640px)_and_(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(130px,1fr))] gap-4"
+    class="grid justify-center justify-items-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(120px,1fr))] [@media(min-width:640px)_and_(min-height:601px)]:[grid-template-columns:repeat(auto-fill,minmax(160px,1fr))] [@media(max-height:600px)]:[grid-template-columns:repeat(auto-fill,minmax(110px,1fr))]"
   >
     {#each animeCards as card, i (card.anime.malId + '-' + i)}
       <AnimePosterCard

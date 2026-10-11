@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { loadEpisodeHeader } from '#lib/remote/episode.remote'
   import { getEpisodeStatusMap, progressKey } from '#lib/storage'
   import { onMount } from 'svelte'
 
@@ -6,9 +7,18 @@
 
   let episodeStatuses = $state<Record<string, import('#lib/types').WatchProgressStatus>>({})
   const reversedEpisodes = $derived(episodes.toReversed())
+  const prefetched = new Set<number>()
 
   async function refreshEpisodeStatuses() {
     episodeStatuses = await getEpisodeStatusMap(malId)
+  }
+
+  function prefetchEpisode(number: number) {
+    if (prefetched.has(number)) return
+    prefetched.add(number)
+    loadEpisodeHeader({ malId, episodeNumber: number }).catch(() => {
+      prefetched.delete(number)
+    })
   }
 
   function onVisibility() {
@@ -24,6 +34,7 @@
 
   $effect(() => {
     void malId
+    prefetched.clear()
     void refreshEpisodeStatuses()
   })
 
@@ -45,6 +56,9 @@
         <a
           href={`/anime/${malId}/${number}`}
           class="episode-cell {episodeClass(number)}"
+          onmouseenter={() => prefetchEpisode(number)}
+          onfocus={() => prefetchEpisode(number)}
+          ontouchstart={() => prefetchEpisode(number)}
         >
           {number}
         </a>

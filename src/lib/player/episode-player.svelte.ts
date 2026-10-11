@@ -1416,6 +1416,24 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     }
   }
 
+  async function hydrateEpisodeSources() {
+    let data: EpisodeInfo | null = null
+    try {
+      data = await loadEpisodeInfo({ malId: getProps().malId, episodeNumber: currentEpisodeNum })
+    } catch {
+      resolving = false
+      return
+    }
+    if (!data) {
+      resolving = false
+      return
+    }
+    episode.title = data.episode.title
+    episode.thumbnail = data.episode.thumbnail
+    episode.sources = data.episode.sources
+    loadEpisodeSource()
+  }
+
   function mount() {
     void getAutoSkip().then(val => {
       autoSkip = val
@@ -1429,7 +1447,10 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     containerRef?.addEventListener('mouseleave', onLeave)
     installMediaHandlers()
     updateMediaMetadata()
-    void resetForEpisode().then(() => loadEpisodeSource())
+    void resetForEpisode().then(() => {
+      if (episode.sources.length > 0) loadEpisodeSource()
+      else void hydrateEpisodeSources()
+    })
   }
 
   function unmount() {

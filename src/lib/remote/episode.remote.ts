@@ -8,6 +8,27 @@ import { loadEpisodeData } from '#lib/server/utils/db/episode-cache'
 import { resolveStreamFromMirrors } from '#lib/server/utils/media/stream-resolve'
 import { runApp } from '#lib/server/utils/runtime'
 
+export const loadEpisodeHeader = query(
+  episodeInfoSchema,
+  async ({ malId, episodeNumber }): Promise<EpisodeInfo> => {
+    const resolved = await resolveEpisode(malId, episodeNumber)
+    if (!resolved) redirect(307, `/anime/${malId}`)
+
+    const episodeNumbers = await getEpisodeNumbers(resolved.animeId)
+
+    return {
+      anime: { malId, title: resolved.anime.title, thumbnail: resolved.anime.thumbnail },
+      episodeNumber,
+      episode: {
+        title: `${resolved.anime.title} Episode ${episodeNumber}`,
+        thumbnail: resolved.anime.thumbnail,
+        sources: [],
+      },
+      episodes: episodeNumbers.length > 0 ? episodeNumbers : [],
+    }
+  },
+)
+
 export const loadEpisodeInfo = query(
   episodeInfoSchema,
   async ({ malId, episodeNumber }): Promise<EpisodeInfo> => {

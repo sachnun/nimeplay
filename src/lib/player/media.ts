@@ -1,20 +1,6 @@
 import { qualityRank, sourcePriority } from '#lib/shared/utils/mirror'
 import type { EpisodeMeta, EpisodeSource, MirrorCandidate } from '#lib/types'
 
-const QUALITY_BITRATE: Record<string, number> = {
-  '1080p': 5_000_000,
-  '720p': 2_800_000,
-  '480p': 1_400_000,
-  '360p': 700_000,
-}
-
-export function qualityBitrate(quality: string): number {
-  const known = QUALITY_BITRATE[quality]
-  if (known) return known
-  const height = Number.parseInt(quality, 10)
-  return Number.isFinite(height) ? height * 4_000 : 2_800_000
-}
-
 export function hasFiniteDuration(video: HTMLVideoElement | null | undefined) {
   return Boolean(video?.duration && Number.isFinite(video.duration))
 }

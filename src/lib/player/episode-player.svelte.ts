@@ -2,14 +2,7 @@ import type Hls from 'hls.js'
 import type { EpisodeInfo, EpisodeMeta, EpisodeStream, MirrorCandidate, SkipTime } from '#lib/types'
 import { loadEpisodeInfo, loadEpisodeStream } from '#lib/remote/episode.remote'
 import { loadHls } from './hls'
-import {
-  bufferedEndAt,
-  buildFallbackOrder,
-  findDefaultMirror,
-  hasFiniteDuration,
-  listQualityLevels,
-  qualityBitrate,
-} from './media'
+import { bufferedEndAt, buildFallbackOrder, findDefaultMirror, hasFiniteDuration, listQualityLevels } from './media'
 import { fetchSkipTimes } from '#lib/skip'
 import {
   getAutoSkip,
@@ -41,37 +34,10 @@ const CENTER_MARGIN_PX = 32
 const CENTER_HIT_PX = CENTER_ICON_PX + CENTER_MARGIN_PX * 2
 const CENTER_BAND_RATIO = 0.3
 
-const NETWORK_RATES: Record<string, number> = {
-  'slow-2g': 300_000,
-  '2g': 600_000,
-  '3g': 2_000_000,
-  '4g': 8_000_000,
-}
-const SAFETY_MARGIN = 0.7
-const CHECK_INTERVAL_MS = 1_000
-const STALL_THRESHOLD_MS = 5_000
-const DOWNGRADE_COOLDOWN_MS = 30_000
-const UPGRADE_COOLDOWN_MS = 60_000
-const SMOOTH_UPGRADE_MS = 20_000
-const BUFFER_HEALTHY = 12
-
 function isInteractiveTarget(target: HTMLElement | null) {
   if (!target) return false
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return true
   return Boolean(target.closest('a, button, [role="button"], [role="slider"]'))
-}
-
-function networkBandwidth(): number | null {
-  if (typeof navigator === 'undefined') return null
-  const connection = (
-    navigator as Navigator & {
-      connection?: { downlink?: number; effectiveType?: string; saveData?: boolean }
-    }
-  ).connection
-  if (!connection) return null
-  if (connection.saveData) return 0
-  if (typeof connection.downlink === 'number' && connection.downlink > 0) return connection.downlink * 1_000_000
-  return connection.effectiveType ? (NETWORK_RATES[connection.effectiveType] ?? null) : null
 }
 
 function controlsIdleMs() {
@@ -138,7 +104,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let directUrl = $state<string | null>(null)
   let directKind = $state<'hls' | 'file' | null>(null)
   let resolvedStream: EpisodeStream | null = null
-  let activeQuality = $state('720p')
   let resolving = $state(true)
   let videoLoading = $state(true)
   let loadingMessage = $state('Menyiapkan player...')
@@ -189,7 +154,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let playTimer: ReturnType<typeof setInterval> | null = null
   let progressSaveTimer: ReturnType<typeof setInterval> | null = null
   let playSeconds = 0
-  let qualityTimer: ReturnType<typeof setInterval> | null = null
   let resetEpoch = 0
   let resetSettled: Promise<void> | null = null
   let videoCleanup: (() => void) | null = null
@@ -212,11 +176,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let mouseDownX = 0
   let mouseDownY = 0
   let mousePointerId: number | null = null
-  let bufferingSince: number | null = null
-  let stalled = false
-  let smoothSince = Date.now()
-  let lastDowngradeAt = 0
-  let lastUpgradeAt = 0
 
   const progressStoreKey = $derived(progressKey(getProps().malId, currentEpisodeNum))
   const qualityLevels = $derived(listQualityLevels(episode.sources))
@@ -236,12 +195,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   const controlsVisible = $derived(!speedBoost && (showControls || !isPlaying))
   const progress = $derived(duration > 0 ? (currentTime / duration) * 100 : 0)
   const bufferedPct = $derived(duration > 0 ? (buffered / duration) * 100 : 0)
-
-  function bufferAhead() {
-    const video = videoRef
-    if (!video || video.buffered.length === 0) return 0
-    return Math.max(0, bufferedEndAt(video) - video.currentTime)
-  }
 
   function latestAvailableEpisode() {
     const list = getProps().episodes
@@ -473,9 +426,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     if (!isCurrentSession(sessionId)) return false
     const result = await prepareCandidate(candidate)
     if (!result || !isCurrentSession(sessionId)) return false
-    const resolved = activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
-    if (resolved) activeQuality = candidate.quality
-    return resolved
+    return activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
   }
 
   async function resolveCandidateAt(candidates: MirrorCandidate[], index: number, sessionId: number) {
@@ -495,28 +446,24 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     return { nextIndex: candidates.length }
   }
 
-  function resetForFallbackAttempt(seamless: boolean) {
+  function resetForFallbackAttempt() {
     loadingMessage = 'Mencoba sumber video lain...'
-    if (seamless) return
     resolving = true
     directUrl = null
     directKind = null
   }
 
-  function fallbackCandidates(startCandidate: MirrorCandidate, manual: boolean) {
-    if (manual) return [startCandidate]
+  function fallbackCandidates(startCandidate: MirrorCandidate) {
     return [startCandidate, ...buildFallbackOrder(episode.sources, startCandidate.quality, startCandidate)]
   }
 
-  function startPlaybackResolution(seamless: boolean) {
+  function startPlaybackResolution() {
     const sessionId = ++playbackSession
     fallbackRunning = false
-    loadingMessage = seamless ? 'Mengganti kualitas...' : 'Menyiapkan player...'
-    if (!seamless) {
-      resolving = true
-      directUrl = null
-      directKind = null
-    }
+    loadingMessage = 'Menyiapkan player...'
+    resolving = true
+    directUrl = null
+    directKind = null
     return sessionId
   }
 
@@ -537,14 +484,13 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     sessionId: number,
     getFallbackIdx: () => number,
     setFallbackIdx: (index: number) => void,
-    seamless: boolean,
   ) {
     fallbackFn = () => {
       if (fallbackRunning || !isCurrentSession(sessionId)) return
       fallbackRunning = true
       void (async () => {
         try {
-          resetForFallbackAttempt(seamless)
+          resetForFallbackAttempt()
           const result = await resolveCandidateList(candidates, getFallbackIdx(), sessionId)
           setFallbackIdx(result.nextIndex)
           if (!isCurrentSession(sessionId)) return
@@ -560,9 +506,9 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     fallbackFn?.()
   }
 
-  async function playWithFallback(startCandidate: MirrorCandidate, manual: boolean, seamless = false) {
-    const sessionId = startPlaybackResolution(seamless)
-    const candidates = fallbackCandidates(startCandidate, manual)
+  async function playWithFallback(startCandidate: MirrorCandidate) {
+    const sessionId = startPlaybackResolution()
+    const candidates = fallbackCandidates(startCandidate)
     let fallbackIdx = 1
     installFallbackHandler(
       candidates,
@@ -571,7 +517,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       index => {
         fallbackIdx = index
       },
-      seamless,
     )
     const result = await resolveInitialPlayback(startCandidate, candidates, fallbackIdx, sessionId)
     fallbackIdx = result.nextIndex
@@ -687,79 +632,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       clearStallTimer()
       destroyHls()
     }
-  }
-
-  // quality switching
-  function bandwidthEstimate() {
-    return hls?.bandwidthEstimate ?? NaN
-  }
-
-  function applyQuality(level: MirrorCandidate) {
-    const video = videoRef
-    autoPlayOnLoad = !!video && !video.paused
-    if (video && video.currentTime > 0) resumeTime = video.currentTime
-    void playWithFallback(level, false, true)
-  }
-
-  function resetQuality() {
-    lastDowngradeAt = 0
-    lastUpgradeAt = 0
-    bufferingSince = null
-    stalled = false
-    smoothSince = Date.now()
-  }
-
-  function currentBandwidth(): number | null {
-    const external = bandwidthEstimate()
-    if (external && Number.isFinite(external) && external > 0) return external
-    return networkBandwidth()
-  }
-
-  function commit(level: MirrorCandidate, now: number) {
-    lastDowngradeAt = now
-    lastUpgradeAt = now
-    bufferingSince = null
-    stalled = false
-    smoothSince = now
-    applyQuality(level)
-  }
-
-  function evaluateQuality() {
-    const video = videoRef
-    if (!video || video.paused || video.seeking || !Number.isFinite(video.duration)) return
-    if (resolving) return
-    const levels = qualityLevels
-    if (levels.length < 2) return
-    const index = levels.findIndex(level => level.quality === activeQuality)
-    if (index === -1) return
-    const now = Date.now()
-    if (stalled || (bufferingSince !== null && now - bufferingSince >= STALL_THRESHOLD_MS)) {
-      stalled = false
-      if (!lastDowngradeAt || now - lastDowngradeAt >= DOWNGRADE_COOLDOWN_MS) {
-        const lower = levels[index + 1]
-        if (lower) commit(lower, now)
-      }
-      return
-    }
-    if (lastUpgradeAt && now - lastUpgradeAt < UPGRADE_COOLDOWN_MS) return
-    if (!smoothSince || now - smoothSince < SMOOTH_UPGRADE_MS) return
-    if (bufferAhead() < BUFFER_HEALTHY) return
-    const higher = levels[index - 1]
-    if (!higher) return
-    const bandwidth = currentBandwidth()
-    if (bandwidth !== null && qualityBitrate(higher.quality) > bandwidth * SAFETY_MARGIN) return
-    commit(higher, now)
-  }
-
-  function startQuality() {
-    resetQuality()
-    if (qualityTimer) return
-    qualityTimer = setInterval(evaluateQuality, CHECK_INTERVAL_MS)
-  }
-
-  function stopQuality() {
-    if (qualityTimer) clearInterval(qualityTimer)
-    qualityTimer = null
   }
 
   // fullscreen
@@ -1252,7 +1124,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     pendingStartHide = true
     resetSkip()
     clearGestureState()
-    resetQuality()
 
     const pendingReset = (async () => {
       try {
@@ -1288,20 +1159,19 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     }
     const gate = resetSettled
     if (!gate) {
-      void playWithFallback(def, false)
+      void playWithFallback(def)
       return
     }
     void gate
       .catch(() => {})
       .then(() => {
-        void playWithFallback(def, false)
+        void playWithFallback(def)
       })
   }
 
   async function loadEpisodeInPlace(epNum: number, shouldAutoPlay = false) {
     invalidatePlaybackSession()
     resetEpoch++
-    resetQuality()
     resolving = true
     loadingMessage = 'Menyiapkan episode...'
     directUrl = null
@@ -1438,7 +1308,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     void getAutoSkip().then(val => {
       autoSkip = val
     })
-    startQuality()
     const video = videoRef
     if (video) registerVideoEvents(video)
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -1466,7 +1335,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
       } catch {}
     }
     detachVideoSource()
-    stopQuality()
     invalidatePlaybackSession()
     clearAnyTimer(countdownTimer)
     clearAnyTimer(idleTimer)

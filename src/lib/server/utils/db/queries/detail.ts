@@ -25,7 +25,7 @@ async function getCharactersForAnime(animeId: number): Promise<AnimeCharacter[]>
       voiceActorKey: characters.voiceActorKey,
     })
     .from(characters)
-    .innerJoin(media, eq(media.key, characters.imageKey))
+    .leftJoin(media, eq(media.key, characters.imageKey))
     .where(eq(characters.animeId, animeId))
     .orderBy(asc(characters.sortOrder))
 

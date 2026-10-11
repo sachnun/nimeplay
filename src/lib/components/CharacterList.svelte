@@ -12,15 +12,19 @@
     <div class="grid grid-cols-2 gap-x-3 gap-y-2.5 sm:gap-x-4 @[420px]:[grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
       {#each displayed as char (char.name)}
         <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 rounded-lg px-1.5 py-1 -mx-1.5">
-          <img
-            src={char.imageUrl}
-            alt={char.name}
-            width="40"
-            height="40"
-            loading="lazy"
-            decoding="async"
-            class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
-          />
+          {#if char.imageUrl}
+            <img
+              src={char.imageUrl}
+              alt={char.name}
+              width="40"
+              height="40"
+              loading="lazy"
+              decoding="async"
+              class="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
+            />
+          {:else}
+            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-800 flex-shrink-0"></div>
+          {/if}
           <div class="min-w-0">
             <span class="text-xs text-zinc-200 truncate block" class:font-bold={char.role === 'Main'} class:font-medium={char.role !== 'Main'}>
               {char.name}

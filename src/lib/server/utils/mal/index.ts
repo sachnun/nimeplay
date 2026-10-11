@@ -75,21 +75,28 @@ function mediaByTitle(malId: number, title: string | undefined): Effect.Effect<A
   })
 }
 
+const PLACEHOLDER_IMAGE = /(?:^|\/)(?:default|no[-_]?image|not[-_]?available|placeholder)(?:\.[a-z0-9]+)?(?:\?.*)?$/i
+
+function imageUrl(value: string | null | undefined): string | null {
+  if (!value || PLACEHOLDER_IMAGE.test(value)) return null
+  return value
+}
+
 function parseCharacters(media: AniListMedia): MalCharacter[] {
   const edges = media.characters?.edges ?? []
   return edges
     .slice(0, 25)
     .map((edge): MalCharacter => {
       const voiceActor = edge.voiceActors?.[0]
-      const vaUrl = voiceActor?.image?.large ?? ''
+      const vaUrl = imageUrl(voiceActor?.image?.large)
       return {
         name: edge.node?.name?.full ?? '',
-        imageUrl: edge.node?.image?.large ?? '',
+        imageUrl: imageUrl(edge.node?.image?.large) ?? '',
         role: edge.role === 'MAIN' ? 'Main' : 'Supporting',
         voiceActor: voiceActor?.name?.full && vaUrl ? { name: voiceActor.name.full, imageUrl: vaUrl } : undefined,
       }
     })
-    .filter(character => character.name && character.imageUrl)
+    .filter(character => character.name)
 }
 
 export function fetchMalAnimeEffect(
@@ -108,7 +115,7 @@ export function fetchMalAnimeEffect(
     title: titleOf(media.title),
     titles: titlesOf(media.title),
     type: media.format ?? null,
-    poster: media.coverImage?.extraLarge ?? media.coverImage?.large ?? null,
+    poster: imageUrl(media.coverImage?.extraLarge) ?? imageUrl(media.coverImage?.large),
     synopsis: cleanSynopsis(decodeEntities(stripHtml(media.description ?? ''))),
     score: media.averageScore != null ? Math.round(media.averageScore) / 10 : null,
     rank: media.rankings?.find(entry => entry.type === 'RATED')?.rank ?? null,

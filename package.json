@@ -23,17 +23,17 @@
     "workerd"
   ],
   "dependencies": {
-    "@effect/platform-bun": "^4.0.2",
+    "@effect/platform-bun": "^4.0.3",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/geist-sans": "^5.3.0",
-    "@neondatabase/serverless": "^1.1.0",
+    "@neondatabase/serverless": "^1.2.0",
     "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "effect": "^4.0.2",
     "google-translate-api-x": "10.7.3",
     "hls.js": "^1.7.3",
-    "idb": "^8.0.3",
+    "idb": "^8.0.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -42,12 +42,12 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "^1.4.2",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "oxlint": "1.87.0",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",
     "vite": "^8.3.4",
-    "wrangler": "^4.131.1"
+    "wrangler": "^4.149.0"
   }
 }

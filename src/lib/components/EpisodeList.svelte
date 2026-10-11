@@ -1,16 +1,16 @@
 <script lang="ts">
   import { loadEpisodeHeader } from '#lib/remote/episode.remote'
-  import { getEpisodeStatusMap, progressKey } from '#lib/storage'
+  import { episodeOpacity, getEpisodeProgressMap, progressKey, statusFromRatio } from '#lib/storage'
   import { onMount } from 'svelte'
 
   let { episodes, malId }: { episodes: number[]; malId: number } = $props()
 
-  let episodeStatuses = $state<Record<string, import('#lib/types').WatchProgressStatus>>({})
+  let episodeProgress = $state<Record<string, number>>({})
   const reversedEpisodes = $derived(episodes.toReversed())
   const prefetched = new Set<number>()
 
-  async function refreshEpisodeStatuses() {
-    episodeStatuses = await getEpisodeStatusMap(malId)
+  async function refreshEpisodeProgress() {
+    episodeProgress = await getEpisodeProgressMap(malId)
   }
 
   function prefetchEpisode(number: number) {
@@ -22,20 +22,24 @@
   }
 
   function onVisibility() {
-    if (document.visibilityState === 'visible') void refreshEpisodeStatuses()
+    if (document.visibilityState === 'visible') void refreshEpisodeProgress()
+  }
+
+  function episodeRatio(number: number): number {
+    return episodeProgress[progressKey(malId, number)] ?? 0
   }
 
   function episodeClass(number: number) {
-    const status = episodeStatuses[progressKey(malId, number)] ?? 'unstarted'
-    if (status === 'completed') return 'bg-white/10 text-white/35 opacity-50'
-    if (status === 'in_progress') return 'bg-white/10 text-white/50 opacity-75'
+    const status = statusFromRatio(episodeRatio(number))
+    if (status === 'completed') return 'bg-white/10 text-white/35'
+    if (status === 'in_progress') return 'bg-white/10 text-white/50'
     return 'bg-white/15 text-white hover:bg-white/25 active:bg-white/25'
   }
 
   $effect(() => {
     void malId
     prefetched.clear()
-    void refreshEpisodeStatuses()
+    void refreshEpisodeProgress()
   })
 
   onMount(() => {
@@ -56,6 +60,7 @@
         <a
           href={`/anime/${malId}/${number}`}
           class="episode-cell {episodeClass(number)}"
+          style:opacity={episodeOpacity(episodeRatio(number))}
           onmouseenter={() => prefetchEpisode(number)}
           onfocus={() => prefetchEpisode(number)}
           ontouchstart={() => prefetchEpisode(number)}

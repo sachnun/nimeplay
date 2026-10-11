@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getEpisodeStatusMap } from '#lib/storage'
+  import { episodeOpacity, getEpisodeProgressMap, progressKey, statusFromRatio } from '#lib/storage'
   import { onMount } from 'svelte'
 
   let {
@@ -17,18 +17,22 @@
   } = $props()
 
   let listRef: HTMLDivElement | null = $state(null)
-  let statuses = $state<Record<string, import('#lib/types').WatchProgressStatus>>({})
+  let episodeProgress = $state<Record<string, number>>({})
 
-  async function loadStatuses() {
-    statuses = await getEpisodeStatusMap(malId)
+  async function loadProgress() {
+    episodeProgress = await getEpisodeProgressMap(malId)
+  }
+
+  function epRatio(number: number): number {
+    return episodeProgress[progressKey(malId, number)] ?? 0
   }
 
   function epStatus(number: number): import('#lib/types').WatchProgressStatus {
-    return statuses[`${malId}:${number}`] ?? 'unstarted'
+    return statusFromRatio(epRatio(number))
   }
 
   onMount(() => {
-    void loadStatuses()
+    void loadProgress()
     requestAnimationFrame(() => {
       const active = listRef?.querySelector<HTMLElement>('[data-current="true"]')
       active?.scrollIntoView({ block: 'center', behavior: 'smooth' })
@@ -64,7 +68,8 @@
         <button
           type="button"
           data-current={number === currentEpisodeNumber ? 'true' : undefined}
-          class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer {number === currentEpisodeNumber ? 'bg-white/25 text-white font-semibold' : epStatus(number) === 'completed' ? 'bg-white/5 text-zinc-600 opacity-55' : epStatus(number) === 'in_progress' ? 'bg-white/5 text-zinc-400 opacity-75' : 'bg-white/5 text-zinc-300 hover:bg-white/15'}"
+          class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer {number === currentEpisodeNumber ? 'bg-white/25 text-white font-semibold' : epStatus(number) === 'completed' ? 'bg-white/5 text-zinc-600' : epStatus(number) === 'in_progress' ? 'bg-white/5 text-zinc-400' : 'bg-white/5 text-zinc-300 hover:bg-white/15'}"
+          style:opacity={number === currentEpisodeNumber ? 1 : episodeOpacity(epRatio(number))}
           onclick={() => number !== currentEpisodeNumber && onnavigate(number)}
         >
           {number}

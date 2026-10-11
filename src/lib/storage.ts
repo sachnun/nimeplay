@@ -105,10 +105,15 @@ function getProgressRatio(progress: Pick<WatchProgress, 'currentTime' | 'duratio
   return Math.min(progress.currentTime / progress.duration, 1)
 }
 
-function statusFromRatio(ratio: number): WatchProgressStatus {
+export function statusFromRatio(ratio: number): WatchProgressStatus {
   if (ratio >= COMPLETED_PROGRESS_THRESHOLD) return 'completed'
   if (ratio > 0) return 'in_progress'
   return 'unstarted'
+}
+
+export function episodeOpacity(ratio: number): number {
+  if (ratio <= 0) return 1
+  return Math.max(0.5, 1 - ratio * 0.5)
 }
 
 async function getProgressStatus(
@@ -135,14 +140,14 @@ export async function getEpisodeStatus(key: string): Promise<WatchProgressStatus
   return getProgressStatus(await getProgress(key))
 }
 
-export async function getEpisodeStatusMap(malId: number): Promise<Record<string, WatchProgressStatus>> {
+export async function getEpisodeProgressMap(malId: number): Promise<Record<string, number>> {
   if (!isBrowser()) return {}
   try {
     const all = await getAllProgress()
-    const map: Record<string, WatchProgressStatus> = {}
+    const map: Record<string, number> = {}
     for (const p of all) {
       if (p.malId !== malId) continue
-      map[progressKey(p.malId, p.episodeNumber)] = statusFromRatio(getProgressRatio(p))
+      map[progressKey(p.malId, p.episodeNumber)] = getProgressRatio(p)
     }
     return map
   } catch {

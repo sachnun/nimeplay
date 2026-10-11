@@ -68,7 +68,7 @@
         <button
           type="button"
           data-current={number === currentEpisodeNumber ? 'true' : undefined}
-          class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all cursor-pointer {number === currentEpisodeNumber ? 'bg-white/25 text-white font-semibold' : epStatus(number) === 'completed' ? 'bg-white/5 text-zinc-600' : epStatus(number) === 'in_progress' ? 'bg-white/5 text-zinc-400' : 'bg-white/5 text-zinc-300 hover:bg-white/15'}"
+          class="relative flex items-center justify-center text-sm py-2.5 rounded-lg transition-all duration-300 cursor-pointer {number === currentEpisodeNumber ? 'bg-white/25 text-white font-semibold' : epStatus(number) === 'completed' ? 'bg-white/5 text-zinc-600' : epStatus(number) === 'in_progress' ? 'bg-white/5 text-zinc-400' : 'bg-white/5 text-zinc-300 hover:bg-white/15'}"
           style:opacity={number === currentEpisodeNumber ? 1 : episodeOpacity(epRatio(number))}
           onclick={() => number !== currentEpisodeNumber && onnavigate(number)}
         >

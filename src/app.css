@@ -49,7 +49,7 @@ body {
 }
 
 @utility episode-cell {
-  @apply relative text-sm py-2 rounded text-center transition-colors;
+  @apply relative text-sm py-2 rounded text-center transition-[color,background-color,opacity] duration-300;
 }
 
 @utility chip {

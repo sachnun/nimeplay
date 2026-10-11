@@ -56,7 +56,7 @@
     />
     {#if badge}
       <div
-        class="absolute top-2 right-2 text-xs px-2 py-0.5 rounded font-medium"
+        class="absolute top-2 right-2 text-xs px-2 py-0.5 rounded font-medium transition-colors duration-300"
         class:bg-teal-500={newEpisode}
         class:text-white={newEpisode}
         class:bg-zinc-700={!newEpisode}

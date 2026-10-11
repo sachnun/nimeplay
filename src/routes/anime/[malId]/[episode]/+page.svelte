@@ -14,11 +14,13 @@
   <title>{page.episode.title} - Nimeplay</title>
 </svelte:head>
 
-<EpisodePlayer
-  malId={page.anime.malId}
-  episodeNumber={page.episodeNumber}
-  episode={page.episode}
-  episodes={page.episodes}
-  animeTitle={page.anime.title}
-  animeThumbnail={page.anime.thumbnail}
-/>
+{#key `${page.anime.malId}-${page.episodeNumber}`}
+  <EpisodePlayer
+    malId={page.anime.malId}
+    episodeNumber={page.episodeNumber}
+    episode={page.episode}
+    episodes={page.episodes}
+    animeTitle={page.anime.title}
+    animeThumbnail={page.anime.thumbnail}
+  />
+{/key}

@@ -22,7 +22,7 @@
   --color-card: var(--card);
   --color-border: var(--border);
   --color-accent: var(--accent);
-  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }

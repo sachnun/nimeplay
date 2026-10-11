@@ -116,7 +116,7 @@
               type="button"
               title="Hapus dari history"
               aria-label="Hapus dari history"
-              class="absolute top-2 left-2 p-1.5 rounded-full bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 transition-colors cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100"
+              class="absolute top-2 left-2 p-1.5 rounded-full bg-black/60 text-zinc-300 hover:text-white hover:bg-black/80 transition-colors cursor-pointer opacity-0 pointer-coarse:opacity-100 group-hover:opacity-100 focus:opacity-100"
               onclick={e => {
                 e.stopPropagation()
                 e.preventDefault()

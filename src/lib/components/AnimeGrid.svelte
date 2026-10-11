@@ -146,7 +146,7 @@
   function isSentinelNearViewport() {
     if (!sentinelRef || isEnd) return false
     const rect = sentinelRef.getBoundingClientRect()
-    return rect.top <= window.innerHeight * 3 && rect.bottom >= -800
+    return rect.top <= window.innerHeight * 5 && rect.bottom >= -800
   }
 
   async function fillViewport() {
@@ -166,7 +166,7 @@
       entries => {
         if (entries.some(entry => entry.isIntersecting)) void loadMore()
       },
-      { rootMargin: '200% 0px' },
+      { rootMargin: '400% 0px' },
     )
     if (sentinelRef) observer.observe(sentinelRef)
 

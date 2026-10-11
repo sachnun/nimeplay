@@ -1,7 +1,7 @@
 import { eq, or, type SQL, sql } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
 
-export const PAGE_SIZE = 24
+export const PAGE_SIZE = 48
 
 export const BLOCKED_GENRE_SLUGS = ['hentai']
 

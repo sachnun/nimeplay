@@ -3,7 +3,7 @@ import { BLOCKED_GENRE_SLUGS, PAGE_SIZE, formatSeason } from './shared'
 
 describe('constants', () => {
   test('exposes the page size and blocked genres', () => {
-    expect(PAGE_SIZE).toBe(24)
+    expect(PAGE_SIZE).toBe(48)
     expect(BLOCKED_GENRE_SLUGS).toEqual(['hentai'])
   })
 })

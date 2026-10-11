@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from 'effect'
-import { proxyFetch, proxyUrl } from '../media/proxy'
+import { proxyUrl } from '../media/proxy'
 import { NetError, runGuarded } from './rate'
 import { getSpoofHeaders } from './spoof'
 
@@ -31,6 +31,10 @@ function hostOf(url: string): string {
   } catch {
     return 'invalid'
   }
+}
+
+function fetchVia(url: string, init: RequestInit, proxy?: boolean): Promise<Response> {
+  return fetch(proxyUrl(url, proxy), init)
 }
 
 function responseHeaders(response: Response): Record<string, string> {
@@ -88,9 +92,19 @@ function decodeJson(response: Response, url: string): Effect.Effect<Record<strin
 }
 
 export interface HttpShape {
-  readonly html: (url: string, timeoutMs?: number) => Effect.Effect<string, NetError>
-  readonly form: (url: string, body: string, referer: string) => Effect.Effect<Record<string, unknown>, NetError>
-  readonly formText: (url: string, body: string, referer: string) => Effect.Effect<string, NetError>
+  readonly html: (url: string, timeoutMs?: number, options?: PlainOptions) => Effect.Effect<string, NetError>
+  readonly form: (
+    url: string,
+    body: string,
+    referer: string,
+    options?: PlainOptions,
+  ) => Effect.Effect<Record<string, unknown>, NetError>
+  readonly formText: (
+    url: string,
+    body: string,
+    referer: string,
+    options?: PlainOptions,
+  ) => Effect.Effect<string, NetError>
   readonly text: (url: string, options?: PlainOptions) => Effect.Effect<PlainResponse | null>
   readonly binary: (url: string, options?: PlainOptions) => Effect.Effect<PlainBinaryResponse | null>
 }
@@ -100,11 +114,11 @@ export class Http extends Context.Service<Http, HttpShape>()('app/Http') {}
 export const HttpLive = Layer.succeed(
   Http,
   Http.of({
-    html: (url, timeoutMs = NAVIGATE_TIMEOUT_MS) =>
+    html: (url, timeoutMs = NAVIGATE_TIMEOUT_MS, options) =>
       Effect.gen(function* () {
         const response = yield* runGuarded({
           url,
-          task: signal => proxyFetch(url, { headers: getSpoofHeaders(url, 'navigate'), signal }),
+          task: signal => fetchVia(url, { headers: getSpoofHeaders(url, 'navigate'), signal }, options?.proxy),
           timeoutMs,
           status: value => value.status,
         })
@@ -121,13 +135,13 @@ export const HttpLive = Layer.succeed(
         return yield* readBody(response)
       }),
 
-    form: (url, body, referer) =>
+    form: (url, body, referer, options) =>
       Effect.gen(function* () {
         const headers = getSpoofHeaders(referer, 'cors')
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
         const response = yield* runGuarded({
           url,
-          task: signal => proxyFetch(url, { method: 'POST', headers, body, signal }),
+          task: signal => fetchVia(url, { method: 'POST', headers, body, signal }, options?.proxy),
           timeoutMs: DEFAULT_TIMEOUT_MS,
           status: value => value.status,
         })
@@ -144,13 +158,13 @@ export const HttpLive = Layer.succeed(
         return yield* decodeJson(response, url)
       }),
 
-    formText: (url, body, referer) =>
+    formText: (url, body, referer, options) =>
       Effect.gen(function* () {
         const headers = getSpoofHeaders(referer, 'cors')
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
         const response = yield* runGuarded({
           url,
-          task: signal => proxyFetch(url, { method: 'POST', headers, body, signal }),
+          task: signal => fetchVia(url, { method: 'POST', headers, body, signal }, options?.proxy),
           timeoutMs: DEFAULT_TIMEOUT_MS,
           status: value => value.status,
         })

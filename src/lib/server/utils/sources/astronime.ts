@@ -1,12 +1,14 @@
 import * as cheerio from 'cheerio/slim'
 import { Effect } from 'effect'
 import { sealStreamToken } from '../media/stream'
-import { Http } from '../net/http'
+import { Http, type PlainOptions } from '../net/http'
 import { cleanTitleWithRules, type TitleCleanupRule } from './shared'
 import type { AnimeSource, EpisodeData, ListResult, ScrapedAnimeCard, ScrapedAnimeDetail, SourceEffect } from './types'
 
 const BASE_URL = 'https://astronime.id'
 const TIMEOUT_MS = 12000
+
+const PROXIED: PlainOptions = { proxy: true }
 
 const TITLE_CLEANUP: TitleCleanupRule[] = [/\s*Sub(title)?\s*Indo(nesia)?/gi]
 
@@ -59,7 +61,7 @@ function scrapeListFresh(status: 'ongoing' | 'completed', page: number): SourceE
     const query = `title=&order=&status=${encodeURIComponent(statusParam)}&type=`
     const url = page > 1 ? `${BASE_URL}/daftar-anime/page/${page}/?${query}` : `${BASE_URL}/daftar-anime/?${query}`
     const http = yield* Http
-    const html = yield* http.html(url, TIMEOUT_MS)
+    const html = yield* http.html(url, TIMEOUT_MS, PROXIED)
     const $ = cheerio.load(html)
     let totalPages = page
     $('a[href]').each((_, el) => {
@@ -73,7 +75,7 @@ function scrapeListFresh(status: 'ongoing' | 'completed', page: number): SourceE
 function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
   return Effect.gen(function* () {
     const http = yield* Http
-    const html = yield* http.html(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS)
+    const html = yield* http.html(`${BASE_URL}/anime/${slug}/`, TIMEOUT_MS, PROXIED)
     const $ = cheerio.load(html)
     const title = cleanTitle($('h1.entry-title').first().text())
     if (!title) return null
@@ -116,7 +118,7 @@ function resolvePlayer(option: ServerOption): SourceEffect<string | null> {
   return Effect.gen(function* () {
     const body = `action=player_ajax&post=${encodeURIComponent(option.post)}&nume=${encodeURIComponent(option.nume)}&type=${encodeURIComponent(option.type)}`
     const http = yield* Http
-    const html = yield* http.formText(`${BASE_URL}/wp-admin/admin-ajax.php`, body, BASE_URL)
+    const html = yield* http.formText(`${BASE_URL}/wp-admin/admin-ajax.php`, body, BASE_URL, PROXIED)
     return html.match(/src=['"]([^'"]+)['"]/)?.[1] ?? null
   }).pipe(Effect.catch(() => Effect.succeed(null)))
 }
@@ -124,7 +126,7 @@ function resolvePlayer(option: ServerOption): SourceEffect<string | null> {
 function scrapeEpisodeFresh(slug: string): SourceEffect<EpisodeData | null> {
   return Effect.gen(function* () {
     const http = yield* Http
-    const html = yield* http.html(`${BASE_URL}/${slug}/`, TIMEOUT_MS)
+    const html = yield* http.html(`${BASE_URL}/${slug}/`, TIMEOUT_MS, PROXIED)
     const $ = cheerio.load(html)
     const title = cleanTitle($('h1.entry-title').first().text())
     if (!title) return null

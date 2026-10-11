@@ -1,6 +1,8 @@
 import { error } from '@sveltejs/kit'
+import { Effect } from 'effect'
 import { openStreamRequest, rewriteHlsPlaylist, sealedStreamUrl } from '#lib/server/utils/media/stream'
 import { streamMega } from '#lib/server/utils/media/mega'
+import { flushStreamTelemetry, observeStream } from '#lib/server/utils/media/scores'
 import { upstreamHeadersFor } from '#lib/server/utils/extractors/hosts'
 import type { RequestHandler } from './$types'
 
@@ -60,9 +62,55 @@ async function fetchWithRetry(target: URL, headers: Record<string, string>): Pro
   return fetchUpstream(target, minimal)
 }
 
-async function respondMega(megaKey: string, target: URL, range: string | undefined): Promise<Response> {
+interface Attribution {
+  server?: string
+  quality?: string
+}
+
+function report(attribution: Attribution, sample: { ok: boolean; ttfbMs?: number; bytes?: number; durationMs?: number }) {
+  if (!attribution.server || !attribution.quality) return
+  Effect.runFork(observeStream({ server: attribution.server, quality: attribution.quality, ...sample }))
+}
+
+function measured(
+  body: ReadableStream<Uint8Array>,
+  onDone: (result: { bytes: number; durationMs: number; complete: boolean }) => void,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader()
+  let bytes = 0
+  const started = Date.now()
+  let settled = false
+  const settle = (complete: boolean) => {
+    if (settled) return
+    settled = true
+    onDone({ bytes, durationMs: Date.now() - started, complete })
+  }
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read()
+      if (done) {
+        settle(true)
+        controller.close()
+        return
+      }
+      bytes += value.byteLength
+      controller.enqueue(value)
+    },
+    cancel(reason) {
+      settle(false)
+      return reader.cancel(reason)
+    },
+  })
+}
+
+async function respondMega(megaKey: string, target: URL, range: string | undefined, attribution: Attribution): Promise<Response> {
+  const started = Date.now()
   const mega = await streamMega(target.toString(), megaKey, range).catch(() => null)
-  if (!mega) error(502, 'Failed to fetch stream')
+  if (!mega) {
+    report(attribution, { ok: false })
+    error(502, 'Failed to stream')
+  }
+  report(attribution, { ok: true, ttfbMs: Date.now() - started })
   const headers: Record<string, string> = {
     'Content-Type': mega.contentType,
     'Accept-Ranges': 'bytes',
@@ -72,22 +120,34 @@ async function respondMega(megaKey: string, target: URL, range: string | undefin
   return new Response(mega.body, { status: mega.status, headers })
 }
 
-function sendFile(res: Response, contentType: string | null): Response {
+function sendFile(
+  res: Response,
+  contentType: string | null,
+  attribution: Attribution,
+  ttfbMs: number,
+): Response {
   const headers: Record<string, string> = {
     'Content-Type': contentType || 'application/octet-stream',
     'Accept-Ranges': res.headers.get('accept-ranges') === 'none' ? 'none' : 'bytes',
   }
   const contentLength = Number(res.headers.get('content-length'))
-  if (Number.isFinite(contentLength) && contentLength > 0) headers['Content-Length'] = String(contentLength)
+  const hasLength = Number.isFinite(contentLength) && contentLength > 0
+  if (hasLength) headers['Content-Length'] = String(contentLength)
   const contentRange = res.headers.get('content-range')
   if (contentRange) headers['Content-Range'] = contentRange
   if (!res.body) error(502, 'Empty upstream response')
-  return new Response(res.body, { status: res.status, headers })
+  const body = measured(res.body, ({ bytes, durationMs, complete }) => {
+    const intact = complete && (!hasLength || bytes >= contentLength)
+    report(attribution, { ok: intact, ttfbMs, bytes, durationMs })
+  })
+  return new Response(body, { status: res.status, headers })
 }
 
-async function sendPlaylist(res: Response, target: URL, contentType: string | null): Promise<Response> {
+async function sendPlaylist(res: Response, target: URL, contentType: string | null, attribution: Attribution): Promise<Response> {
   const body = await res.text()
-  const rewritten = await rewriteHlsPlaylist(body, target.toString(), sealedStreamUrl).catch(() => body)
+  const rewritten = await rewriteHlsPlaylist(body, target.toString(), (uri, base) =>
+    sealedStreamUrl(uri, base, attribution.server && attribution.quality ? { server: attribution.server, quality: attribution.quality } : undefined),
+  ).catch(() => body)
   return new Response(rewritten, {
     headers: { 'Content-Type': contentType || 'application/vnd.apple.mpegurl' },
   })
@@ -102,12 +162,19 @@ export const GET: RequestHandler = async ({ url, request }) => {
 
   const target = parseTarget(streamRequest.url)
   const range = request.headers.get('range') || undefined
+  const attribution: Attribution = { server: streamRequest.server, quality: streamRequest.quality }
 
-  if (streamRequest.megaKey) return respondMega(streamRequest.megaKey, target, range)
+  // flush the in-isolate buffer while the request is still alive
+  Effect.runFork(flushStreamTelemetry())
 
+  if (streamRequest.megaKey) return respondMega(streamRequest.megaKey, target, range, attribution)
+
+  const startedAt = Date.now()
   const res = await fetchWithRetry(target, buildHeaders(target, range, streamRequest.headers))
+  const ttfbMs = Date.now() - startedAt
   if (!res || (!res.ok && res.status !== 206)) {
     await res?.body?.cancel().catch(() => {})
+    report(attribution, { ok: false, ttfbMs })
     return new Response(null, {
       status: 302,
       headers: { Location: target.toString(), 'Referrer-Policy': 'no-referrer' },
@@ -115,6 +182,6 @@ export const GET: RequestHandler = async ({ url, request }) => {
   }
 
   const contentType = mediaContentType(res.headers.get('content-type'), target)
-  if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) return sendPlaylist(res, target, contentType)
-  return sendFile(res, contentType)
+  if (isPlaylistUrl(target) || isPlaylistResponse(contentType)) return sendPlaylist(res, target, contentType, attribution)
+  return sendFile(res, contentType, attribution, ttfbMs)
 }

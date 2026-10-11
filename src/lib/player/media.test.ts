@@ -10,8 +10,8 @@ import {
   qualityBitrate,
 } from './media'
 
-function source(server: string, quality: string): EpisodeSource {
-  return { server, quality }
+function source(server: string, quality: string, score?: number): EpisodeSource {
+  return score === undefined ? { server, quality } : { server, quality, score }
 }
 
 const sources: EpisodeSource[] = [
@@ -126,6 +126,41 @@ describe('findDefaultMirror', () => {
 
   test('returns null when there are no sources', () => {
     expect(findDefaultMirror({ sources: [] } as unknown as EpisodeMeta)).toBeNull()
+  })
+})
+
+describe('score driven ordering', () => {
+  const scored: EpisodeSource[] = [
+    source('mega', '720p', 0.3),
+    source('RAPSODI', '720p', 0.9),
+    source('mega', '1080p', 0.3),
+  ]
+
+  test('picks the highest scoring server at the preferred quality', () => {
+    expect(findDefaultMirror({ sources: scored } as unknown as EpisodeMeta)).toEqual({
+      server: 'RAPSODI',
+      quality: '720p',
+    })
+  })
+
+  test('quality still outranks the score', () => {
+    const mixed: EpisodeSource[] = [source('slow', '1080p', 0.1), source('fast', '720p', 0.9)]
+    expect(findDefaultMirror({ sources: mixed } as unknown as EpisodeMeta)).toEqual({
+      server: 'fast',
+      quality: '720p',
+    })
+  })
+
+  test('the quality ladder follows the score within each quality', () => {
+    expect(listQualityLevels(scored)).toEqual([
+      { server: 'mega', quality: '1080p' },
+      { server: 'RAPSODI', quality: '720p' },
+    ])
+  })
+
+  test('missing scores fall back to a name tie break', () => {
+    const unordered: EpisodeSource[] = [source('zeta', '720p'), source('alpha', '720p')]
+    expect(findDefaultMirror({ sources: unordered } as unknown as EpisodeMeta)?.server).toBe('alpha')
   })
 })
 

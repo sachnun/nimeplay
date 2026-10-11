@@ -3,6 +3,7 @@ export type { AnimeCard, AnimeCharacter, AnimeDetail, Genre, GenreAnimeCard, Sea
 export interface EpisodeSource {
   server: string
   quality: string
+  score?: number
 }
 
 export interface EpisodeStream {

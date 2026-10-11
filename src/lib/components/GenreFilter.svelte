@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Genre } from '#lib/shared/types'
   import { getContinueWatching } from '#lib/storage'
-  import { onMount, tick } from 'svelte'
+  import { onMount } from 'svelte'
+  import { slide } from 'svelte/transition'
 
   let { genres, selectedGenre, onsearch, onsignin }: {
     genres: Genre[]
@@ -57,7 +58,6 @@
   function onPointerDown(e: PointerEvent) {
     if (e.pointerType !== 'mouse' || e.button !== 0) return
     if (!scrollEl) return
-    stopTracking()
     dragging = true
     moved = false
     startX = e.clientX
@@ -89,7 +89,6 @@
 
   function onWheel(e: WheelEvent) {
     if (!scrollEl) return
-    stopTracking()
     const max = scrollEl.scrollWidth - scrollEl.clientWidth
     if (max <= 0) return
     const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
@@ -99,45 +98,17 @@
     if (menuOpen) positionMenu()
   }
 
-  async function centerSelected(behavior: ScrollBehavior = 'smooth') {
-    await tick()
-    applyCenter(behavior)
-  }
-
-  function applyCenter(behavior: ScrollBehavior) {
+  function centerSelected(behavior: ScrollBehavior = 'smooth') {
     const el = scrollEl
     if (!el) return
     const active = el.querySelector<HTMLElement>('[data-active="true"]')
     if (!active) return
     const elRect = el.getBoundingClientRect()
     const activeRect = active.getBoundingClientRect()
-    const naturalLeft = activeRect.left - elRect.left + el.scrollLeft
+    const left = el.scrollLeft + (activeRect.left - elRect.left) - (el.clientWidth - activeRect.width) / 2
     const max = el.scrollWidth - el.clientWidth
-    const centered = naturalLeft - (el.clientWidth - activeRect.width) / 2
-    const target = naturalLeft + activeRect.width <= el.clientWidth ? 0 : Math.max(0, Math.min(max, centered))
-    el.scrollTo({ left: target, behavior })
+    el.scrollTo({ left: Math.max(0, Math.min(max, left)), behavior })
   }
-
-  let recenterFrame = 0
-
-  function trackLayout(duration = 400) {
-    cancelAnimationFrame(recenterFrame)
-    const end = performance.now() + duration
-    const step = () => {
-      applyCenter('auto')
-      if (performance.now() < end) recenterFrame = requestAnimationFrame(step)
-    }
-    recenterFrame = requestAnimationFrame(step)
-  }
-
-  function stopTracking() {
-    cancelAnimationFrame(recenterFrame)
-  }
-
-  $effect(() => {
-    if (hasHistory) trackLayout()
-    else stopTracking()
-  })
 
   let observer: ResizeObserver | null = null
 
@@ -157,7 +128,7 @@
 
   $effect(() => {
     void selectedGenre?.slug
-    void centerSelected()
+    void Promise.resolve().then(() => centerSelected())
   })
 
   $effect(() => {
@@ -176,11 +147,10 @@
     window.addEventListener('resize', onVisibility)
     void syncHistoryVisibility()
     requestAnimationFrame(() => {
-      void centerSelected('auto')
+      centerSelected('auto')
       updateOverflow()
     })
     return () => {
-      stopTracking()
       scrollEl?.removeEventListener('wheel', onWheel)
       observer?.disconnect()
       document.removeEventListener('click', onClickOutside)
@@ -218,21 +188,22 @@
         </svg>
       </button>
 
-      <a
-        href="/history"
-        title="History"
-        aria-label="History"
-        draggable="false"
-        tabindex={hasHistory ? undefined : -1}
-        aria-hidden={hasHistory ? undefined : 'true'}
-        class="chip shrink-0 flex items-center overflow-hidden [-webkit-user-drag:none] transition-[width,margin,opacity] duration-250 ease-out {hasHistory ? 'w-[38px] mr-2 opacity-100 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100' : 'w-0 mr-0 opacity-0'}"
-      >
-        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7v5l4 2" />
-        </svg>
-      </a>
+      {#if hasHistory}
+        <a
+          href="/history"
+          title="History"
+          aria-label="History"
+          draggable="false"
+          transition:slide={{ axis: 'x', duration: 250 }}
+          class="px-3 py-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors shrink-0 flex items-center [-webkit-user-drag:none]"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7v5l4 2" />
+          </svg>
+        </a>
+      {/if}
       {#each genres as genre (genre.slug)}
         <a
           href={selectedGenre?.slug === genre.slug ? '/' : `/${genre.slug}`}

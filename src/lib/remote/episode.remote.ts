@@ -6,12 +6,7 @@ import { episodeInfoSchema, episodeStreamSchema } from '#lib/schemas'
 import { getEpisodeNumbers, resolveEpisode } from '#lib/server/utils/db/queries/episodes'
 import { loadEpisodeData } from '#lib/server/utils/db/episode-cache'
 import { resolveStreamFromMirrors } from '#lib/server/utils/media/stream-resolve'
-import { loadSourceScores, type SourceScores } from '#lib/server/utils/media/scores'
 import { runApp } from '#lib/server/utils/runtime'
-
-function withScores<T extends { server: string; quality: string }>(sources: T[], scores: SourceScores) {
-  return sources.map(source => ({ ...source, score: scores.scoreOf(source.server, source.quality) }))
-}
 
 export const loadEpisodeHeader = query(
   episodeInfoSchema,
@@ -40,12 +35,11 @@ export const loadEpisodeInfo = query(
     const resolved = await resolveEpisode(malId, episodeNumber)
     if (!resolved) redirect(307, `/anime/${malId}`)
 
-    const [scraped, episodeNumbers, scores] = await runApp(
+    const [scraped, episodeNumbers] = await runApp(
       Effect.all(
         [
           loadEpisodeData(resolved.candidates.map(candidate => candidate.episodeSlug)),
           Effect.promise(() => getEpisodeNumbers(resolved.animeId)),
-          loadSourceScores,
         ],
         { concurrency: 'unbounded' },
       ),
@@ -58,11 +52,8 @@ export const loadEpisodeInfo = query(
       episode: {
         title: `${resolved.anime.title} Episode ${episodeNumber}`,
         thumbnail: scraped.thumbnail || resolved.anime.thumbnail,
-        sources: withScores(
-          scraped.mirrors.flatMap(mirror =>
-            mirror.sources.map(source => ({ server: source.name, quality: mirror.quality })),
-          ),
-          scores,
+        sources: scraped.mirrors.flatMap(mirror =>
+          mirror.sources.map(source => ({ server: source.name, quality: mirror.quality })),
         ),
       },
       episodes: episodeNumbers.length > 0 ? episodeNumbers : [],

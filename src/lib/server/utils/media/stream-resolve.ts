@@ -3,7 +3,6 @@ import type { EpisodeStream } from '#lib/types'
 import type { Http } from '../net/http'
 import { orderCandidates } from './candidates'
 import { prepareMirror } from './prepare'
-import { loadSourceScores } from './scores'
 
 interface MirrorSource {
   name: string
@@ -25,13 +24,11 @@ export function resolveStreamFromMirrors(
     const candidates = mirrors.flatMap(mirror =>
       mirror.sources.map(source => ({ dataContent: source.dataContent, quality: mirror.quality, name: source.name })),
     )
-    const scores = yield* loadSourceScores
-    const ordered = orderCandidates(candidates, mirrors, preferredServer, preferredQuality, scores)
+    const ordered = orderCandidates(candidates, mirrors, preferredServer, preferredQuality)
     for (const candidate of ordered.slice(0, limit)) {
-      const result = yield* prepareMirror(candidate.dataContent, {
-        server: candidate.name,
-        quality: candidate.quality,
-      }).pipe(Effect.catch(() => Effect.succeed({ playUrl: null, kind: null, ok: false })))
+      const result = yield* prepareMirror(candidate.dataContent).pipe(
+        Effect.catch(() => Effect.succeed({ playUrl: null, kind: null, ok: false })),
+      )
       if (result.ok && result.playUrl && result.kind) {
         return { playUrl: result.playUrl, kind: result.kind, quality: candidate.quality, server: candidate.name }
       }

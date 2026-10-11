@@ -40,19 +40,7 @@ describe('sealStreamToken and openStreamToken', () => {
       url: 'https://cdn.example/v.mp4',
       headers: { Referer: 'https://r/' },
       megaKey: 'megakey',
-      server: undefined,
-      quality: undefined,
     })
-  })
-
-  test('round trips the source attribution', async () => {
-    const token = await sealStreamToken('https://cdn.example/v.mp4', 60_000, undefined, undefined, {
-      server: 'RAPSODI',
-      quality: '720p',
-    })
-    const opened = await openStreamRequest(token)
-    expect(opened?.server).toBe('RAPSODI')
-    expect(opened?.quality).toBe('720p')
   })
 
   test('defaults headers to an empty object', async () => {
@@ -72,7 +60,7 @@ describe('sealStreamToken and openStreamToken', () => {
 
   test('honours an explicit clock when sealing and opening', async () => {
     const now = Date.UTC(2024, 0, 1)
-    const token = await sealStreamToken('https://cdn.example/v.mp4', 60_000, undefined, undefined, undefined, now)
+    const token = await sealStreamToken('https://cdn.example/v.mp4', 60_000, undefined, undefined, now)
     expect(await openStreamToken(token, now)).toBe('https://cdn.example/v.mp4')
     expect(await openStreamToken(token, now + 120_000)).toBeNull()
   })
@@ -103,13 +91,5 @@ describe('stream urls', () => {
     const sealed = await sealedStreamUrl('/rel/v.mp4', 'https://base.com/dir/')
     expect(sealed.startsWith('/api/stream?t=')).toBe(true)
     expect(await openStreamToken(sealed.slice('/api/stream?t='.length))).toBe('https://base.com/rel/v.mp4')
-  })
-
-  test('carries attribution through the sealed url', async () => {
-    const sealed = await sealedStreamUrl('/seg/0.ts', 'https://base.com/hls/', { server: 'mega', quality: '1080p' })
-    const opened = await openStreamRequest(sealed.slice('/api/stream?t='.length))
-    expect(opened?.url).toBe('https://base.com/seg/0.ts')
-    expect(opened?.server).toBe('mega')
-    expect(opened?.quality).toBe('1080p')
   })
 })

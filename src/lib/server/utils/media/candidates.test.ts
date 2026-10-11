@@ -1,13 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { orderCandidates } from './candidates'
-import type { SourceScores } from './scores'
-
-function scores(map: Record<string, number>): SourceScores {
-  return {
-    scoreOf: (server: string) => map[server] ?? 0,
-    size: Object.keys(map).length,
-  }
-}
 
 const mirrors = [
   { quality: '480p', sources: [{ name: 'mega', dataContent: '480-mega' }] },
@@ -26,19 +18,14 @@ const candidates = mirrors.flatMap(mirror =>
 )
 
 describe('orderCandidates', () => {
-  test('promotes the highest scoring default to the front', () => {
-    const ordered = orderCandidates(candidates, mirrors, '', '', scores({ animeverse: 0.9 }))
+  test('promotes the default candidate to the front', () => {
+    const ordered = orderCandidates(candidates, mirrors, '', '')
     expect(ordered[0]?.dataContent).toBe('720-animeverse')
     expect(ordered).toHaveLength(candidates.length)
   })
 
-  test('promotes a different default when the scores change', () => {
-    const ordered = orderCandidates(candidates, mirrors, '', '', scores({ mega: 0.9 }))
-    expect(ordered[0]?.dataContent).toBe('720-mega')
-  })
-
   test('keeps every candidate exactly once', () => {
-    const ordered = orderCandidates(candidates, mirrors, '', '', scores({ animeverse: 0.9 }))
+    const ordered = orderCandidates(candidates, mirrors, '', '')
     expect([...ordered].map(c => c.dataContent).toSorted()).toEqual(
       candidates.map(c => c.dataContent).toSorted(),
     )
@@ -55,7 +42,7 @@ describe('orderCandidates', () => {
   })
 
   test('falls back to the default when the preference matches nothing', () => {
-    const ordered = orderCandidates(candidates, mirrors, 'nope', '144p', scores({ animeverse: 0.9 }))
+    const ordered = orderCandidates(candidates, mirrors, 'nope', '144p')
     expect(ordered[0]?.dataContent).toBe('720-animeverse')
   })
 

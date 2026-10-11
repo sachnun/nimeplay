@@ -1,5 +1,4 @@
 import { selectDefaultCandidate } from './prepare'
-import type { SourceScores } from './scores'
 
 export interface EpisodeCandidate {
   dataContent: string
@@ -12,7 +11,6 @@ export function orderCandidates(
   mirrors: Parameters<typeof selectDefaultCandidate>[0],
   preferredServer: string,
   preferredQuality: string,
-  scores?: SourceScores,
 ): EpisodeCandidate[] {
   const requested =
     preferredServer || preferredQuality
@@ -23,7 +21,7 @@ export function orderCandidates(
         )
       : undefined
   if (requested) return [requested]
-  const best = selectDefaultCandidate(mirrors, scores)
+  const best = selectDefaultCandidate(mirrors)
   const match = best && candidates.find(candidate => candidate.dataContent === best.dataContent)
   if (!match) return candidates
   return [match, ...candidates.filter(candidate => candidate.dataContent !== match.dataContent)]

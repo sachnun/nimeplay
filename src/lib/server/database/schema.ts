@@ -3,7 +3,6 @@ import {
   bigint,
   bigserial,
   customType,
-  doublePrecision,
   index,
   integer,
   jsonb,
@@ -161,23 +160,6 @@ export const media = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   table => [uniqueIndex('media_source_url_key').on(table.sourceUrl)],
-)
-
-export const sourceStats = pgTable(
-  'source_stats',
-  {
-    server: text('server').notNull(),
-    quality: text('quality').notNull(),
-    alpha: doublePrecision('alpha').notNull().default(1),
-    beta: doublePrecision('beta').notNull().default(1),
-    samples: bigint('samples', { mode: 'number' }).notNull().default(0),
-    speedBps: doublePrecision('speed_bps').notNull().default(0),
-    ttfMs: doublePrecision('ttf_ms').notNull().default(0),
-    lastOkAt: timestamp('last_ok_at', { withTimezone: true }),
-    lastFailAt: timestamp('last_fail_at', { withTimezone: true }),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  table => [primaryKey({ columns: [table.server, table.quality] })],
 )
 
 export const appState = pgTable('app_state', {

@@ -3,12 +3,7 @@ import { readStreamSecret } from './config'
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000
 const IV_LENGTH = 12
 
-type TokenPayload = { u: string; e: number; h?: Record<string, string>; k?: string; s?: string; q?: string }
-
-interface StreamAttribution {
-  server: string
-  quality: string
-}
+type TokenPayload = { u: string; e: number; h?: Record<string, string>; k?: string }
 
 let cachedKey: Promise<CryptoKey> | null = null
 
@@ -68,7 +63,6 @@ export async function sealStreamToken(
   ttlMs?: number,
   headers?: Record<string, string>,
   megaKey?: string,
-  attribution?: StreamAttribution,
   now: number = Date.now(),
 ): Promise<string> {
   const key = await getKey()
@@ -76,8 +70,6 @@ export async function sealStreamToken(
   const payload: TokenPayload = { u: url, e: ttlMs ? now + ttlMs : 0 }
   if (headers && Object.keys(headers).length > 0) payload.h = headers
   if (megaKey) payload.k = megaKey
-  if (attribution?.server) payload.s = attribution.server
-  if (attribution?.quality) payload.q = attribution.quality
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload))),
   )
@@ -113,19 +105,19 @@ export async function openStreamToken(token: string, now?: number): Promise<stri
 export async function openStreamRequest(
   token: string,
   now?: number,
-): Promise<{ url: string; headers: Record<string, string>; megaKey?: string; server?: string; quality?: string } | null> {
+): Promise<{ url: string; headers: Record<string, string>; megaKey?: string } | null> {
   const payload = await decodeToken(token, now)
   if (!payload) return null
-  return { url: payload.u, headers: payload.h ?? {}, megaKey: payload.k, server: payload.s, quality: payload.q }
+  return { url: payload.u, headers: payload.h ?? {}, megaKey: payload.k }
 }
 
 export function proxiedStreamPath(token: string): string {
   return `/api/stream?t=${token}`
 }
 
-export async function sealedStreamUrl(rawUrl: string, baseUrl?: string, attribution?: StreamAttribution): Promise<string> {
+export async function sealedStreamUrl(rawUrl: string, baseUrl?: string): Promise<string> {
   const absolute = new URL(rawUrl, baseUrl).toString()
-  return proxiedStreamPath(await sealStreamToken(absolute, TOKEN_TTL_MS, undefined, undefined, attribution))
+  return proxiedStreamPath(await sealStreamToken(absolute, TOKEN_TTL_MS))
 }
 
 export async function rewriteHlsPlaylist(

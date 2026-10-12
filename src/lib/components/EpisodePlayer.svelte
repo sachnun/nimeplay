@@ -72,7 +72,13 @@
 
   {#if player.showLoading}
     <div class="absolute inset-0 z-10" role="button" tabindex="-1" ondblclick={player.toggleFullscreen} onkeydown={() => {}}>
-      <PlayerLoadingShell className="absolute inset-0 bg-black" message={player.loadingMessage} header={false} controlsSkeleton={false} />
+      <PlayerLoadingShell
+        className="absolute inset-0 bg-black"
+        message={player.loadingMessage}
+        header={false}
+        controlsSkeleton={false}
+        tetris={player.showTetrisLoading}
+      />
     </div>
   {/if}
 

@@ -68,13 +68,23 @@
     ],
   ]
 
+  const COLORS = [
+    'rgba(148, 178, 209, 0.72)',
+    'rgba(158, 194, 176, 0.72)',
+    'rgba(205, 170, 170, 0.72)',
+    'rgba(203, 182, 146, 0.72)',
+    'rgba(172, 163, 201, 0.72)',
+    'rgba(148, 191, 191, 0.72)',
+    'rgba(190, 172, 200, 0.72)',
+  ]
+
   const COLS = 6
   const ROWS = 10
   const CELL = 12
   const GAP = 2
   const STEP = CELL + GAP
 
-  type CellData = { id: number; row: number; col: number }
+  type CellData = { id: number; row: number; col: number; color: string }
   type Move = { shape: Shape; col: number; land: number }
   type ScoredMove = Move & { score: number }
 
@@ -182,11 +192,12 @@
 
   function placeMove(move: Move) {
     const added: CellData[] = []
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)] ?? COLORS[0]!
     for (const [dr, dc] of move.shape) {
       const row = grid[move.land + dr]
       if (!row) continue
       row[move.col + dc] = true
-      added.push({ id: ++id, row: move.land + dr, col: move.col + dc })
+      added.push({ id: ++id, row: move.land + dr, col: move.col + dc, color })
     }
     cells = [...cells, ...added]
   }
@@ -292,7 +303,7 @@
           style:top="{cell.row * STEP}px"
           style:width="{CELL}px"
           style:height="{CELL}px"
-          style:background-color={clearRows.has(cell.row) ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.7)'}
+          style:background-color={clearRows.has(cell.row) ? 'rgba(255,255,255,0.9)' : cell.color}
           style:--fall="{(cell.row + 1) * STEP}px"
         ></div>
       {/each}

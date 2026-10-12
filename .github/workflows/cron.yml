@@ -2,7 +2,7 @@ name: Cron
 
 on:
   schedule:
-    - cron: '10 3,10,13,16,20,21,22 * * *'
+    - cron: '0 3,10,13,16,20,21,22 * * *'
       timezone: Asia/Jakarta
   workflow_dispatch:
 

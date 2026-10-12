@@ -192,6 +192,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   const showNative = $derived(!!directUrl)
   const showEmpty = $derived(!showNative && !resolving)
   const showLoading = $derived(resolving || (showNative && videoLoading))
+  const showTetrisLoading = $derived(showNative && videoLoading)
   const controlsVisible = $derived(!speedBoost && (showControls || !isPlaying))
   const progress = $derived(duration > 0 ? (currentTime / duration) * 100 : 0)
   const bufferedPct = $derived(duration > 0 ? (buffered / duration) * 100 : 0)
@@ -1431,6 +1432,9 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     },
     get showLoading() {
       return showLoading
+    },
+    get showTetrisLoading() {
+      return showTetrisLoading
     },
     get showNative() {
       return showNative

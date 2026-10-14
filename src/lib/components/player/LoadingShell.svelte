@@ -71,13 +71,13 @@
   ]
 
   const COLORS: [number, number, number][] = [
-    [148, 178, 209],
-    [158, 194, 176],
-    [205, 170, 170],
-    [203, 182, 146],
-    [172, 163, 201],
-    [148, 191, 191],
-    [190, 172, 200],
+    [34, 211, 238],
+    [74, 222, 128],
+    [248, 113, 113],
+    [251, 191, 36],
+    [167, 139, 250],
+    [56, 189, 248],
+    [244, 114, 182],
   ]
 
   function cellColor(color: [number, number, number], alpha: number): string {
@@ -336,7 +336,8 @@
           style:height="{CELL}px"
           style:background-color={clearRows.has(cell.row)
             ? (clearColors[cell.row] ?? flashColor(cell.color))
-            : cellColor(cell.color, tetris ? 0.72 : 0.7)}
+            : cellColor(cell.color, tetris ? 0.95 : 0.7)}
+          style:box-shadow={tetris ? `0 0 10px ${cellColor(cell.color, 0.45)}` : 'none'}
           style:--fall="{(cell.row + 1) * STEP}px"
         ></div>
       {/each}

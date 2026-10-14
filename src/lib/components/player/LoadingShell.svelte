@@ -84,8 +84,9 @@
     return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`
   }
 
+  const lift = (value: number) => Math.min(255, Math.round(value + (255 - value) * 0.45))
+
   function flashColor(color: [number, number, number]): string {
-    const lift = (value: number) => Math.min(255, Math.round(value + (255 - value) * 0.45))
     return cellColor([lift(color[0]), lift(color[1]), lift(color[2])], 0.95)
   }
 
@@ -206,7 +207,7 @@
 
   function placeMove(move: Move) {
     const added: CellData[] = []
-    const color = tetris ? (COLORS[Math.floor(Math.random() * COLORS.length)] ?? COLORS[0]!) : WHITE
+    const color = tetris ? (COLORS[Math.floor(Math.random() * COLORS.length)] ?? COLORS[0]) : WHITE
     for (const [dr, dc] of move.shape) {
       const row = grid[move.land + dr]
       if (!row) continue

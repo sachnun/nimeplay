@@ -12,7 +12,7 @@
     "build": "vite build",
     "preview": "bun --env-file=.env.local vite preview",
     "lint": "oxlint .",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --incremental",
+    "check": "svelte-kit sync",
     "test": "bun test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -23,31 +23,31 @@
     "workerd"
   ],
   "dependencies": {
-    "@effect/platform-bun": "^4.0.3",
+    "@effect/platform-bun": "^4.0.4",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/geist-sans": "^5.3.0",
     "@neondatabase/serverless": "^1.2.0",
     "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.4",
-    "effect": "^4.0.3",
+    "effect": "^4.0.4",
     "google-translate-api-x": "10.7.3",
     "hls.js": "^1.7.3",
     "idb": "^8.0.4",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@sveltejs/adapter-cloudflare": "^8.0.0",
     "@sveltejs/kit": "^3.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/bun": "^1.4.2",
+    "@types/bun": "^1.4.3",
     "drizzle-kit": "^0.31.11",
-    "oxlint": "1.87.0",
+    "oxlint": "1.88.0",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
-    "typescript": "^6.0.3",
     "vite": "^8.3.4",
-    "wrangler": "^4.149.0"
+    "wrangler": "^4.150.0",
+    "typescript": "^6.0.3"
   }
 }

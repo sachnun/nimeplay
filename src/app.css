@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@custom-variant short-landscape (@media (max-height: 600px) and (orientation: landscape));
 @import '@fontsource/geist-sans/latin-400.css';
 @import '@fontsource/geist-sans/latin-500.css';
 @import '@fontsource/geist-sans/latin-600.css';

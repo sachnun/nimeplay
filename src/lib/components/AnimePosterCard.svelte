@@ -56,7 +56,7 @@
     />
     {#if badge}
       <div
-        class="absolute top-2 right-2 text-xs px-2 py-0.5 rounded font-medium"
+        class="absolute top-2 right-2 text-xs px-2 py-0.5 rounded font-medium short-landscape:top-1.5 short-landscape:right-1.5 short-landscape:text-[10px] short-landscape:px-1.5"
         class:bg-teal-500={newEpisode}
         class:text-white={newEpisode}
         class:bg-zinc-700={!newEpisode}
@@ -70,15 +70,19 @@
       class="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 group-hover:from-black/60 to-transparent"
     ></div>
     <div
-      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8"
+      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8 short-landscape:p-2 short-landscape:pt-6"
       class:pb-5={resumeTo}
       class:!pt-12={resumeTo}
     >
-      <p class="text-sm font-semibold text-white leading-tight line-clamp-2">{title}</p>
+      <p class="text-sm font-semibold text-white leading-tight line-clamp-2 short-landscape:text-xs">{title}</p>
       {#if resumeTo}
-        <button type="button" class="text-xs text-zinc-400 mt-1 cursor-pointer" onclick={openResume}>{subtitle}</button>
+        <button
+          type="button"
+          class="text-xs text-zinc-400 mt-1 cursor-pointer short-landscape:text-[10px] short-landscape:mt-0.5"
+          onclick={openResume}>{subtitle}</button
+        >
       {:else if subtitle}
-        <p class="text-xs text-zinc-400 mt-1">{subtitle}</p>
+        <p class="text-xs text-zinc-400 mt-1 short-landscape:text-[10px] short-landscape:mt-0.5">{subtitle}</p>
       {/if}
     </div>
     {#if resumeTo && progressPct !== undefined}

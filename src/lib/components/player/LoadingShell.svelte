@@ -3,6 +3,7 @@
   import { previousPath } from '#lib/back-navigation'
   import { SvelteSet } from 'svelte/reactivity'
   import { onMount } from 'svelte'
+  import { goldPalette, liftRgb, rgba, type Rgb, type TetrisPalette } from '#lib/player/tetris-palette'
 
   let {
     className = 'fixed inset-0 bg-black z-50',
@@ -12,6 +13,7 @@
     controlsSkeleton = true,
     header = true,
     tetris = true,
+    priority = 1,
   }: {
     className?: string
     message?: string
@@ -20,6 +22,7 @@
     controlsSkeleton?: boolean
     header?: boolean
     tetris?: boolean
+    priority?: number
   } = $props()
 
   function goBack() {
@@ -70,27 +73,18 @@
     ],
   ]
 
-  const COLORS: [number, number, number][] = [
-    [34, 211, 238],
-    [74, 222, 128],
-    [248, 113, 113],
-    [251, 191, 36],
-    [167, 139, 250],
-    [56, 189, 248],
-    [244, 114, 182],
-  ]
+  const WHITE: Rgb = [255, 255, 255]
 
-  function cellColor(color: [number, number, number], alpha: number): string {
-    return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`
+  const PLAIN: TetrisPalette = {
+    block: WHITE,
+    line: WHITE,
+    glow: null,
+    blockAlpha: 0.7,
+    lineAlpha: 0.95,
+    glowAlpha: 0,
   }
 
-  const lift = (value: number) => Math.min(255, Math.round(value + (255 - value) * 0.45))
-
-  function flashColor(color: [number, number, number]): string {
-    return cellColor([lift(color[0]), lift(color[1]), lift(color[2])], 0.95)
-  }
-
-  const WHITE: [number, number, number] = [255, 255, 255]
+  const palette = $derived(tetris ? goldPalette(priority) : PLAIN)
 
   const COLS = 6
   const ROWS = 10
@@ -98,7 +92,7 @@
   const GAP = 2
   const STEP = CELL + GAP
 
-  type CellData = { id: number; row: number; col: number; color: [number, number, number] }
+  type CellData = { id: number; row: number; col: number }
   type Move = { shape: Shape; col: number; land: number }
   type ScoredMove = Move & { score: number }
 
@@ -207,25 +201,17 @@
 
   function placeMove(move: Move) {
     const added: CellData[] = []
-    const color = tetris ? (COLORS[Math.floor(Math.random() * COLORS.length)] ?? COLORS[0]) : WHITE
     for (const [dr, dc] of move.shape) {
       const row = grid[move.land + dr]
       if (!row) continue
       row[move.col + dc] = true
-      added.push({ id: ++id, row: move.land + dr, col: move.col + dc, color })
+      added.push({ id: ++id, row: move.land + dr, col: move.col + dc })
     }
     cells = [...cells, ...added]
   }
 
-  function rowFlashColor(row: number): string {
-    const rowCells = cells.filter(cell => cell.row === row)
-    if (rowCells.length === 0) return flashColor(WHITE)
-    const total = rowCells.reduce<[number, number, number]>(
-      (acc, cell) => [acc[0] + cell.color[0], acc[1] + cell.color[1], acc[2] + cell.color[2]],
-      [0, 0, 0],
-    )
-    const count = rowCells.length
-    return flashColor([total[0] / count, total[1] / count, total[2] / count])
+  function flashColor(): string {
+    return rgba(liftRgb(palette.line, 0.25), palette.lineAlpha)
   }
 
   function getFullRows(): number[] {
@@ -251,7 +237,7 @@
       clearColors = {}
       for (const row of full) {
         clearRows.add(row)
-        clearColors[row] = rowFlashColor(row)
+        clearColors[row] = flashColor()
       }
       schedule(() => collapseRows(full), 350)
     }, 50)
@@ -335,9 +321,9 @@
           style:width="{CELL}px"
           style:height="{CELL}px"
           style:background-color={clearRows.has(cell.row)
-            ? (clearColors[cell.row] ?? flashColor(cell.color))
-            : cellColor(cell.color, tetris ? 0.95 : 0.7)}
-          style:box-shadow={tetris ? `0 0 10px ${cellColor(cell.color, 0.45)}` : 'none'}
+            ? (clearColors[cell.row] ?? flashColor())
+            : rgba(palette.block, palette.blockAlpha)}
+          style:box-shadow={palette.glow ? `0 0 10px ${rgba(palette.glow, palette.glowAlpha)}` : 'none'}
           style:--fall="{(cell.row + 1) * STEP}px"
         ></div>
       {/each}

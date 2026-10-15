@@ -78,6 +78,7 @@
         header={false}
         controlsSkeleton={false}
         tetris={player.showTetrisLoading}
+        priority={player.loadingPriority}
       />
     </div>
   {/if}

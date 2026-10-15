@@ -120,7 +120,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let isMuted = $state(false)
   let isFullscreen = $state(false)
   let isSeeking = $state(false)
-  let showVolume = $state(false)
   let seekIndicator = $state<SeekIndicator>(null)
   let seekIndicatorKey = $state(0)
   let volumeIndicator = $state<{ volume: number; isMuted: boolean } | null>(null)
@@ -148,7 +147,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   let pendingStartHide = false
   let countdownTimer: ReturnType<typeof setInterval> | null = null
-  let volumeTimer: ReturnType<typeof setTimeout> | null = null
   let volumeIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let seekIndicatorTimer: ReturnType<typeof setTimeout> | null = null
   let playTimer: ReturnType<typeof setInterval> | null = null
@@ -261,17 +259,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   function resetSkip() {
     skipFetched = false
     skipTimes.splice(0, skipTimes.length)
-  }
-
-  function showVolumeControl() {
-    if (volumeTimer) clearTimeout(volumeTimer)
-    showVolume = true
-  }
-
-  function hideVolumeControl() {
-    volumeTimer = setTimeout(() => {
-      showVolume = false
-    }, 300)
   }
 
   function showVolumeIndicator() {
@@ -1338,7 +1325,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     invalidatePlaybackSession()
     clearAnyTimer(countdownTimer)
     clearAnyTimer(idleTimer)
-    if (volumeTimer) clearTimeout(volumeTimer)
     if (volumeIndicatorTimer) clearTimeout(volumeIndicatorTimer)
     clearAnyTimer(seekIndicatorTimer)
     clearPlaybackTimers()
@@ -1435,9 +1421,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     get showNative() {
       return showNative
     },
-    get showVolume() {
-      return showVolume
-    },
     get skipTimes() {
       return skipTimes
     },
@@ -1467,12 +1450,10 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     handleVideoTouchEnd,
     handleVideoTouchMove,
     handleVideoTouchStart,
-    hideVolumeControl,
     navigateEpisode,
     onSeekCommit,
     onSeekPreview,
     onSeekStart,
-    showVolumeControl,
     toggleAutoSkip,
     toggleEpisodesPanel,
     toggleFullscreen,

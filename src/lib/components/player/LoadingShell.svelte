@@ -328,7 +328,13 @@
         ></div>
       {/each}
     </div>
-    <span class="text-xs text-white/40 font-medium tracking-wide">{message}</span>
+    <span
+      class="text-xs font-medium tracking-wide"
+      style:color={rgba(palette.line, palette.lineAlpha)}
+      style:text-shadow={palette.glow ? `0 0 12px ${rgba(palette.glow, palette.glowAlpha)}` : 'none'}
+    >
+      {message}
+    </span>
   </div>
 
   {#if controlsSkeleton}

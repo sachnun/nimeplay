@@ -10,9 +10,7 @@ export interface TetrisPalette {
 }
 
 const GOLD: Rgb = [245, 197, 66]
-const GOLD_LINE: Rgb = [255, 226, 138]
 const MUTED: Rgb = [210, 212, 216]
-const MUTED_LINE: Rgb = [236, 238, 242]
 
 export function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -38,10 +36,11 @@ export function liftRgb(color: Rgb, amount: number): Rgb {
 
 export function goldPalette(priority: number): TetrisPalette {
   const p = clamp01(priority)
+  const block = mixRgb(MUTED, GOLD, p)
   return {
-    block: mixRgb(MUTED, GOLD, p),
-    line: mixRgb(MUTED_LINE, GOLD_LINE, p),
-    glow: mixRgb(MUTED, GOLD, p),
+    block,
+    line: liftRgb(block, 0.3),
+    glow: block,
     blockAlpha: 0.45 + 0.5 * p,
     lineAlpha: 0.6 + 0.38 * p,
     glowAlpha: 0.12 + 0.45 * p,

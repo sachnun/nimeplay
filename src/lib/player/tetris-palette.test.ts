@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { clamp01, goldPalette, mixRgb, rgba } from './tetris-palette'
+import { clamp01, goldPalette, liftRgb, mixRgb, rgba } from './tetris-palette'
 
 describe('clamp01', () => {
   test('clamps and rejects non finite values', () => {
@@ -40,6 +40,15 @@ describe('goldPalette', () => {
     expect(gold.block[2]).toBeLessThan(muted.block[2])
     expect(gold.blockAlpha).toBeGreaterThan(muted.blockAlpha)
     expect(gold.lineAlpha).toBeGreaterThan(muted.lineAlpha)
+  })
+
+  test('keeps the line color in sync with the block color', () => {
+    for (const priority of [0, 0.5, 1]) {
+      const palette = goldPalette(priority)
+      expect(palette.line).toEqual(liftRgb(palette.block, 0.3))
+      expect(palette.glow).toEqual(palette.block)
+    }
+    expect(goldPalette(1).line[2]).toBeLessThan(goldPalette(0).line[2])
   })
 
   test('keeps the low priority end near muted white', () => {

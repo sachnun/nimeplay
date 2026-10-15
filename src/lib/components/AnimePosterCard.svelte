@@ -70,7 +70,7 @@
       class="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/40 group-hover:from-black/60 to-transparent"
     ></div>
     <div
-      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8 short-landscape:p-2 short-landscape:pt-6"
+      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8 short-landscape:px-2 short-landscape:pt-6"
       class:pb-5={resumeTo}
       class:!pt-12={resumeTo}
     >
@@ -90,7 +90,7 @@
         type="button"
         aria-label="Lanjutkan menonton"
         transition:slide={{ axis: 'y', duration: 250 }}
-        class="absolute bottom-2 left-3 right-3 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer"
+        class="absolute bottom-2 left-3 right-3 h-[3px] bg-white/20 rounded-full overflow-hidden cursor-pointer short-landscape:left-2 short-landscape:right-2"
         onclick={openResume}
       >
         <span class="block h-full bg-white rounded-full" style:width="{progressPct}%"></span>

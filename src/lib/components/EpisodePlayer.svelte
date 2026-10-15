@@ -199,16 +199,13 @@
       prevEpisode={player.prevEpisode}
       progress={player.progress}
       showEpisodes={player.showEpisodes}
-      showVolume={player.showVolume}
       skipTimes={player.skipTimes}
       volume={player.volume}
       onchangeVolume={player.changeVolume}
-      onhideVolume={player.hideVolumeControl}
       onnavigate={player.navigateEpisode}
       onseekCommit={player.onSeekCommit}
       onseekPreview={player.onSeekPreview}
       onseekStart={player.onSeekStart}
-      onshowVolume={player.showVolumeControl}
       ontoggleAutoSkip={player.toggleAutoSkip}
       ontoggleEpisodes={player.toggleEpisodesPanel}
       ontoggleFullscreen={player.toggleFullscreen}

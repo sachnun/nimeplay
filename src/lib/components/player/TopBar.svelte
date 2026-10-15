@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation'
   import { previousPath } from '#lib/back-navigation'
-  import { MediaQuery } from 'svelte/reactivity'
 
   let {
     title,
@@ -20,11 +19,6 @@
     showEpisodes: boolean
     ontoggleEpisodes: () => void
   } = $props()
-
-  const isMobilePortraitControls = new MediaQuery(
-    '(hover: none) and (pointer: coarse) and (max-width: 767px) and (orientation: portrait)',
-    true,
-  )
 
   function goBack() {
     const detailPath = `/anime/${malId}`
@@ -48,7 +42,7 @@
       <h1 class="text-sm md:text-base font-semibold text-white/90 truncate">{title}</h1>
     </button>
     <div class="flex-1"></div>
-    {#if episodeCount > 1 && isMobilePortraitControls.current}
+    {#if episodeCount > 1}
       <button
         class="hidden [@media_(hover:none)_and_(pointer:coarse)_and_(max-width:767px)_and_(orientation:portrait)]:flex player-toggle {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
         onclick={ontoggleEpisodes}

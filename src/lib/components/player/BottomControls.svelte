@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { SkipTime } from '#lib/types'
   import { formatTime } from '#lib/player/media'
-  import { MediaQuery } from 'svelte/reactivity'
 
   let {
     autoSkip = false,
@@ -19,16 +18,13 @@
     prevEpisode = null,
     progress = 0,
     showEpisodes = false,
-    showVolume = false,
     skipTimes = [],
     volume = 1,
     onchangeVolume,
-    onhideVolume,
     onnavigate,
     onseekCommit,
     onseekPreview,
     onseekStart,
-    onshowVolume,
     ontoggleAutoSkip,
     ontoggleEpisodes,
     ontoggleFullscreen,
@@ -50,24 +46,19 @@
     prevEpisode?: { num: number } | null
     progress?: number
     showEpisodes?: boolean
-    showVolume?: boolean
     skipTimes?: SkipTime[]
     volume?: number
     onchangeVolume: (value: number) => void
-    onhideVolume: () => void
     onnavigate: (episodeNumber: number) => void
     onseekCommit: (value: number) => void
     onseekPreview: (value: number) => void
     onseekStart: () => void
-    onshowVolume: () => void
     ontoggleAutoSkip: () => void
     ontoggleEpisodes: () => void
     ontoggleFullscreen: () => void
     ontoggleMute: () => void
     ontogglePlay: () => void
   } = $props()
-
-  const isDesktopLayout = new MediaQuery('(min-width: 768px)', true)
 
   let trackRef: HTMLElement | null = $state(null)
   let dragging = $state(false)
@@ -209,7 +200,7 @@
       {/if}
       <span class="text-xs text-white/70 font-mono tabular-nums select-none whitespace-nowrap">{formatTime(currentTime)} / {formatTime(duration)}</span>
       <div class="flex-1"></div>
-      {#if episodeCount > 1 && isDesktopLayout.current}
+      {#if episodeCount > 1}
         <button
           class="hidden md:flex player-toggle {showEpisodes ? 'bg-white/20 text-white' : 'text-white/70 hover:text-white hover:bg-white/10'}"
           onclick={ontoggleEpisodes}
@@ -226,7 +217,7 @@
           <span class="hidden md:inline">Auto Skip</span>
         </button>
       {/if}
-      <div class="relative flex items-center" role="group" aria-label="Volume" onmouseenter={onshowVolume} onmouseleave={onhideVolume}>
+      <div class="group/vol relative flex items-center" role="group" aria-label="Volume">
         <button class="w-9 h-9 player-btn text-white/70 hover:text-white" aria-label="Mute" onclick={ontoggleMute}>
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
             <path
@@ -236,7 +227,7 @@
             />
           </svg>
         </button>
-        <div class="hidden md:flex items-center overflow-hidden transition-all duration-200" class:w-20={showVolume} class:opacity-100={showVolume} class:ml-1={showVolume} class:w-0={!showVolume} class:opacity-0={!showVolume}>
+        <div class="hidden md:flex items-center overflow-hidden transition-all duration-200 w-0 opacity-0 group-hover/vol:w-20 group-hover/vol:opacity-100 group-hover/vol:ml-1">
           <input
             type="range"
             min="0"

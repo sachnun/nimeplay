@@ -72,17 +72,18 @@
     <div
       class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8 short-landscape:px-2 short-landscape:pt-6"
       class:pb-5={resumeTo}
+      class:short-landscape:pb-4={resumeTo}
       class:!pt-12={resumeTo}
     >
       <p class="text-sm font-semibold text-white leading-tight line-clamp-2 short-landscape:text-xs">{title}</p>
       {#if resumeTo}
         <button
           type="button"
-          class="text-xs text-zinc-400 mt-1 cursor-pointer short-landscape:text-[10px] short-landscape:mt-0.5"
+          class="text-xs text-zinc-400 mt-1 cursor-pointer short-landscape:text-[10px] short-landscape:mt-0"
           onclick={openResume}>{subtitle}</button
         >
       {:else if subtitle}
-        <p class="text-xs text-zinc-400 mt-1 short-landscape:text-[10px] short-landscape:mt-0.5">{subtitle}</p>
+        <p class="text-xs text-zinc-400 mt-1 short-landscape:text-[10px] short-landscape:mt-0">{subtitle}</p>
       {/if}
     </div>
     {#if resumeTo && progressPct !== undefined}

@@ -22,21 +22,3 @@ export function qualityRank(quality: string): number {
   const index = QUALITY_ORDER.indexOf(quality)
   return index === -1 ? 99 : index
 }
-
-export function qualityScore(quality: string): number {
-  const index = QUALITY_ORDER.indexOf(quality)
-  if (index === -1) return 0
-  return 1 - index / (QUALITY_ORDER.length - 1)
-}
-
-export function sourcePriorityScore(name: string): number {
-  const rank = sourcePriority(name)
-  const last = SOURCE_PRIORITY_GROUPS.length
-  return 1 - Math.min(rank, last) / last
-}
-
-export function mirrorPriorityScore(candidate: { server: string; quality?: string }): number {
-  const source = sourcePriorityScore(candidate.server)
-  if (!candidate.quality) return source
-  return source * 0.75 + qualityScore(candidate.quality) * 0.25
-}

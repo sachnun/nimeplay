@@ -3,7 +3,6 @@ import type { EpisodeInfo, EpisodeMeta, EpisodeStream, MirrorCandidate, SkipTime
 import { loadEpisodeInfo, loadEpisodeStream } from '#lib/remote/episode.remote'
 import { loadHls } from './hls'
 import { bufferedEndAt, buildFallbackOrder, findDefaultMirror, hasFiniteDuration, listQualityLevels } from './media'
-import { mirrorPriorityScore } from '#lib/shared/utils/mirror'
 import { fetchSkipTimes } from '#lib/skip'
 import {
   getAutoSkip,
@@ -105,7 +104,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
   let directUrl = $state<string | null>(null)
   let directKind = $state<'hls' | 'file' | null>(null)
   let resolvedStream: EpisodeStream | null = null
-  let activeCandidate = $state<MirrorCandidate | null>(null)
   let resolving = $state(true)
   let videoLoading = $state(true)
   let loadingMessage = $state('Menyiapkan player...')
@@ -179,7 +177,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
 
   const progressStoreKey = $derived(progressKey(getProps().malId, currentEpisodeNum))
   const qualityLevels = $derived(listQualityLevels(episode.sources))
-  const loadingPriority = $derived(activeCandidate ? mirrorPriorityScore(activeCandidate) : 1)
   function episodeAtOffset(offset: number) {
     const list = getProps().episodes
     const idx = list.indexOf(currentEpisodeNum)
@@ -414,7 +411,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
 
   async function tryMirror(candidate: MirrorCandidate, sessionId: number): Promise<boolean> {
     if (!isCurrentSession(sessionId)) return false
-    activeCandidate = candidate
     const result = await prepareCandidate(candidate)
     if (!result || !isCurrentSession(sessionId)) return false
     return activateDirectUrl(result.prepared?.playUrl, result.prepared?.kind ?? null)
@@ -1170,7 +1166,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     autoPlayOnLoad = shouldAutoPlay
     resumeTime = 0
     resolvedStream = null
-    activeCandidate = null
     detachVideoSource()
     const video = videoRef
     if (video) {
@@ -1392,9 +1387,6 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     },
     get loadingMessage() {
       return loadingMessage
-    },
-    get loadingPriority() {
-      return loadingPriority
     },
     get nextEpisode() {
       return nextEpisode

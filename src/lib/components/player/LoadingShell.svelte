@@ -14,6 +14,7 @@
     header = true,
     tetris = true,
     priority = 1,
+    speed = 1,
   }: {
     className?: string
     message?: string
@@ -23,6 +24,7 @@
     header?: boolean
     tetris?: boolean
     priority?: number
+    speed?: number
   } = $props()
 
   function goBack() {
@@ -91,6 +93,7 @@
   const CELL = 12
   const GAP = 2
   const STEP = CELL + GAP
+  const TICK_MS = 600
 
   type CellData = { id: number; row: number; col: number }
   type Move = { shape: Shape; col: number; land: number }
@@ -262,21 +265,21 @@
     if (full.length > 0) clearFullRows(full, schedule)
   }
 
-  onMount(() => {
-    const timeouts = new Set<ReturnType<typeof setTimeout>>()
-    const schedule = (fn: () => void, ms: number) => {
-      const tid = setTimeout(() => {
-        timeouts.delete(tid)
-        fn()
-      }, ms)
-      timeouts.add(tid)
-    }
-    const interval = setInterval(() => tick(schedule), 600)
-    return () => {
-      clearInterval(interval)
-      timeouts.forEach(t => clearTimeout(t))
-    }
+  const timeouts = new Set<ReturnType<typeof setTimeout>>()
+  const schedule = (fn: () => void, ms: number) => {
+    const tid = setTimeout(() => {
+      timeouts.delete(tid)
+      fn()
+    }, ms)
+    timeouts.add(tid)
+  }
+
+  $effect(() => {
+    const interval = setInterval(() => tick(schedule), TICK_MS / Math.max(speed, 0.1))
+    return () => clearInterval(interval)
   })
+
+  onMount(() => () => timeouts.forEach(t => clearTimeout(t)))
 </script>
 
 <div class={className}>

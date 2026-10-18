@@ -1,4 +1,4 @@
-import { eq, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { anime } from '../../../database/schema'
 
 export const PAGE_SIZE = 48
@@ -20,12 +20,18 @@ export function notBlockedGenre(id: SQL): SQL {
 
 export const CATALOG_READY = sql`${anime.malId} is not null and ${playableEpisodeExists(sql`${anime.id}`)} and ${notBlockedGenre(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
-const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
+export const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
 
 export function statusCondition(status: 'ONGOING' | 'COMPLETED') {
   return status === 'COMPLETED'
     ? eq(anime.status, 'COMPLETED')
-    : or(eq(anime.status, 'ONGOING'), sql`${anime.latestEpisodeAt} >= ${RECENT_EPISODE_SQL}`)
+    : or(
+        eq(anime.status, 'ONGOING'),
+        and(
+          sql`${anime.status} is distinct from 'COMPLETED'`,
+          sql`${anime.latestEpisodeAt} >= ${RECENT_EPISODE_SQL}`,
+        ),
+      )
 }
 
 export function formatSeason(season: string | null, year: number | null): string {

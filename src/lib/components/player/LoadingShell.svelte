@@ -72,15 +72,8 @@
     ],
   ]
 
-  const COLORS: [number, number, number][] = [
-    [34, 211, 238],
-    [74, 222, 128],
-    [248, 113, 113],
-    [251, 191, 36],
-    [167, 139, 250],
-    [56, 189, 248],
-    [244, 114, 182],
-  ]
+  const GOLD: [number, number, number] = [245, 197, 66]
+  const WHITE: [number, number, number] = [255, 255, 255]
 
   function cellColor(color: [number, number, number], alpha: number): string {
     return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`
@@ -91,8 +84,6 @@
   function flashColor(color: [number, number, number]): string {
     return cellColor([lift(color[0]), lift(color[1]), lift(color[2])], 0.95)
   }
-
-  const WHITE: [number, number, number] = [255, 255, 255]
 
   const COLS = 6
   const ROWS = 10
@@ -210,7 +201,7 @@
 
   function placeMove(move: Move) {
     const added: CellData[] = []
-    const color = tetris ? (COLORS[Math.floor(Math.random() * COLORS.length)] ?? COLORS[0]) : WHITE
+    const color = tetris ? GOLD : WHITE
     for (const [dr, dc] of move.shape) {
       const row = grid[move.land + dr]
       if (!row) continue
@@ -345,7 +336,13 @@
         ></div>
       {/each}
     </div>
-    <span class="text-xs text-white/40 font-medium tracking-wide">{message}</span>
+    <span
+      class="text-xs font-medium tracking-wide"
+      style:color={tetris ? flashColor(GOLD) : cellColor(WHITE, 0.95)}
+      style:text-shadow={tetris ? `0 0 12px ${cellColor(GOLD, 0.57)}` : 'none'}
+    >
+      {message}
+    </span>
   </div>
 
   {#if controlsSkeleton}

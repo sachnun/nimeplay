@@ -36,37 +36,15 @@
     ].filter(item => item.value),
   )
 
-  let headerRef: HTMLElement | null = $state(null)
-  let episodesPanelRef: HTMLElement | null = $state(null)
-  let episodesListRef: HTMLElement | null = $state(null)
-  let synopsisRef: HTMLElement | null = $state(null)
-  let charactersRef: HTMLElement | null = $state(null)
-  let synopsisBeside = $state(false)
-  let charactersBeside = $state(false)
+  let episodesScrollRef: HTMLElement | null = $state(null)
+  let hasMoreTop = $state(false)
+  let hasMoreBottom = $state(false)
 
-  function naturalEpisodesHeight(list: HTMLElement) {
-    const grid = list.querySelector<HTMLElement>('[data-episode-grid]')
-    if (!grid) return list.scrollHeight
-    const previous = grid.style.contentVisibility
-    grid.style.contentVisibility = 'visible'
-    const height = list.scrollHeight
-    grid.style.contentVisibility = previous
-    return height
-  }
-
-  function updateEpisodesReach() {
-    const panel = episodesPanelRef
-    const list = episodesListRef
-    const synopsisEl = synopsisRef
-    const charactersEl = charactersRef
-    if (!panel || !list || !synopsisEl) return
-    const height = naturalEpisodesHeight(list)
-    if (height === 0) return
-    const panelTop = panel.getBoundingClientRect().top
-    const headingHeight = list.getBoundingClientRect().top - panelTop
-    const episodesBottom = panelTop + headingHeight + height
-    synopsisBeside = episodesBottom > synopsisEl.getBoundingClientRect().top
-    charactersBeside = charactersEl ? episodesBottom > charactersEl.getBoundingClientRect().top : false
+  function updateEpisodesOverflow() {
+    const el = episodesScrollRef
+    if (!el) return
+    hasMoreTop = el.scrollTop > 1
+    hasMoreBottom = el.scrollTop + el.clientHeight < el.scrollHeight - 1
   }
 
   function goBack() {
@@ -76,15 +54,16 @@
 
   $effect(() => {
     void episodes.length
-    void Promise.resolve().then(updateEpisodesReach)
+    void Promise.resolve().then(updateEpisodesOverflow)
   })
 
   $effect(() => {
-    const observer = new ResizeObserver(updateEpisodesReach)
-    if (headerRef) observer.observe(headerRef)
-    if (synopsisRef) observer.observe(synopsisRef)
-    void Promise.resolve().then(updateEpisodesReach)
-    void document.fonts?.ready.then(() => updateEpisodesReach())
+    const el = episodesScrollRef
+    if (!el) return
+    const observer = new ResizeObserver(updateEpisodesOverflow)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    updateEpisodesOverflow()
     return () => observer.disconnect()
   })
 </script>
@@ -122,7 +101,7 @@
         </div>
       {/if}
       <div class="flex flex-col gap-6 md:grid md:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] md:gap-8 xl:gap-10">
-        <div bind:this={headerRef} class="flex min-w-0 items-start gap-4 md:col-start-1 md:row-start-1">
+        <div class="flex min-w-0 items-start gap-4 md:col-start-1 md:row-start-1">
           <img
             src={thumbnail}
             alt={title}
@@ -171,29 +150,33 @@
           <EpisodeList {episodes} {malId} />
         </div>
 
-        <div
-          class="hidden md:relative md:block md:col-start-2 md:row-start-1 {charactersBeside ? 'md:row-span-3' : synopsisBeside ? 'md:row-span-2' : ''}"
-        >
-          <div bind:this={episodesPanelRef} class="flex flex-col md:absolute md:inset-x-0 md:top-0 md:max-h-full">
+        <div class="hidden md:relative md:block md:col-start-2 md:row-start-1">
+          <div class="flex flex-col md:absolute md:inset-x-0 md:top-0 md:max-h-full">
             <h2 class="section-heading mb-3 shrink-0">Episodes</h2>
-            <div bind:this={episodesListRef} class="min-h-0 flex-1 overflow-y-auto">
-              <EpisodeList {episodes} {malId} />
+            <div class="relative flex min-h-0 flex-1 flex-col">
+              <div
+                bind:this={episodesScrollRef}
+                class="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
+                onscroll={updateEpisodesOverflow}
+              >
+                <EpisodeList {episodes} {malId} />
+              </div>
+              {#if hasMoreTop}
+                <div class="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-background to-transparent" aria-hidden="true"></div>
+              {/if}
+              {#if hasMoreBottom}
+                <div class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-background to-transparent" aria-hidden="true"></div>
+              {/if}
             </div>
           </div>
         </div>
 
-        <div
-          bind:this={synopsisRef}
-          class="min-w-0 md:row-start-2 {synopsisBeside ? 'md:col-start-1' : 'md:col-span-2'}"
-        >
+        <div class="min-w-0 md:row-start-2 md:col-span-2">
           <SynopsisSection {synopsis} />
         </div>
 
         {#if characters && characters.length > 0}
-          <div
-            bind:this={charactersRef}
-            class="min-w-0 md:row-start-3 {charactersBeside ? 'md:col-start-1' : 'md:col-span-2'}"
-          >
+          <div class="min-w-0 md:row-start-3 md:col-span-2">
             <CharacterList {characters} />
           </div>
         {/if}

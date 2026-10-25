@@ -14,6 +14,6 @@
   <title>{genreName} - Nimeplay</title>
 </svelte:head>
 
-{#key genreSlug}
+{#key genrePage}
   <GenreGrid {genreSlug} initialData={genrePage} />
 {/key}

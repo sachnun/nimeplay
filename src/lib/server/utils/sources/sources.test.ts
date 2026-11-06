@@ -5,7 +5,7 @@ import { ylnime } from './ylnime'
 import { otakudesu } from './otakudesu'
 import { animein } from './animein'
 import { nakanime } from './nakanime'
-import { sokuja } from './sokuja'
+import { primeBaseUrl, sokuja } from './sokuja'
 
 const YLNIME_DETAIL_HTML = `<html><body>
 <div class="col-md-9"><h1>Naruto</h1><span class="fw-bold fs-6">Ongoing</span>
@@ -74,6 +74,7 @@ describe('source effect migration', () => {
   })
 
   test('sokuja list derives cards and pagination', async () => {
+    await Effect.runPromise(primeBaseUrl('https://x6.sokuja.uk'))
     const html = `<html><body>
       <a class="group block" href="/anime/naruto/"></a>
       <a href="/anime/?status=ongoing&page=4"></a>

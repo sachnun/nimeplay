@@ -13,6 +13,10 @@ const TIMEOUT_MS = 12000
 
 const baseUrlRef = Ref.makeUnsafe<string | null>(null)
 
+export function primeBaseUrl(url: string): Effect.Effect<void> {
+  return Ref.set(baseUrlRef, url)
+}
+
 function resolveBaseUrl(): SourceEffect<string> {
   return Effect.gen(function* () {
     const cached = yield* Ref.get(baseUrlRef)

@@ -8,3 +8,7 @@ export function episodeNumber(titleOrSlug: string): number | null {
   const match = titleOrSlug.match(/episode-(\d+)/) ?? titleOrSlug.match(/episode\s+(\d+)/i)
   return match ? Number(match[1]) : null
 }
+
+export function resolveEpisodeNumber(entry: { title: string; slug: string }): number | null {
+  return episodeNumber(entry.title) ?? episodeNumber(entry.slug)
+}

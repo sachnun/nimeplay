@@ -13,7 +13,7 @@ import { backfillCompleted, syncOngoingCatalog } from './catalog'
 import { getSourceRow, refreshCanonicalMetadata, syncAnimeAggregate, upsertEpisodes } from './persist'
 import { resolveSourceMetadata } from './resolve'
 import { acquireSync, releaseSync } from './state'
-import { episodeNumber } from './util'
+import { resolveEpisodeNumber } from './util'
 import type { NetError } from '../../net/rate'
 
 function normalizeStatus(raw: string): string {
@@ -42,7 +42,7 @@ function latestEpisodeAt(episodes: ScrapedAnimeDetail['episodes']): Date | null 
 
 function maxEpisodeNumber(episodes: ScrapedAnimeDetail['episodes']): number {
   return episodes.reduce((max, entry) => {
-    const parsed = episodeNumber(entry.slug) ?? episodeNumber(entry.title)
+    const parsed = resolveEpisodeNumber(entry)
     return parsed != null && parsed > max ? parsed : max
   }, 0)
 }

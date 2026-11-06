@@ -10,7 +10,7 @@ import type { MalAnime } from '../../mal/types'
 import { isValidMediaKey, type MediaRef, mediaRef } from '../../media'
 import { ingestMedia } from '../../media/ingest'
 import type { AnimeSource } from '../../sources/types'
-import { chunkValues, episodeNumber } from './util'
+import { chunkValues, resolveEpisodeNumber } from './util'
 
 function slugify(value: string): string {
   return value
@@ -44,32 +44,85 @@ export async function getSourceRow(sourceId: string, vendorSlug: string): Promis
 
 const EPISODE_JUNK = /pembatas|^\s*[=\-–—|+]+/i
 
+interface EpisodeRow {
+  entry: { title: string; slug: string; date: string }
+  number: number
+  slug: string
+}
+
+interface StoredEpisode {
+  id: number
+  slug: string
+  number: number
+  title: string
+}
+
+function episodeRows(source: AnimeSource, list: { title: string; slug: string; date: string }[]): EpisodeRow[] {
+  const seen = new Set<number>()
+  const rows: EpisodeRow[] = []
+  for (const entry of list) {
+    const number = resolveEpisodeNumber(entry)
+    if (number === null || seen.has(number) || EPISODE_JUNK.test(entry.title)) continue
+    seen.add(number)
+    rows.push({ entry, number, slug: `${source.id}:${entry.slug}` })
+  }
+  return rows
+}
+
+export function staleEpisodeIds(stored: StoredEpisode[], rows: EpisodeRow[]): number[] {
+  if (rows.length === 0) return []
+  const listed = new Set(rows.map(row => row.slug))
+  const claimed = new Set(rows.map(row => row.number))
+  const maxListed = rows.reduce((max, row) => Math.max(max, row.number), 0)
+  const stale: number[] = []
+  for (const row of stored) {
+    if (listed.has(row.slug)) continue
+    if (row.number > maxListed || claimed.has(row.number)) stale.push(row.id)
+  }
+  return stale
+}
+
+async function pruneEpisodes(sourceId: number, rows: EpisodeRow[]): Promise<void> {
+  if (rows.length === 0) return
+  const stored = await db()
+    .select({ id: episodes.id, slug: episodes.slug, number: episodes.number, title: episodes.title })
+    .from(episodes)
+    .where(eq(episodes.sourceId, sourceId))
+  for (const chunk of chunkValues(staleEpisodeIds(stored, rows), 200)) {
+    await db().delete(episodes).where(inArray(episodes.id, chunk))
+  }
+}
+
 export async function upsertEpisodes(
   source: AnimeSource,
   sourceId: number,
   list: { title: string; slug: string; date: string }[],
 ): Promise<void> {
-  const rows = list
-    .map(entry => ({ entry, number: episodeNumber(entry.slug) ?? episodeNumber(entry.title) }))
-    .filter(
-      (row): row is { entry: (typeof list)[number]; number: number } =>
-        row.number !== null && !EPISODE_JUNK.test(row.entry.title),
-    )
+  const rows = episodeRows(source, list)
+  await pruneEpisodes(sourceId, rows)
 
   const client = db()
   for (const chunk of chunkValues(rows, 15)) {
     await client
       .insert(episodes)
       .values(
-        chunk.map(({ entry, number }) => ({
+        chunk.map(row => ({
           sourceId,
-          slug: `${source.id}:${entry.slug}`,
-          number,
-          title: entry.title,
-          releaseDate: entry.date || null,
+          slug: row.slug,
+          number: row.number,
+          title: row.entry.title,
+          releaseDate: row.entry.date || null,
         })),
       )
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: episodes.slug,
+        set: {
+          number: sql`excluded.number`,
+          title: sql`excluded.title`,
+          releaseDate: sql`excluded.release_date`,
+          updatedAt: new Date(),
+        },
+      })
   }
 }
 

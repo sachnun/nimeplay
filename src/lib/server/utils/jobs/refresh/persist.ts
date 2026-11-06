@@ -58,26 +58,36 @@ interface StoredEpisode {
 }
 
 function episodeRows(source: AnimeSource, list: { title: string; slug: string; date: string }[]): EpisodeRow[] {
-  const seen = new Set<number>()
+  const seenNumbers = new Set<number>()
+  const seenSlugs = new Set<string>()
   const rows: EpisodeRow[] = []
   for (const entry of list) {
     const number = resolveEpisodeNumber(entry)
-    if (number === null || seen.has(number) || EPISODE_JUNK.test(entry.title)) continue
-    seen.add(number)
-    rows.push({ entry, number, slug: `${source.id}:${entry.slug}` })
+    if (number === null || EPISODE_JUNK.test(entry.title)) continue
+    const slug = `${source.id}:${entry.slug}`
+    if (seenNumbers.has(number) || seenSlugs.has(slug)) continue
+    seenNumbers.add(number)
+    seenSlugs.add(slug)
+    rows.push({ entry, number, slug })
   }
   return rows
 }
 
+const EPISODE_GAP = 3
+
 export function staleEpisodeIds(stored: StoredEpisode[], rows: EpisodeRow[]): number[] {
   if (rows.length === 0) return []
-  const listed = new Set(rows.map(row => row.slug))
-  const claimed = new Set(rows.map(row => row.number))
+  const numberBySlug = new Map(rows.map(row => [row.slug, row.number]))
+  const slugByNumber = new Map(rows.map(row => [row.number, row.slug]))
   const maxListed = rows.reduce((max, row) => Math.max(max, row.number), 0)
   const stale: number[] = []
   for (const row of stored) {
-    if (listed.has(row.slug)) continue
-    if (row.number > maxListed || claimed.has(row.number)) stale.push(row.id)
+    const listed = numberBySlug.get(row.slug)
+    if (listed === row.number) continue
+    const owner = slugByNumber.get(row.number)
+    if (listed !== undefined) stale.push(row.id)
+    else if (owner !== undefined && owner !== row.slug) stale.push(row.id)
+    else if (row.number > maxListed + EPISODE_GAP) stale.push(row.id)
   }
   return stale
 }
@@ -114,15 +124,7 @@ export async function upsertEpisodes(
           releaseDate: row.entry.date || null,
         })),
       )
-      .onConflictDoUpdate({
-        target: episodes.slug,
-        set: {
-          number: sql`excluded.number`,
-          title: sql`excluded.title`,
-          releaseDate: sql`excluded.release_date`,
-          updatedAt: new Date(),
-        },
-      })
+      .onConflictDoNothing()
   }
 }
 

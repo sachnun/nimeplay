@@ -83,7 +83,28 @@ describe('staleEpisodeIds', () => {
     expect(staleEpisodeIds(stored, listed)).toEqual([])
   })
 
-  test('drops an unlisted episode numbered above the latest listed one', () => {
+  test('drops a listed episode whose stored number drifted', () => {
+    const stored = [{ id: 1, slug: 'otakudesu:fxskc-episode-4-sub-indo-2', number: 4, title: 'Episode 4' }]
+    const listed = rows([{ title: 'FX Senshi Kurumi-chan Episode 5', slug: 'fxskc-episode-4-sub-indo-2', number: 5 }])
+    expect(staleEpisodeIds(stored, listed)).toEqual([1])
+  })
+
+  test('drops an unlisted episode whose number a listed episode took', () => {
+    const stored = [{ id: 1, slug: 'otakudesu:stale-episode-30', number: 30, title: 'Episode 30' }]
+    const listed = rows([{ title: 'Episode 31', slug: 'duplicate', number: 30 }])
+    expect(staleEpisodeIds(stored, listed)).toEqual([1])
+  })
+
+  test('keeps episodes missing from a partial listing', () => {
+    const stored = [
+      { id: 1, slug: 'otakudesu:show-episode-2', number: 2, title: 'Episode 2' },
+      { id: 2, slug: 'otakudesu:show-episode-3', number: 3, title: 'Episode 3' },
+    ]
+    const listed = rows([{ title: 'Show Episode 1', slug: 'show-episode-1', number: 1 }])
+    expect(staleEpisodeIds(stored, listed)).toEqual([])
+  })
+
+  test('drops an unlisted episode numbered far above the latest listed one', () => {
     const stored = [{ id: 1, slug: 'otakudesu:stale', number: 45, title: 'Episode 45' }]
     const listed = rows([{ title: 'FX Senshi Kurumi-chan Episode 6', slug: 'fxskc-episode-6-sub-indo', number: 6 }])
     expect(staleEpisodeIds(stored, listed)).toEqual([1])

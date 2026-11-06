@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit/hooks'
 import * as appEnv from '$app/env/private'
 import { registerNeonDatabase } from '#lib/server/utils/db/neon'
+import { readEdgeCache, writeEdgeCache } from '#lib/server/utils/edge-cache'
 import { setRuntimeEnv } from '#lib/server/utils/env'
 
 setRuntimeEnv(appEnv)
@@ -46,14 +47,22 @@ export const handle: Handle = async ({ event, resolve }) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS })
   }
 
+  const cache = cacheHeader(pathname)
+
+  if (cache) {
+    const hit = await readEdgeCache(event.url)
+    if (hit) return hit
+  }
+
   const response = await resolve(event)
 
   if (needsCors(pathname)) {
-    for (const [key, value] of Object.entries(CORS_HEADERS)) response.headers.set(key, value)
+    for (const [header, value] of Object.entries(CORS_HEADERS)) response.headers.set(header, value)
   }
 
-  const cache = cacheHeader(pathname)
   if (cache && !response.headers.has('cache-control')) response.headers.set('cache-control', cache)
+
+  if (cache) await writeEdgeCache(event.url, event.request, response)
 
   return response
 }

@@ -19,12 +19,12 @@ export const malIdSchema = z.object({ malId: z.number().int().min(0) })
 
 export const episodeInfoSchema = z.object({
   malId: z.number().int().positive(),
-  episodeNumber: z.number().int().positive(),
+  episodeNumber: z.number().int().min(0),
 })
 
 export const episodeStreamSchema = z.object({
   malId: z.number().int().positive(),
-  episodeNumber: z.number().int().positive(),
+  episodeNumber: z.number().int().min(0),
   server: z.string().optional(),
   quality: z.string().optional(),
 })

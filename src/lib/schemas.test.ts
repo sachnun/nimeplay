@@ -60,9 +60,14 @@ describe('episodeInfoSchema', () => {
     expect(episodeInfoSchema.parse({ malId: 1, episodeNumber: 3 })).toEqual({ malId: 1, episodeNumber: 3 })
   })
 
-  test('rejects non positive ids and episodes', () => {
+  test('accepts episode zero listed by vendors', () => {
+    expect(episodeInfoSchema.parse({ malId: 63181, episodeNumber: 0 })).toEqual({ malId: 63181, episodeNumber: 0 })
+  })
+
+  test('rejects non positive ids and negative episodes', () => {
     expect(episodeInfoSchema.safeParse({ malId: 0, episodeNumber: 1 }).success).toBe(false)
-    expect(episodeInfoSchema.safeParse({ malId: 1, episodeNumber: 0 }).success).toBe(false)
+    expect(episodeInfoSchema.safeParse({ malId: 1, episodeNumber: -1 }).success).toBe(false)
+    expect(episodeInfoSchema.safeParse({ malId: 1, episodeNumber: 0.5 }).success).toBe(false)
   })
 })
 
@@ -76,8 +81,12 @@ describe('episodeStreamSchema', () => {
     expect(parsed).toEqual({ malId: 1, episodeNumber: 3, server: 'mega', quality: '720p' })
   })
 
-  test('rejects non positive ids and episodes', () => {
+  test('accepts episode zero listed by vendors', () => {
+    expect(episodeStreamSchema.parse({ malId: 63181, episodeNumber: 0 })).toEqual({ malId: 63181, episodeNumber: 0 })
+  })
+
+  test('rejects non positive ids and negative episodes', () => {
     expect(episodeStreamSchema.safeParse({ malId: 0, episodeNumber: 1 }).success).toBe(false)
-    expect(episodeStreamSchema.safeParse({ malId: 1, episodeNumber: 0 }).success).toBe(false)
+    expect(episodeStreamSchema.safeParse({ malId: 1, episodeNumber: -1 }).success).toBe(false)
   })
 })

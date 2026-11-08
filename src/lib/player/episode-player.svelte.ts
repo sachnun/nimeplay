@@ -182,7 +182,7 @@ export function createEpisodePlayer(getProps: () => EpisodePlayerProps, onNaviga
     const list = getProps().episodes
     const idx = list.indexOf(currentEpisodeNum)
     const target = idx === -1 ? null : list[idx + offset]
-    return target ? { num: target } : null
+    return target != null ? { num: target } : null
   }
 
   const nextEpisode = $derived(episodeAtOffset(1))

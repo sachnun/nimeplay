@@ -301,7 +301,7 @@ export const openApiDocument = {
             name: 'episode',
             in: 'path',
             required: true,
-            schema: { type: 'integer', minimum: 1 },
+            schema: { type: 'integer', minimum: 0 },
             description: 'Episode number',
             example: 1,
           },

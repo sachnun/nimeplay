@@ -9,7 +9,7 @@ import type { RequestHandler } from './$types'
 export const GET: RequestHandler = async ({ params, url }) => {
   const malId = Number(params.malId)
   const episodeNumber = Number(params.episode)
-  if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber <= 0) {
+  if (!Number.isInteger(malId) || malId <= 0 || !Number.isInteger(episodeNumber) || episodeNumber < 0) {
     error(400, 'Invalid MAL id or episode number')
   }
 

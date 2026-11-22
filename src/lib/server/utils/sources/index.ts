@@ -5,7 +5,7 @@ import { astronime } from './astronime'
 import { nakanime } from './nakanime'
 import { otakudesu } from './otakudesu'
 import { sokuja } from './sokuja'
-import type { AnimeSource, EpisodeData, ScrapedAnimeDetail, SourceEffect } from './types'
+import type { AnimeSource, EpisodeData, SourceEffect } from './types'
 import { ylnime } from './ylnime'
 
 const sources: Record<string, AnimeSource> = {
@@ -36,12 +36,6 @@ export function splitSource(slug: string): { source: AnimeSource; rest: string }
   const rest = slug.slice(index + 1)
   if (!source || !rest) return null
   return { source, rest }
-}
-
-export function scrapeAnimeDetailFresh(slug: string): SourceEffect<ScrapedAnimeDetail | null> {
-  const split = splitSource(slug)
-  if (!split) return Effect.succeed(null)
-  return split.source.detailFresh(split.rest)
 }
 
 export function scrapeEpisode(slug: string): SourceEffect<EpisodeData | null> {

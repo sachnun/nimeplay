@@ -68,7 +68,7 @@ function translateChunkWithRetry(texts: string[], options: ResolvedOptions): Eff
   )
 }
 
-export async function translateMany(texts: string[], options: TranslateOptions = {}): Promise<(string | null)[]> {
+async function translateMany(texts: string[], options: TranslateOptions = {}): Promise<(string | null)[]> {
   const resolved = resolveOptions(options)
   const chunks: string[][] = []
   for (let i = 0; i < texts.length; i += resolved.chunkSize) {

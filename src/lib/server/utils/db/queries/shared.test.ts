@@ -30,7 +30,9 @@ describe('formatSeason', () => {
 })
 
 function renderStatus(status: 'ONGOING' | 'COMPLETED'): string {
-  return new PgDialect().sqlToQuery(statusCondition(status)).sql
+  const condition = statusCondition(status)
+  if (!condition) throw new Error('Expected status condition to be defined')
+  return new PgDialect().sqlToQuery(condition).sql
 }
 
 describe('statusCondition', () => {

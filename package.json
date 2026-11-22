@@ -2,7 +2,7 @@
   "name": "nimeplay",
   "type": "module",
   "private": true,
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.5",
   "imports": {
     "#lib": "./src/lib/index.ts",
     "#lib/*": "./src/lib/*"
@@ -23,31 +23,31 @@
     "workerd"
   ],
   "dependencies": {
-    "@effect/platform-bun": "^4.0.4",
+    "@effect/platform-bun": "^4.1.5",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/geist-sans": "^5.3.0",
-    "@neondatabase/serverless": "^1.2.0",
+    "@neondatabase/serverless": "^1.2.1",
     "aws4fetch": "^1.0.20",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.4",
-    "effect": "^4.0.4",
+    "effect": "^4.1.5",
     "google-translate-api-x": "10.7.3",
-    "hls.js": "^1.7.3",
+    "hls.js": "^1.7.4",
     "idb": "^8.0.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@sveltejs/adapter-cloudflare": "^8.0.0",
-    "@sveltejs/kit": "^3.0.1",
+    "@sveltejs/adapter-cloudflare": "^9.0.0",
+    "@sveltejs/kit": "^3.4.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/bun": "^1.4.3",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/bun": "^1.4.5",
     "drizzle-kit": "^0.31.11",
-    "oxlint": "1.88.0",
-    "svelte": "^5.57.2",
-    "svelte-check": "^4.7.6",
-    "vite": "^8.3.4",
-    "wrangler": "^4.150.0",
-    "typescript": "^6.0.3"
+    "oxlint": "^1.94.0",
+    "svelte": "^5.59.1",
+    "svelte-check": "^4.7.8",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.8",
+    "wrangler": "^4.166.0"
   }
 }

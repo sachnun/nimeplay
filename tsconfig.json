@@ -18,7 +18,6 @@
   },
   "include": [
     "src",
-    "test",
     "scripts",
     "drizzle.config.ts",
     "vite.config.ts",

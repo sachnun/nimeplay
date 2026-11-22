@@ -1,9 +1,6 @@
 import { SvelteMap } from 'svelte/reactivity'
 import { getContinueWatching } from '#lib/storage'
 
-export type { WatchProgress } from '#lib/storage'
-export { progressKey } from '#lib/storage'
-
 interface ProgressEntry {
   malId: number
   episodeNumber: number

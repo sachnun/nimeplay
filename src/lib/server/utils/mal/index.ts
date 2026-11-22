@@ -60,10 +60,6 @@ export function searchMalAnimeEntriesEffect(query: string): Effect.Effect<MalSea
   })
 }
 
-export function searchMalAnimeEntries(query: string): Promise<MalSearchEntry[]> {
-  return runAniList(searchMalAnimeEntriesEffect(query))
-}
-
 function mediaByTitle(malId: number, title: string | undefined): Effect.Effect<AniListMedia | null, never, AniList> {
   return Effect.gen(function* () {
     if (!title) return null

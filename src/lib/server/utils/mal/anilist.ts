@@ -68,7 +68,7 @@ export class AniListTransport extends Context.Service<
   }
 >()('app/AniListTransport') {}
 
-export const AniListTransportLive = Layer.succeed(
+const AniListTransportLive = Layer.succeed(
   AniListTransport,
   AniListTransport.of({
     graphql: (query, variables) =>

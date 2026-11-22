@@ -6,7 +6,7 @@ const VERBOSE = process.env.LOG_VERBOSE !== '0'
 const ACTIONS = process.env.GITHUB_ACTIONS === 'true'
 const COLOR = ACTIONS || Boolean(process.stdout.isTTY)
 
-export const CODES: Record<Level, number> = { info: 36, ok: 32, warn: 33, error: 31 }
+const CODES: Record<Level, number> = { info: 36, ok: 32, warn: 33, error: 31 }
 
 export function emit(level: Level, message: string, fields?: Fields): void {
   if (!VERBOSE && level === 'info') return
@@ -26,8 +26,4 @@ export function ok(message: string, fields?: Fields): void {
 
 export function warn(message: string, fields?: Fields): void {
   emit('warn', message, fields)
-}
-
-export function error(message: string, fields?: Fields): void {
-  emit('error', message, fields)
 }

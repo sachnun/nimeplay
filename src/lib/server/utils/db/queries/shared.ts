@@ -20,7 +20,7 @@ export function notBlockedGenre(id: SQL): SQL {
 
 export const CATALOG_READY = sql`${anime.malId} is not null and ${playableEpisodeExists(sql`${anime.id}`)} and ${notBlockedGenre(sql`${anime.id}`)} and (${anime.status} is distinct from 'COMPLETED' or (${anime.extra} ->> 'episodeTotal') is null or ${anime.episodeCount} >= (${anime.extra} ->> 'episodeTotal')::int)`
 
-export const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
+const RECENT_EPISODE_SQL = sql`now() - interval '7 days'`
 
 export function statusCondition(status: 'ONGOING' | 'COMPLETED') {
   return status === 'COMPLETED'

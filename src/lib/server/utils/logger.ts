@@ -22,7 +22,7 @@ function render(value: unknown): string {
   }
 }
 
-export const ProjectLogger = Logger.make(({ message, logLevel }) => {
+const ProjectLogger = Logger.make(({ message, logLevel }) => {
   const text = Array.isArray(message) ? message.map(render).join(' ') : render(message)
   emit(LEVELS[String(logLevel).toLowerCase()] ?? 'info', text)
 })
